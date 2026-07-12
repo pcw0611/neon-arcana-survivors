@@ -1,0 +1,94 @@
+import { getD1 } from "../../../db";
+
+type SubmittedScore = {
+  player?: unknown;
+  kills?: unknown;
+  level?: unknown;
+  duration?: unknown;
+  victory?: unknown;
+};
+
+const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS leaderboard_scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  player TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  kills INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  duration INTEGER NOT NULL,
+  victory INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`;
+const CREATE_INDEX = `CREATE INDEX IF NOT EXISTS leaderboard_score_idx
+  ON leaderboard_scores (score DESC, created_at ASC)`;
+
+async function ensureSchema(database: D1Database) {
+  await database.batch([
+    database.prepare(CREATE_TABLE),
+    database.prepare(CREATE_INDEX),
+  ]);
+}
+
+async function topScores(database: D1Database) {
+  const result = await database.prepare(
+    `SELECT id, player, score, kills, level, duration, victory, created_at AS createdAt
+     FROM leaderboard_scores
+     ORDER BY score DESC, duration DESC, created_at ASC
+     LIMIT 10`,
+  ).all();
+  return result.results;
+}
+
+function integer(value: unknown, min: number, max: number): number {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : min;
+}
+
+export async function GET() {
+  try {
+    const database = getD1();
+    await ensureSchema(database);
+    return Response.json({ scores: await topScores(database) });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Leaderboard unavailable" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as SubmittedScore;
+    const player = String(body.player ?? "")
+      .trim()
+      .replace(/[^0-9A-Za-z가-힣_\- ]/g, "")
+      .slice(0, 12);
+    if (player.length < 2) {
+      return Response.json({ error: "Nickname must be 2-12 characters" }, { status: 400 });
+    }
+
+    const kills = integer(body.kills, 0, 10000);
+    const level = integer(body.level, 1, 100);
+    const duration = integer(body.duration, 0, 180);
+    const victory = body.victory === true;
+    const score = kills * 10 + level * 120 + duration * 4 + (victory ? 2500 : 0);
+    const database = getD1();
+    await ensureSchema(database);
+    const insert = await database.prepare(
+      `INSERT INTO leaderboard_scores (player, score, kills, level, duration, victory)
+       VALUES (?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+    ).bind(player, score, kills, level, duration, victory ? 1 : 0).first<{ id: number }>();
+    const rank = await database.prepare(
+      `SELECT COUNT(*) + 1 AS rank FROM leaderboard_scores
+       WHERE score > ? OR (score = ? AND id < ?)`,
+    ).bind(score, score, insert?.id ?? 0).first<{ rank: number }>();
+
+    return Response.json({ score, rank: rank?.rank ?? null, scores: await topScores(database) }, { status: 201 });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Score submission failed" },
+      { status: 500 },
+    );
+  }
+}
