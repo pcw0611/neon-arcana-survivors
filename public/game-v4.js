@@ -11,11 +11,12 @@ const ui = {
   hud: $('#hud'), xp: $('#xpbar'), lv: $('#lv'), hp: $('#hp'), kills: $('#kills'),
   clock: $('#clock'), sound: $('#sound'), build: $('#build'), radar: $('#radarLabel'),
   start: $('#start'), choices: $('#choices'), cards: $('#cards'), over: $('#over'),
-  bossHud: $('#bossHud'), bossName: $('#bossName'), bossBar: $('#bossBar'),
+  bossHud: $('#bossHud'), bossName: $('#bossName'), bossTimer: $('#bossTimer'), bossBar: $('#bossBar'),
   warning: $('#warning'), startRanks: $('#startRanks'), finalRanks: $('#finalRanks'),
   finalScore: $('#finalScore'), playerName: $('#playerName'), relicTray: $('#relicTray'),
   relicDetails: $('#relicDetails'), relicSlots: $('#relicSlots'), relicScreen: $('#relicScreen'), relicTitle: $('#relicTitle'),
   relicSub: $('#relicSub'), relicNew: $('#relicNew'), relicCards: $('#relicCards'),
+  codexButton: $('#codexButton'), codexScreen: $('#codexScreen'), codexClose: $('#codexClose'), codexGrid: $('#codexGrid'),
 };
 
 const images = {
@@ -166,7 +167,7 @@ const upgrades = [
   { id: 'orbit_range', icon: '◎', name: '이중 공전면', desc: '공전 반경 +16, 위성 피해 +10%', max: 4, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitRadius += 16; s.orbitDamage *= 1.1; } },
   { id: 'orbit_shock', icon: '✹', name: '초신성 방전', desc: '위성 명중 시 12% 확률로 범위 방전', max: 4, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitShock += .12; } },
   { id: 'orbit_pulse', icon: '◌', name: '맥동 성환', desc: '주기적으로 모든 위성이 충격파 방출', max: 3, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitPulse++; } },
-  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '초근접 광선검 개방 또는 피해 +32%', max: 6, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.32; } },
+  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '광검 피해 +36%', max: 6, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.36; } },
   { id: 'saber_reach', icon: '⌒', name: '월광 검로', desc: '광검 사거리 +20, 베기 각도 확대', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRange += 20; s.saberArc += .14; } },
   { id: 'saber_haste', icon: '≪', name: '찰나 발도', desc: '광검 공격 간격 17% 감소', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRate = Math.max(.22, s.saberRate * .83); } },
   { id: 'saber_echo', icon: '〽', name: '잔상 연격', desc: '광검 추가 잔상 베기 +1', max: 3, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberEcho++; } },
@@ -216,8 +217,59 @@ const relics = [
 
 const relicById = new Map(relics.map(relic => [relic.id, relic]));
 const upgradeById = new Map(upgrades.map(upgrade => [upgrade.id, upgrade]));
+const masterySpecs = {
+  projectile: { id: 'multishot', label: '성좌포', interval: 9.5, note: '주기적으로 화면을 가르는 관통 성좌 레이저를 발사합니다.' },
+  saber: { id: 'saber', label: '아스트랄 광검', interval: 7.5, note: '주기적으로 전방위를 베는 황금 휠윈드를 발동합니다.' },
+  orbit: { id: 'orbit', label: '수호 위성', interval: 10.5, note: '위성들이 적을 추격해 폭발한 뒤 다시 복귀합니다.' },
+};
 const hasRelic = (id) => Boolean(S?.relics.some(relic => relic.id === id));
 const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
+
+function upgradeDescription(upgrade, rank = 0) {
+  if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
+  if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 빌드 개방 · 기본 베기 피해 대폭 증가' : '광검 피해 +36%';
+  if (upgrade.id === 'multishot') return rank === 0 ? '성좌탄 +1 · 투사체 집중 빌드 개방' : '동시에 발사하는 성좌탄 +1';
+  return upgrade.desc;
+}
+
+function masteryBuildForUpgrade(id) {
+  return Object.keys(masterySpecs).find(build => masterySpecs[build].id === id);
+}
+
+function isMastered(build, state = S) {
+  const spec = masterySpecs[build], upgrade = spec && upgradeById.get(spec.id);
+  return Boolean(upgrade && (state?.ranks[spec.id] || 0) >= upgrade.max);
+}
+
+const percentGain = (factor, level) => Math.round((Math.pow(factor, level) - 1) * 100);
+const killInterval = (base, level) => Math.max(3, Math.ceil(base / (1 + (level - 1) * .35)));
+
+function relicEffectText(relic, requestedLevel = relic?.level || 1) {
+  const level = Math.max(1, requestedLevel || 1), healBonus = Math.floor((level - 1) / 2);
+  const effects = {
+    arc_cell: () => `모든 공격 피해 +${percentGain(1.15, level)}%`,
+    blood_cap: () => `최대 체력 +${12 * level} · 최초 획득 시 12 회복`,
+    magnet_prism: () => `흡수 범위 +${percentGain(1.3, level)}% · 경험치 +${percentGain(1.1, level)}%`,
+    hunter_lens: () => `치명타 +${8 * level}%p · 치명 피해 +${(0.2 * level).toFixed(1)}`,
+    split_core: () => `${Math.max(2, 5 - level)}번째 일제사격마다 투사체 +${2 + Math.floor((level - 1) / 2)}`,
+    orbit_gear: () => `위성 +${level} · 속도/피해 +${percentGain(1.3, level)}%`,
+    edge_lens: () => `광검 피해 +${percentGain(1.45, level)}% · 사거리 +${18 * level}`,
+    nano_shunt: () => `재생 +${(0.45 * level).toFixed(2)} · ${killInterval(20, level)}킬마다 ${3 + healBonus} 회복`,
+    execution: () => `일반 적 체력 ${Math.min(35, 12 + level * 4)}% 미만 즉시 처형`,
+    echo_chamber: () => `${Math.max(3, 7 - level)}번째 일제사격을 ${Math.min(100, 65 + level * 10)}% 피해로 반복`,
+    gravity_halo: () => `반경 ${260 + level * 12} 내 일반 적 ${Math.min(52, 18 + level * 6)}% 감속`,
+    soul_battery: () => `모든 피해 +${percentGain(1.12, level)}% · ${killInterval(12, level)}킬마다 ${2 + healBonus} 회복`,
+    event_horizon: () => `위성 +${2 * level} · 크기 +${percentGain(1.45, level)}% · 피해 +${percentGain(1.7, level)}% · 충격파 LV.${level}`,
+    zero_edge: () => `광검 피해 +${percentGain(1.8, level)}% · 간격 ${Math.round((1 - Math.pow(.75, level)) * 100)}% 감소 · 잔상 +${level}`,
+    phoenix: () => `최대 체력 +${10 * level} · ${level}회 부활 · 체력 ${Math.min(70, 35 + level * 5)}% 복구`,
+    rift_crown: () => `모든 피해 +${percentGain(1.35, level)}% · 경험치 +${percentGain(1.25, level)}%`,
+    singularity: () => `모든 피해 +${percentGain(1.6, level)}% · 각 빌드 피해 +${percentGain(1.25, level)}%`,
+    immortal: () => `최대 체력 +${30 * level} · 재생 +${level} · ${killInterval(8, level)}킬마다 ${2 + healBonus} 회복`,
+    godspeed: () => `이동 +${percentGain(1.25, level)}% · 공격 간격 ${Math.round((1 - Math.pow(.8, level)) * 100)}% 감소 · 위성 속도 +${percentGain(1.5, level)}%`,
+    midas: () => `그렘린 간격 ${Math.round((1 - Math.pow(.55, level)) * 100)}% 감소 · 유물 등급 보정 +${level}`,
+  };
+  return effects[relic?.id]?.() || relic?.desc || '';
+}
 
 function relicKillTick(state, id, interval, heal) {
   const level = state.relics.find(relic => relic.id === id)?.level || 1;
@@ -239,20 +291,22 @@ function fresh() {
     blast: 0, blastDamage: .35, chain: 0, chainDamage: .28, shotScale: 1,
     orbitals: 0, orbitSpeed: 2.5, orbitRadius: 78, orbitSize: 1, orbitDamage: .72,
     orbitCooldown: .45, orbitShock: 0, orbitPulse: 0, orbitPulseClock: 4,
-    saberLevel: 0, saberDamage: 1.8, saberRange: 118, saberArc: 1.38,
+    saberLevel: 0, saberDamage: 2.3, saberRange: 118, saberArc: 1.38,
     saberRate: 1.02, saberClock: 0, saberEcho: 0, saberGuard: 0, saberActive: 0,
     magnet: 280, magnetMult: 1, regen: 0, guard: 0, xpGain: 1,
-    shotClock: 0, spawnClock: 0, healClock: 0, time: 0, xp: 0, nextXp: 5,
+    shotClock: 0, spawnClock: 0, healClock: 0, time: 0, xp: 0, nextXp: 8,
     level: 1, kills: 0, bossesKilled: 0, inv: 0, moving: false, paused: false,
     over: false, victory: false, submitted: false, score: 0, volleyCount: 0,
-    mobs: [], shots: [], delayedVolleys: [], enemyShots: [], hazards: [], gems: [],
-    chests: [], effects: [], particles: [], ranks: {}, orbitHits: new Map(),
+    mobs: [], mobGrid: new Map(), shots: [], delayedVolleys: [], enemyShots: [], hazards: [], gems: [],
+    chests: [], effects: [], particles: [], ranks: {},
     rewardQueue: [], activeReward: null, relics: [], acquiredRelics: new Set(), relicSlots: 3, rarityBias: 0,
     relicRoulette: false, relicAwaitDismiss: false, relicResultMessage: '',
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
-    nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false,
+    nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false, bossFailures: 0,
     nextWorldEvent: random(58, 72), worldEventIndex: 0, slotPity: 0,
     shake: 0, relicUses: {}, temporarySpeed: 1, temporarySpeedClock: 0,
+    masteryClocks: { projectile: 8, saber: 6, orbit: 9 }, orbitAssault: null,
+    codexOpen: false, codexWasPaused: false,
   };
 }
 
@@ -301,15 +355,10 @@ async function submitScore() {
 async function begin() {
   await AudioEngine.init(); AudioEngine.scene('battle');
   S = fresh(); running = true; chosen = [];
-  ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden');
+  ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden');
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
-  const openingOffset = Math.random() * TAU;
-  for (let i = 0; i < 32; i++) {
-    const angle = openingOffset + i * TAU / 32;
-    spawnEnemy(innerWidth, innerHeight, { angle, distance: edgeSpawnDistance(innerWidth, innerHeight, angle, 42), ignoreCap: true });
-  }
-  S.spawnClock = .28;
+  S.spawnClock = 0;
 }
 
 function endGame() {
@@ -395,8 +444,9 @@ function openLevelChoices() {
   chosen = out; ui.cards.innerHTML = '';
   out.forEach((upgrade, index) => {
     const rank = S.ranks[upgrade.id] || 0, button = document.createElement('button');
-    button.className = 'choice';
-    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgrade.name}</strong><small>${upgrade.desc}</small><em>RANK ${rank} → ${rank + 1} · [${index + 1}]</em>`;
+    const build = masteryBuildForUpgrade(upgrade.id), awakening = Boolean(build && rank + 1 === upgrade.max);
+    button.className = `choice${awakening ? ' mastery-ready' : ''}`;
+    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgrade.name}</strong><small>${upgradeDescription(upgrade, rank)}${awakening ? `<br><b style="color:#ffd965">MAX 특수 효과: ${masterySpecs[build].note}</b>` : ''}</small><em>${awakening ? 'MAX LV · MASTERY' : `RANK ${rank} → ${rank + 1}`} · [${index + 1}]</em>`;
     button.onclick = () => choose(index); ui.cards.appendChild(button);
   });
   S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); ui.choices.classList.remove('hidden');
@@ -406,6 +456,10 @@ function choose(index) {
   if (!S?.paused || S.activeReward?.type !== 'level') return;
   const upgrade = chosen[index]; if (!upgrade) return;
   upgrade.apply(S); S.ranks[upgrade.id] = (S.ranks[upgrade.id] || 0) + 1;
+  const masteredBuild = masteryBuildForUpgrade(upgrade.id);
+  if (masteredBuild && isMastered(masteredBuild)) {
+    S.masteryClocks[masteredBuild] = .35; showWarning(`${masterySpecs[masteredBuild].label} · MAX MASTERY`); AudioEngine.se('relic');
+  }
   effect('level', S.x, S.y, { life: .85, max: .85 });
   ui.choices.classList.add('hidden'); AudioEngine.se('select'); finishReward(`${upgrade.icon} ${upgrade.name}  RANK ${S.ranks[upgrade.id]}`);
 }
@@ -455,7 +509,7 @@ function relicOptions(reward) {
 function relicCard(relic, action, label = '장착') {
   const rarity = rarities[relic.rarity], button = document.createElement('button');
   button.className = 'relic-card'; button.style.setProperty('--rarity', rarity.color);
-  button.innerHTML = `<span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name}</strong><small>${relic.desc}</small><em>${label}</em>`;
+  button.innerHTML = `<span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name}</strong><small>${relicEffectText(relic)}</small><em>${label}</em>`;
   button.onclick = action; return button;
 }
 
@@ -488,7 +542,7 @@ function openRelicReward(reward) {
   const spin = () => {
     const preview = tick >= 18 ? result : relics[Math.floor(Math.random() * relics.length)];
     const rarity = rarities[preview.rarity], currentLevel = relicLevel(preview.id);
-    ui.relicCards.innerHTML = `<div class="relic-card" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:default"><span class="relic-icon">${preview.icon}</span><span class="rarity">${tick >= 18 ? rarity.name : 'SEARCHING'} RELIC</span><strong>${preview.name}</strong><small>${tick >= 18 ? preview.desc : '공명 주파수 탐색 중…'}</small><em>${tick >= 18 ? (currentLevel ? `LV.${currentLevel} → LV.${currentLevel + 1}` : 'NEW RELIC') : '◈ ◇ ◈'}</em></div>`;
+    ui.relicCards.innerHTML = `<div class="relic-card" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:default"><span class="relic-icon">${preview.icon}</span><span class="rarity">${tick >= 18 ? rarity.name : 'SEARCHING'} RELIC</span><strong>${preview.name}</strong><small>${tick >= 18 ? relicEffectText(preview, currentLevel + 1) : '공명 주파수 탐색 중…'}</small><em>${tick >= 18 ? (currentLevel ? `LV.${currentLevel} → LV.${currentLevel + 1}` : 'NEW RELIC') : '◈ ◇ ◈'}</em></div>`;
     if (tick < 18) { tick++; AudioEngine.se('reel'); setTimeout(spin, 45 + tick * 5); }
     else { AudioEngine.se('relic'); setTimeout(() => awardRelic(result), 520); }
   };
@@ -513,7 +567,7 @@ function showRelicResult(relic, message, upgraded) {
   S.relicRoulette = false; S.relicAwaitDismiss = true; S.relicResultMessage = message;
   ui.relicTitle.textContent = upgraded ? '유물 레벨 업!' : '새 유물 획득!';
   ui.relicSub.textContent = '효과를 확인한 뒤 화면을 터치하거나 아무 키를 눌러 계속하세요';
-  ui.relicCards.innerHTML = `<div class="relic-card result-ready" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:pointer"><span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name} · LV.${relic.level || 1}</strong><small>${relic.desc}</small><em>TAP / PRESS KEY</em></div>`;
+  ui.relicCards.innerHTML = `<div class="relic-card result-ready" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:pointer"><span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name} · LV.${relic.level || 1}</strong><small>${relicEffectText(relic)}</small><em>TAP / PRESS KEY</em></div>`;
 }
 
 function dismissRelicResult() {
@@ -539,7 +593,7 @@ function selectRelic(index) {
 function renderRelicReplacement(candidate) {
   const rarity = rarities[candidate.rarity];
   ui.relicTitle.textContent = '유물 슬롯 초과'; ui.relicSub.textContent = '교체할 기존 유물을 선택하거나 신규 유물을 분해하세요';
-  ui.relicNew.innerHTML = `<div class="relic-new" style="--rarity:${rarity.color}">신규 <b>${rarity.name} · ${candidate.icon} ${candidate.name}</b> — ${candidate.desc}</div>`;
+  ui.relicNew.innerHTML = `<div class="relic-new" style="--rarity:${rarity.color}">신규 <b>${rarity.name} · ${candidate.icon} ${candidate.name}</b> — ${relicEffectText(candidate)}</div>`;
   ui.relicCards.innerHTML = '';
   S.relics.forEach((old, index) => ui.relicCards.appendChild(relicCard(old, () => previewRelicReplacement(index, candidate), `[${index + 1}] 교체 후보`)));
   const salvage = document.createElement('button'); salvage.className = 'relic-card salvage';
@@ -553,7 +607,7 @@ function renderRelicReplacement(candidate) {
 function previewRelicReplacement(index, candidate) {
   const old = S.relics[index], oldRarity = rarities[old.rarity], newRarity = rarities[candidate.rarity]; S.relicReplaceIndex = index;
   ui.relicTitle.textContent = '유물 교체 확인'; ui.relicSub.textContent = '효과를 비교한 뒤 교체를 확정하세요';
-  ui.relicNew.innerHTML = `<div class="relic-new" style="--rarity:${newRarity.color}">OLD <b style="color:${oldRarity.color}">${old.icon} ${old.name}</b> — ${old.desc}<br>NEW <b>${candidate.icon} ${candidate.name}</b> — ${candidate.desc}</div>`;
+  ui.relicNew.innerHTML = `<div class="relic-new" style="--rarity:${newRarity.color}">OLD <b style="color:${oldRarity.color}">${old.icon} ${old.name}</b> — ${relicEffectText(old)}<br>NEW <b>${candidate.icon} ${candidate.name}</b> — ${relicEffectText(candidate)}</div>`;
   ui.relicCards.innerHTML = '';
   ui.relicCards.appendChild(relicCard(candidate, () => replaceRelic(index, candidate), '교체 확정 · ENTER'));
   const cancel = document.createElement('button'); cancel.className = 'relic-card salvage';
@@ -569,7 +623,7 @@ function equipRelic(relic) {
 
 function replaceRelic(index, candidate) {
   const old = S.relics[index], first = !S.acquiredRelics.has(candidate.id); S.acquiredRelics.add(candidate.id);
-  old.unequip(S); S.relics[index] = candidate; candidate.equip(S, first);
+  for (let level = 0; level < (old.level || 1); level++) old.unequip(S); const instance = { ...candidate, level: 1 }; S.relics[index] = instance; instance.equip(S, first);
   effect('relic', S.x, S.y, { life: 1.1, max: 1.1, color: rarities[candidate.rarity].color });
   updateRelicTray(); finishReward(`${old.name} → ${candidate.name}`);
 }
@@ -589,21 +643,51 @@ function finishReward(message) {
 
 function updateBuild() {
   ui.build.innerHTML = Object.entries(S.ranks).map(([id, rank]) => {
-    const upgrade = upgradeById.get(id); return upgrade ? `<span>${upgrade.icon} ${upgrade.name} ${rank}</span>` : '';
+    const upgrade = upgradeById.get(id), build = masteryBuildForUpgrade(id), mastered = Boolean(build && isMastered(build));
+    return upgrade ? `<span class="${mastered ? 'mastered' : ''}">${upgrade.icon} ${upgrade.name} ${mastered ? 'MAX LV' : rank}</span>` : '';
   }).join('');
 }
 
 function updateRelicTray() {
   ui.relicDetails.innerHTML = S.relics.length ? S.relics.map(relic => {
     const rarity = rarities[relic.rarity];
-    return `<div class="relic-detail" style="--rarity:${rarity.color}"><b>${relic.icon} ${relic.name} <em>LV.${relic.level || 1}</em></b><span>${relic.desc}</span></div>`;
+    return `<div class="relic-detail" style="--rarity:${rarity.color}"><b>${relic.icon} ${relic.name} <em>LV.${relic.level || 1}</em></b><span>${relicEffectText(relic)}</span></div>`;
   }).join('') : '<div class="relic-detail empty"><b>장착 유물 없음</b><span>보스와 잭팟 그렘린을 사냥하세요</span></div>';
   ui.relicSlots.innerHTML = '';
   for (let i = 0; i < S.relicSlots; i++) {
     const relic = S.relics[i], slot = document.createElement('span'); slot.className = `relic-slot${relic ? '' : ' empty'}`;
-    slot.innerHTML = relic ? `${relic.icon}<small>LV.${relic.level || 1}</small>` : '＋'; slot.title = relic ? `${rarities[relic.rarity].name} · ${relic.name} LV.${relic.level || 1}: ${relic.desc}` : '빈 유물 슬롯';
+    slot.innerHTML = relic ? `${relic.icon}<small>LV.${relic.level || 1}</small>` : '＋'; slot.title = relic ? `${rarities[relic.rarity].name} · ${relic.name} LV.${relic.level || 1}: ${relicEffectText(relic)}` : '빈 유물 슬롯';
     if (relic) slot.style.setProperty('--rarity', rarities[relic.rarity].color); ui.relicSlots.appendChild(slot);
   }
+}
+
+function renderCodex(tab = 'builds') {
+  document.querySelectorAll('[data-codex]').forEach(button => button.classList.toggle('active', button.dataset.codex === tab));
+  if (tab === 'relics') {
+    ui.codexGrid.innerHTML = relics.map(relic => {
+      const owned = S?.relics.find(item => item.id === relic.id), level = owned?.level || 1, rarity = rarities[relic.rarity];
+      return `<article class="codex-entry${owned ? '' : ' locked'}" style="--rarity:${rarity.color}"><header><span>${relic.icon} ${relic.name}</span><em>${owned ? `보유 LV.${level}` : rarity.name}</em></header><p>${relicEffectText(relic, level)}</p></article>`;
+    }).join('');
+    return;
+  }
+  ui.codexGrid.innerHTML = upgrades.filter(upgrade => !upgrade.id.startsWith('limit_')).map(upgrade => {
+    const rank = S?.ranks[upgrade.id] || 0, build = masteryBuildForUpgrade(upgrade.id), mastered = Boolean(build && S && isMastered(build));
+    const status = mastered ? 'MAX LV' : `LV.${rank}/${upgrade.max}`;
+    const mastery = build ? `<p class="master-note">MAX 특수 효과 · ${masterySpecs[build].note}</p>` : '';
+    return `<article class="codex-entry${mastered ? ' mastered' : rank ? '' : ' locked'}"><header><span>${upgrade.icon} ${upgrade.name}</span><em>${status}</em></header><p>${upgradeDescription(upgrade, rank)}</p>${mastery}</article>`;
+  }).join('');
+}
+
+function openCodex() {
+  if (S?.activeReward) { showToast('보상 선택을 먼저 완료하세요'); return; }
+  if (S) { S.codexWasPaused = S.paused; S.paused = true; S.codexOpen = true; }
+  renderCodex('builds'); ui.codexScreen.classList.remove('hidden'); AudioEngine.scene('choice');
+}
+
+function closeCodex() {
+  ui.codexScreen.classList.add('hidden');
+  if (S) { S.paused = S.codexWasPaused; S.codexOpen = false; }
+  AudioEngine.scene(S && running && !S.over ? 'battle' : 'menu');
 }
 
 function showToast(text) {
@@ -620,19 +704,22 @@ function damageFlash() {
 }
 
 function effect(type, x, y, extra = {}) {
-  if (S.effects.length >= 220 && type === 'hit') return;
-  if (S.effects.length >= 280) S.effects.shift();
+  const crowded = S.mobs.length > 90;
+  if (S.effects.length >= (crowded ? 90 : 180) && type === 'hit') return;
+  if (S.effects.length >= (crowded ? 150 : 240)) S.effects.shift();
   S.effects.push({ type, x, y, life: .35, max: .35, ...extra });
 }
 function burst(x, y, color, count = 8, speed = 150) {
-  for (let i = 0; i < count && S.particles.length < 260; i++) {
+  const cap = S.mobs.length > 90 ? 130 : 220;
+  for (let i = 0; i < count && S.particles.length < cap; i++) {
     const angle = Math.random() * TAU, velocity = random(speed * .35, speed);
     S.particles.push({ x, y, vx: Math.cos(angle) * velocity, vy: Math.sin(angle) * velocity, life: random(.22, .55), max: .55, color, size: random(1.5, 4) });
   }
 }
 
 function resize() {
-  const dpr = Math.min(devicePixelRatio, innerWidth < 760 ? 1.5 : 2); canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+  const pixelBudget = 3000000, budgetDpr = Math.sqrt(pixelBudget / Math.max(1, innerWidth * innerHeight));
+  const dpr = Math.max(.75, Math.min(devicePixelRatio, innerWidth < 760 ? 1.35 : 1.5, budgetDpr)); canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
   canvas.style.width = `${innerWidth}px`; canvas.style.height = `${innerHeight}px`; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 resize(); addEventListener('resize', resize);
@@ -640,6 +727,7 @@ resize(); addEventListener('resize', resize);
 addEventListener('keydown', event => {
   AudioEngine.resume(); const key = event.key.toLowerCase(); keys.add(key);
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
+  if (key === 'escape' && S?.codexOpen) { keys.delete(key); closeCodex(); return; }
   if (key === 'm') toggleSound();
   if (S?.paused && S.relicAwaitDismiss) { keys.delete(key); dismissRelicResult(); return; }
   if (S?.paused && ['1', '2', '3'].includes(key)) {
@@ -673,10 +761,12 @@ canvas.addEventListener('pointercancel', () => { joy.on = false; joy.x = joy.y =
 
 function toggleSound() { const on = AudioEngine.toggle(); ui.sound.textContent = on ? 'SOUND ON' : 'MUTED'; }
 ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin;
+ui.codexButton.onclick = openCodex; ui.codexClose.onclick = closeCodex;
+document.querySelectorAll('[data-codex]').forEach(button => button.onclick = () => renderCodex(button.dataset.codex));
 
 function difficultyScale() {
   const time = S.time;
-  return 1 + time / 170 + Math.pow(time / 420, 1.35);
+  return (1 + time / 170 + Math.pow(time / 420, 1.35)) * (1 + S.bossFailures * .1);
 }
 
 function edgeSpawnDistance(W, H, angle, padding = 76) {
@@ -689,31 +779,35 @@ function enemyDamageScale() { return 1 + Math.floor(S.time / 165); }
 
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
+  const warder = time > 70 ? Math.min(S.saberLevel ? .13 : .08, (time - 70) / 850) : 0;
   const bomber = time > 300 ? Math.min(.09, (time - 300) / 2400) : 0;
   const splitter = time > 190 ? Math.min(.11, (time - 190) / 1700) : 0;
   const charger = time > 105 ? Math.min(.15, (time - 105) / 1150) : 0;
   const gunner = time > 52 ? Math.min(.19, (time - 52) / 850) : 0;
-  if (roll < bomber) return 'bomber';
-  if (roll < bomber + splitter) return 'splitter';
-  if (roll < bomber + splitter + charger) return 'charger';
-  if (roll < bomber + splitter + charger + gunner) return 'gunner';
+  if (roll < warder) return 'warder';
+  if (roll < warder + bomber) return 'bomber';
+  if (roll < warder + bomber + splitter) return 'splitter';
+  if (roll < warder + bomber + splitter + charger) return 'charger';
+  if (roll < warder + bomber + splitter + charger + gunner) return 'gunner';
   return 'stalker';
 }
 
 function spawnEnemy(W, H, options = {}) {
-  if (S.mobs.length >= 230) return;
-  const cap = Math.min(210, 96 + Math.floor(S.time * .16));
+  if (S.mobs.length >= 210) return;
+  const cap = Math.min(190, 78 + Math.floor(S.time * .15));
   if (!options.ignoreCap && S.mobs.filter(mob => mob.kind === 'mob').length >= cap) return;
-  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(34, 68));
+  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(90, 150));
   const eliteChance = clamp((S.time - 20) / 620, 0, .48), elite = options.elite ?? Math.random() < eliteChance;
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
-  const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.3 }[archetype];
+  const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.3, warder: 1.35 }[archetype];
   const hp = Math.ceil(baseHp * archetypeHp * (elite ? 2.8 : 1) * (options.child ? .42 : 1));
-  const baseSpeed = Math.min(150, 61 + S.time * .075) * (options.child ? 1.18 : 1);
+  const archetypeSpeed = archetype === 'warder' ? .82 : 1;
+  const baseSpeed = Math.min(150, 61 + S.time * .075) * (options.child ? 1.18 : 1) * archetypeSpeed;
   S.mobs.push({
     kind: 'mob', archetype, x: options.x ?? S.x + Math.cos(angle) * distance,
     y: options.y ?? S.y + Math.sin(angle) * distance, r: options.child ? 13 : elite ? 28 : 18 + Math.random() * 5,
-    hp, maxHp: hp, speed: baseSpeed * (elite ? .86 : 1), damage: enemyDamageScale() * .68 + (elite ? .9 : 0),
+    hp, maxHp: hp, shield: archetype === 'warder' ? Math.ceil(hp * .75) : 0, maxShield: archetype === 'warder' ? Math.ceil(hp * .75) : 0,
+    speed: baseSpeed * (elite ? .86 : 1), damage: enemyDamageScale() * .52 + (elite ? .75 : 0),
     elite, child: Boolean(options.child), slow: 0, frozen: 0, phase: Math.random() * 2 | 0,
     id: Math.random(), age: 0, state: 'move', stateClock: random(2.4, 4.5), shootClock: random(1.4, 3.4),
     specialClock: random(2.8, 5.2), vx: 0, vy: 0, facing: 1, hitFlash: 0,
@@ -747,17 +841,28 @@ function spawnBoss(W, H) {
   const modifier = ['swift', 'armored', 'unstable'][Math.random() * 3 | 0];
   const base = [0, 170, 440, 1050][tier];
   const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * (modifier === 'armored' ? 1.25 : 1));
+  const timeLimit = Math.max(30, [0, 45, 52, 60][tier] - cycle * 2);
   const boss = {
     kind: 'boss', bossType: type, tier, number, cycle, modifier, affixes: bossAffixes(number),
     x: S.x + Math.cos(angle) * distance, y: S.y + Math.sin(angle) * distance,
     r: tier === 3 ? 62 : 46, hp, maxHp: hp,
     speed: (tier === 3 ? 51 : 58) * (modifier === 'swift' ? 1.18 : 1) * Math.min(1.35, 1 + cycle * .05),
     damage: 2 + Math.floor(number / 2), elite: true, slow: 0, frozen: 0, phase: 0,
-    id: Math.random(), age: 0, patternClock: 1.15, specialClock: 3.8, affixClock: 4.5,
+    id: Math.random(), age: 0, timeLimit, deadline: S.time + timeLimit, deadlineWarned: false, patternClock: 1.15, specialClock: 3.8, affixClock: 4.5,
     state: 'move', stateClock: 0, vx: 0, vy: 0, facing: 1, hitFlash: 0,
   };
   S.mobs.push(boss); S.bossActive = boss; S.bossIndex++; S.bossWarned = false; S.nextBossAt = Infinity;
   AudioEngine.se('boss'); showWarning(tier === 3 ? `RIFT LORD #${number}` : `ANOMALY BOSS #${number}`); ui.bossHud.classList.remove('hidden');
+}
+
+function handleBossTimeout(W, H) {
+  const boss = S.bossActive; if (!boss || boss.hp <= 0) return;
+  boss.dead = true; boss.escaped = true; S.bossActive = null; S.bossFailures++;
+  S.nextBossAt = S.time + random(42, 52); S.bossWarned = false; ui.bossHud.classList.add('hidden');
+  for (let i = 0; i < 6; i++) spawnEnemy(W, H, { elite: true, ignoreCap: true });
+  effect('ring', S.x, S.y, { life: .9, max: .9, radius: 210, color: '#ff356d' }); burst(S.x, S.y, '#ff356d', 22, 260);
+  showWarning('TIME OVER · RIFT OVERLOAD'); AudioEngine.se('wave'); S.shake = 16;
+  hurtPlayer(Math.max(8, S.maxHp * .18), true);
 }
 
 function enemyBullet(x, y, angle, speed = 230, radius = 7, damage = enemyDamageScale()) {
@@ -774,6 +879,25 @@ function pointSegmentDistance(px, py, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, lengthSq = dx * dx + dy * dy || 1;
   const t = clamp(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0, 1);
   return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+const MOB_CELL_SIZE = 160;
+function mobCellKey(x, y) { return `${x},${y}`; }
+function rebuildMobGrid() {
+  S.mobGrid.clear();
+  for (const mob of S.mobs) {
+    if (mob.dead || mob.hp <= 0) continue;
+    const cellX = Math.floor(mob.x / MOB_CELL_SIZE), cellY = Math.floor(mob.y / MOB_CELL_SIZE), key = mobCellKey(cellX, cellY);
+    const bucket = S.mobGrid.get(key); if (bucket) bucket.push(mob); else S.mobGrid.set(key, [mob]);
+  }
+}
+function nearbyMobs(x, y, radius) {
+  const out = [], minX = Math.floor((x - radius) / MOB_CELL_SIZE), maxX = Math.floor((x + radius) / MOB_CELL_SIZE);
+  const minY = Math.floor((y - radius) / MOB_CELL_SIZE), maxY = Math.floor((y + radius) / MOB_CELL_SIZE);
+  for (let cellX = minX; cellX <= maxX; cellX++) for (let cellY = minY; cellY <= maxY; cellY++) {
+    const bucket = S.mobGrid.get(mobCellKey(cellX, cellY)); if (bucket) out.push(...bucket);
+  }
+  return out;
 }
 
 function angleDelta(a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b)); }
@@ -914,8 +1038,18 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
   if (mob.dead || mob.hp <= 0) return 0;
   const typeMult = kind === 'saber' ? S.saberMult : kind === 'orbit' ? S.orbitMult : S.projectileMult;
   const frozenBonus = mob.frozen > 0 ? 1.25 : 1;
-  const actual = alreadyScaled ? amount : amount * S.damageMult * typeMult * frozenBonus;
-  mob.hp -= actual; mob.hitFlash = .08;
+  let affinity = 1;
+  if (mob.kind === 'boss' && mob.modifier === 'armored') affinity = kind === 'saber' ? 1.65 : kind === 'projectile' ? .62 : .88;
+  if (mob.archetype === 'warder' && mob.shield > 0) affinity = kind === 'saber' ? 2.4 : kind === 'projectile' ? .25 : .55;
+  const actual = (alreadyScaled ? amount : amount * S.damageMult * typeMult * frozenBonus) * affinity;
+  if (mob.shield > 0) {
+    mob.shield -= actual;
+    if (mob.shield <= 0) {
+      mob.hp += Math.min(0, mob.shield); mob.shield = 0; mob.frozen = Math.max(mob.frozen, 1);
+      effect('ring', mob.x, mob.y, { life: .38, max: .38, radius: 72, color: '#64f5ff' }); burst(mob.x, mob.y, '#64f5ff', 10, 170); showToast('ARC SHIELD BREAK · SABER WEAKNESS');
+    }
+  } else mob.hp -= actual;
+  mob.hitFlash = .08;
   const executionLevel = relicLevel('execution');
   if (executionLevel && mob.kind === 'mob' && mob.hp > 0 && mob.hp / mob.maxHp < Math.min(.35, .12 + executionLevel * .04)) mob.hp = 0;
   effect('hit', mob.x, mob.y, { life: critical ? .28 : .2, max: critical ? .28 : .2, critical, kind });
@@ -929,11 +1063,11 @@ function hitMob(mob, projectile) {
   const dealt = damageMob(mob, projectile.damage, 'projectile', projectile.critical);
   AudioEngine.se('hit');
   if (S.blast > 0) {
-    for (const near of S.mobs) if (near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < S.blast) damageMob(near, dealt * S.blastDamage, 'projectile', false, true);
+    for (const near of nearbyMobs(mob.x, mob.y, S.blast + 70)) if (near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < S.blast) damageMob(near, dealt * S.blastDamage, 'projectile', false, true);
     effect('ring', mob.x, mob.y, { life: .26, max: .26, radius: S.blast, color: '#d757ff' });
   }
   if (S.chain > 0) {
-    const nearby = S.mobs.filter(near => near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < 210).sort((a, b) => Math.hypot(a.x - mob.x, a.y - mob.y) - Math.hypot(b.x - mob.x, b.y - mob.y)).slice(0, S.chain);
+    const nearby = nearbyMobs(mob.x, mob.y, 220).filter(near => near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < 210).sort((a, b) => (a.x - mob.x) ** 2 + (a.y - mob.y) ** 2 - ((b.x - mob.x) ** 2 + (b.y - mob.y) ** 2)).slice(0, S.chain);
     nearby.forEach((near, index) => {
       if (Math.hypot(near.x - mob.x, near.y - mob.y) < 210) {
         damageMob(near, dealt * S.chainDamage, 'projectile', false, true);
@@ -946,8 +1080,9 @@ function hitMob(mob, projectile) {
 
 function saberSlash() {
   if (!S.saberLevel) return;
+  const candidates = nearbyMobs(S.x, S.y, S.saberRange + 90);
   let target = null, best = Infinity;
-  for (const mob of S.mobs) {
+  for (const mob of candidates) {
     const distance = Math.hypot(mob.x - S.x, mob.y - S.y);
     if (mob.dead || distance > S.saberRange + mob.r) continue;
     const priority = mob.kind === 'treasure' ? .55 : mob.kind === 'boss' ? .72 : 1;
@@ -957,7 +1092,7 @@ function saberSlash() {
   const sweeps = 1 + S.saberEcho;
   for (let sweep = 0; sweep < sweeps; sweep++) {
     const angle = base + (sweep - (sweeps - 1) / 2) * .48;
-    for (const mob of S.mobs) {
+    for (const mob of candidates) {
       const dx = mob.x - S.x, dy = mob.y - S.y, distance = Math.hypot(dx, dy);
       if (distance <= S.saberRange + mob.r && Math.abs(angleDelta(Math.atan2(dy, dx), angle)) <= S.saberArc / 2) {
         const critical = Math.random() < S.crit; damageMob(mob, S.damage * S.saberDamage * (critical ? S.critMult : 1), 'saber', critical);
@@ -973,24 +1108,31 @@ function orbitalPose(index) {
   const lane = index % 2, radius = S.orbitRadius + lane * 17;
   const speed = S.orbitSpeed * (lane ? -.84 : 1);
   const angle = S.time * speed + index * TAU / Math.max(1, S.orbitals);
-  return { angle, radius, x: S.x + Math.cos(angle) * radius, y: S.y + Math.sin(angle) * radius };
+  const homeX = S.x + Math.cos(angle) * radius, homeY = S.y + Math.sin(angle) * radius;
+  if (!S.orbitAssault) return { angle, radius, x: homeX, y: homeY };
+  const age = S.time - S.orbitAssault.start, target = S.orbitAssault.target;
+  const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
+  const blend = age < .55 ? smooth(age / .55) : age < .72 ? 1 : smooth(1 - (age - .72) / .58);
+  const strikeAngle = index * TAU / Math.max(1, S.orbitals) + age * 4;
+  const strikeX = target.x + Math.cos(strikeAngle) * 42, strikeY = target.y + Math.sin(strikeAngle) * 42;
+  return { angle, radius, x: homeX + (strikeX - homeX) * blend, y: homeY + (strikeY - homeY) * blend };
 }
 
 function updateOrbitals(dt) {
   if (!S.orbitals) return;
   for (let i = 0; i < S.orbitals; i++) {
     const pose = orbitalPose(i), radius = 17 * S.orbitSize;
-    for (const mob of S.mobs) {
-      const key = `${mob.id}:${i}`, previous = S.orbitHits.get(key) || 0;
+    for (const mob of nearbyMobs(pose.x, pose.y, radius + 90)) {
+      mob.orbitHitAt ||= []; const previous = mob.orbitHitAt[i] || 0;
       const bladeEndX = pose.x + Math.cos(pose.angle + Math.PI / 2) * 36 * S.orbitSize;
       const bladeEndY = pose.y + Math.sin(pose.angle + Math.PI / 2) * 36 * S.orbitSize;
       const collides = i % 3 === 2
         ? pointSegmentDistance(mob.x, mob.y, pose.x, pose.y, bladeEndX, bladeEndY) < mob.r + 10 * S.orbitSize
         : Math.hypot(mob.x - pose.x, mob.y - pose.y) < mob.r + radius;
       if (mob.hp > 0 && S.time - previous > S.orbitCooldown && collides) {
-        const dealt = damageMob(mob, S.damage * S.orbitDamage, 'orbit'); S.orbitHits.set(key, S.time);
+        const dealt = damageMob(mob, S.damage * S.orbitDamage, 'orbit'); mob.orbitHitAt[i] = S.time;
         if (S.orbitShock > 0 && Math.random() < S.orbitShock) {
-          for (const near of S.mobs) if (near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < 90) damageMob(near, dealt * .42, 'orbit', false, true);
+          for (const near of nearbyMobs(mob.x, mob.y, 150)) if (near !== mob && near.hp > 0 && Math.hypot(near.x - mob.x, near.y - mob.y) < 90) damageMob(near, dealt * .42, 'orbit', false, true);
           effect('ring', mob.x, mob.y, { life: .3, max: .3, radius: 90, color: '#67f8ff' });
         }
       }
@@ -1002,16 +1144,46 @@ function updateOrbitals(dt) {
       S.orbitPulseClock = Math.max(1.8, 5.3 - S.orbitPulse * .8);
       for (let i = 0; i < S.orbitals; i++) {
         const pose = orbitalPose(i); effect('ring', pose.x, pose.y, { life: .45, max: .45, radius: 115, color: '#66f2ff' });
-        for (const mob of S.mobs) if (Math.hypot(mob.x - pose.x, mob.y - pose.y) < 115 + mob.r) damageMob(mob, S.damage * S.orbitDamage * .65, 'orbit');
+        for (const mob of nearbyMobs(pose.x, pose.y, 200)) if (Math.hypot(mob.x - pose.x, mob.y - pose.y) < 115 + mob.r) damageMob(mob, S.damage * S.orbitDamage * .65, 'orbit');
       }
     }
   }
 }
 
-function hurtPlayer(amount = 1) {
-  if (S.inv > 0 || S.over) return;
+function updateMasteries(dt) {
+  for (const build of Object.keys(S.masteryClocks)) if (isMastered(build)) S.masteryClocks[build] -= dt;
+  if (isMastered('projectile') && S.masteryClocks.projectile <= 0) {
+    const target = findTarget(); S.masteryClocks.projectile = target ? masterySpecs.projectile.interval : .4;
+    if (target) {
+      const angle = Math.atan2(target.y - S.y, target.x - S.x), tx = S.x + Math.cos(angle) * 1250, ty = S.y + Math.sin(angle) * 1250;
+      for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + 48) damageMob(mob, S.damage * 9, 'projectile');
+      effect('masterLaser', S.x, S.y, { tx, ty, life: .52, max: .52 }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
+    }
+  }
+  if (isMastered('saber') && S.masteryClocks.saber <= 0) {
+    const radius = Math.max(220, S.saberRange * 1.75); S.masteryClocks.saber = masterySpecs.saber.interval;
+    for (const mob of nearbyMobs(S.x, S.y, radius + 80)) if (!mob.dead && Math.hypot(mob.x - S.x, mob.y - S.y) < radius + mob.r) damageMob(mob, S.damage * S.saberDamage * 2.4, 'saber');
+    effect('masterWhirl', S.x, S.y, { radius, life: .72, max: .72 }); S.saberActive = .7; S.shake = Math.max(S.shake, 7); AudioEngine.se('saber');
+  }
+  if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault) {
+    const target = findTarget(); S.masteryClocks.orbit = target ? masterySpecs.orbit.interval : .4;
+    if (target) S.orbitAssault = { target, start: S.time, exploded: false };
+  }
+  if (S.orbitAssault) {
+    const age = S.time - S.orbitAssault.start, target = S.orbitAssault.target;
+    if (age >= .55 && !S.orbitAssault.exploded) {
+      S.orbitAssault.exploded = true;
+      for (const mob of nearbyMobs(target.x, target.y, 250)) if (!mob.dead && Math.hypot(mob.x - target.x, mob.y - target.y) < 180 + mob.r) damageMob(mob, S.damage * S.orbitDamage * Math.max(2, S.orbitals) * 1.35, 'orbit');
+      effect('ring', target.x, target.y, { radius: 180, life: .62, max: .62, color: '#ffd95c' }); burst(target.x, target.y, '#ffd95c', 24, 260); AudioEngine.se('treasure');
+    }
+    if (age >= 1.3) S.orbitAssault = null;
+  }
+}
+
+function hurtPlayer(amount = 1, unavoidable = false) {
+  if ((S.inv > 0 && !unavoidable) || S.over) return;
   const guardChance = clamp(S.guard + (S.saberActive > 0 ? S.saberGuard : 0), 0, .72);
-  if (Math.random() < guardChance) {
+  if (!unavoidable && Math.random() < guardChance) {
     S.inv = .25; S.temporarySpeed = 1.3; S.temporarySpeedClock = 1.2; showToast('⬡ BLOCK'); effect('ring', S.x, S.y, { life: .35, max: .35, radius: 55, color: '#8afff5' }); return;
   }
   const phoenixLevel = relicLevel('phoenix'), phoenixUses = S.relicUses.phoenix || 0;
@@ -1047,7 +1219,6 @@ function relicDropChance(source, tier = 1, cycle = 0) {
 function handleDeath(mob, W, H) {
   if (mob.dead) return;
   mob.dead = true; effect('death', mob.x, mob.y, { life: .55, max: .55, color: mob.kind === 'treasure' ? '#ffd34e' : '#f64eff' });
-  const orbitPrefix = `${mob.id}:`; for (const key of S.orbitHits.keys()) if (key.startsWith(orbitPrefix)) S.orbitHits.delete(key);
   burst(mob.x, mob.y, mob.kind === 'treasure' ? '#ffd34e' : '#e950ff', mob.kind === 'boss' ? 24 : 8, mob.kind === 'boss' ? 250 : 150); AudioEngine.se('kill');
   if (mob.kind === 'boss') {
     S.kills += mob.tier * 15; S.bossesKilled++; S.bossActive = null; ui.bossHud.classList.add('hidden');
@@ -1064,7 +1235,7 @@ function handleDeath(mob, W, H) {
     for (let i = 0; i < 12; i++) dropGem(mob.x + random(-55, 55), mob.y + random(-55, 55), 2 + Math.floor(S.time / 240));
     S.nextTreasureAt = S.time + random(48, 68) * S.treasureRateMult;
   } else {
-    S.kills++; S.xp += .72 * S.xpGain;
+    S.kills++; S.xp += .08 * S.xpGain;
     dropGem(mob.x, mob.y, (mob.elite ? 3 : 1) + Math.floor(S.time / 300));
     if (mob.archetype === 'splitter' && !mob.child) {
       for (let i = 0; i < 2; i++) spawnEnemy(W, H, { x: mob.x + random(-18, 18), y: mob.y + random(-18, 18), child: true, archetype: 'stalker', ignoreCap: true });
@@ -1103,7 +1274,7 @@ function triggerWorldEvent() {
 function processLevelUps() {
   let safety = 0;
   while (S.xp >= S.nextXp && safety++ < 6) {
-    S.xp -= S.nextXp; S.level++; S.nextXp = Math.round(4 + 1.1 * S.level + .12 * S.level * S.level); S.rewardQueue.push({ type: 'level' });
+    S.xp -= S.nextXp; S.level++; S.nextXp = Math.round(7 + 1.55 * S.level + .17 * S.level * S.level); S.rewardQueue.push({ type: 'level' });
   }
   processRewards();
 }
@@ -1117,6 +1288,11 @@ function update(dt, W, H) {
   if (!S.bossActive && S.time >= S.nextBossAt) spawnBoss(W, H);
   if (S.time >= S.nextTreasureAt) spawnTreasure(W, H);
   if (S.time >= S.nextWorldEvent) triggerWorldEvent();
+  if (S.bossActive?.hp > 0) {
+    const remaining = S.bossActive.deadline - S.time;
+    if (remaining <= 10 && !S.bossActive.deadlineWarned) { S.bossActive.deadlineWarned = true; showWarning('BOSS LIMIT · 10 SECONDS'); AudioEngine.se('boss'); }
+    if (remaining <= 0) handleBossTimeout(W, H);
+  }
 
   let dx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
   let dy = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
@@ -1128,11 +1304,11 @@ function update(dt, W, H) {
   if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; S.hp = Math.min(S.maxHp, S.hp + S.regen); }
   if (S.spawnClock <= 0) {
     const regularCount = S.mobs.filter(mob => mob.kind === 'mob' && !mob.dead && mob.hp > 0).length;
-    const densityTarget = Math.min(205, 48 + Math.floor(S.time * .28));
+    const densityTarget = Math.min(190, 36 + Math.floor(S.time * .24));
     const deficit = Math.max(0, densityTarget - regularCount);
     const baseInterval = Math.max(.09, .5 / Math.pow(1 + S.time / 210, .76));
-    const interval = regularCount === 0 ? .04 : deficit > 0 ? Math.min(.085, baseInterval) : baseInterval;
-    const batch = regularCount === 0 ? 12 : deficit > 80 ? 8 : deficit > 40 ? 6 : deficit > 20 ? 4 : deficit > 8 ? 3 : deficit > 0 ? 2 : 1;
+    const interval = regularCount === 0 ? .12 : deficit > 0 ? Math.min(.11, baseInterval) : baseInterval;
+    const batch = regularCount === 0 ? 5 : deficit > 50 ? 5 : deficit > 28 ? 4 : deficit > 12 ? 3 : deficit > 0 ? 2 : 1;
     S.spawnClock = interval * (S.bossActive ? 1.12 : 1);
     for (let i = 0; i < batch; i++) spawnEnemy(W, H);
   }
@@ -1148,9 +1324,10 @@ function update(dt, W, H) {
     if (mob.kind === 'boss') updateBoss(mob, dt); else updateMob(mob, dt);
     if (S.over) return;
   }
+  rebuildMobGrid();
   for (const projectile of S.shots) {
     projectile.trailX = projectile.x; projectile.trailY = projectile.y; projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
-    for (const mob of S.mobs) if (projectile.life > 0 && !mob.dead && Math.hypot(projectile.x - mob.x, projectile.y - mob.y) < mob.r + 8 * S.shotScale) hitMob(mob, projectile);
+    for (const mob of nearbyMobs(projectile.x, projectile.y, 105 + 12 * S.shotScale)) if (projectile.life > 0 && !mob.dead && (projectile.x - mob.x) ** 2 + (projectile.y - mob.y) ** 2 < (mob.r + 8 * S.shotScale) ** 2) hitMob(mob, projectile);
   }
   for (const projectile of S.enemyShots) {
     projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
@@ -1169,10 +1346,9 @@ function update(dt, W, H) {
   }
   S.hazards = S.hazards.filter(hazard => hazard.life > 0);
 
-  updateOrbitals(dt);
+  updateOrbitals(dt); updateMasteries(dt);
   for (const mob of S.mobs) if (mob.hp <= 0 && !mob.dead) handleDeath(mob, W, H);
   S.mobs = S.mobs.filter(mob => !mob.dead); S.shots = S.shots.filter(projectile => projectile.life > 0);
-  if (S.orbitHits.size > 6000) S.orbitHits.clear();
 
   for (const gem of S.gems) {
     gem.life -= dt; const distance = Math.hypot(S.x - gem.x, S.y - gem.y);
@@ -1225,7 +1401,7 @@ function drawHazards() {
 }
 
 function drawMob(mob, t) {
-  const lowFx = innerWidth < 760, spriteAlpha = mob.hitFlash > 0 ? .72 : 1;
+  const lowFx = innerWidth < 760 || S.mobs.length > 85, spriteAlpha = mob.hitFlash > 0 ? .72 : 1;
   ctx.save();
   if (mob.hitFlash > 0) ctx.globalCompositeOperation = 'lighter';
   if (mob.kind === 'boss') {
@@ -1241,15 +1417,19 @@ function drawMob(mob, t) {
   } else {
     const close = Math.hypot(mob.x - S.x, mob.y - S.y) < 170, row = close ? 1 : 0;
     const column = (Math.floor(t / (close ? 110 : 230)) + mob.phase) % 2, scale = mob.r * (mob.elite ? 4.2 : 3.8);
-    const colors = { gunner: '#45dfff', charger: '#ffb442', splitter: '#9a72ff', bomber: '#ff456d', stalker: '#e33cff' };
+    const colors = { gunner: '#45dfff', charger: '#ffb442', splitter: '#9a72ff', bomber: '#ff456d', warder: '#63f6ff', stalker: '#e33cff' };
     ctx.shadowBlur = lowFx ? 0 : 17; ctx.shadowColor = colors[mob.archetype] || '#e33cff';
     sprite(images.enemy, column, row, 2, 2, mob.x - scale / 2, mob.y - scale * .58, scale, scale, spriteAlpha, mob.facing < 0);
     if (mob.archetype !== 'stalker') {
       ctx.fillStyle = colors[mob.archetype]; ctx.beginPath();
       if (mob.archetype === 'gunner') { ctx.rect(mob.x - 5, mob.y - mob.r - 22, 10, 10); }
       else if (mob.archetype === 'charger') { ctx.moveTo(mob.x, mob.y - mob.r - 25); ctx.lineTo(mob.x + 8, mob.y - mob.r - 12); ctx.lineTo(mob.x - 8, mob.y - mob.r - 12); ctx.closePath(); }
+      else if (mob.archetype === 'warder') { ctx.save(); ctx.translate(mob.x, mob.y - mob.r - 18); ctx.rotate(Math.PI / 4); ctx.rect(-6, -6, 12, 12); ctx.restore(); }
       else { ctx.arc(mob.x, mob.y - mob.r - 17, 5, 0, TAU); }
       ctx.fill();
+    }
+    if (mob.archetype === 'warder' && mob.shield > 0) {
+      ctx.save(); ctx.globalAlpha = .45 + Math.sin(t * .009 + mob.id) * .15; ctx.strokeStyle = '#7dffff'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 12, 0, TAU); ctx.stroke(); ctx.restore();
     }
   }
   ctx.restore();
@@ -1259,18 +1439,21 @@ function drawMob(mob, t) {
   ctx.fillStyle = '#171328'; ctx.fillRect(mob.x - barHalf, barY, barHalf * 2, 4);
   ctx.fillStyle = mob.kind === 'treasure' ? '#ffd34e' : mob.kind === 'boss' ? '#ff4f9d' : mob.elite ? '#c977ff' : '#ff6799';
   ctx.fillRect(mob.x - barHalf, barY, barHalf * 2 * clamp(mob.hp / mob.maxHp, 0, 1), 4);
+  if (mob.maxShield > 0 && mob.shield > 0) { ctx.fillStyle = '#0b2333'; ctx.fillRect(mob.x - barHalf, barY - 5, barHalf * 2, 3); ctx.fillStyle = '#65f6ff'; ctx.fillRect(mob.x - barHalf, barY - 5, barHalf * 2 * clamp(mob.shield / mob.maxShield, 0, 1), 3); }
   if (mob.frozen > 0) { ctx.strokeStyle = '#9bf8ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 8, 0, TAU); ctx.stroke(); }
 }
 
 function drawProjectiles() {
   for (const projectile of S.shots) {
+    if (!visibleWorld(projectile.x, projectile.y, innerWidth, innerHeight, 90)) continue;
     const angle = Math.atan2(projectile.vy, projectile.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 52 * S.shotScale, projectile.y - Math.sin(angle) * 52 * S.shotScale); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
-    ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = 24; ctx.shadowColor = projectile.critical ? '#ff69f3' : '#55f8ff';
+    ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = S.mobs.length > 85 ? 0 : 24; ctx.shadowColor = projectile.critical ? '#ff69f3' : '#55f8ff';
     sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale); ctx.restore();
   }
   for (const projectile of S.enemyShots) {
+    if (!visibleWorld(projectile.x, projectile.y, innerWidth, innerHeight, 90)) continue;
     const angle = Math.atan2(projectile.vy, projectile.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = '#ff2794'; ctx.lineWidth = projectile.r * 1.15; ctx.globalAlpha = .34;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 28, projectile.y - Math.sin(angle) * 28); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
@@ -1291,7 +1474,18 @@ function jaggedLine(fromX, fromY, toX, toY, life) {
 
 function drawEffects() {
   for (const item of S.effects) {
+    if (!visibleWorld(item.x, item.y, innerWidth, innerHeight, Math.max(180, item.radius || 0)) && item.type !== 'masterLaser') continue;
     const progress = 1 - item.life / item.max, alpha = clamp(item.life / item.max * 2, 0, 1);
+    if (item.type === 'masterLaser') {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.lineCap = 'round'; ctx.shadowBlur = 35; ctx.shadowColor = '#6cf7ff';
+      ctx.strokeStyle = '#36dfff44'; ctx.lineWidth = 70 * (1 - progress * .45); ctx.beginPath(); ctx.moveTo(item.x, item.y); ctx.lineTo(item.tx, item.ty); ctx.stroke();
+      ctx.strokeStyle = '#8cfaff'; ctx.lineWidth = 28 * (1 - progress * .4); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke(); ctx.restore(); continue;
+    }
+    if (item.type === 'masterWhirl') {
+      ctx.save(); ctx.translate(item.x, item.y); ctx.rotate(progress * TAU * 2.6); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = 28; ctx.shadowColor = '#ffd85c';
+      for (let blade = 0; blade < 4; blade++) { ctx.rotate(TAU / 4); ctx.strokeStyle = blade % 2 ? '#65f5ff' : '#ffd95c'; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(0, 0, item.radius * (.58 + blade * .08), -.65, .65); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); }
+      ctx.restore(); continue;
+    }
     if (item.type === 'chain') {
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = 16; ctx.shadowColor = '#62efff';
       ctx.strokeStyle = '#57e7ff'; ctx.lineWidth = 8; jaggedLine(item.fromX, item.fromY, item.x, item.y, item.life); ctx.stroke();
@@ -1349,6 +1543,10 @@ function drawOrbitals(t) {
   }
 }
 
+function visibleWorld(x, y, W, H, padding = 140) {
+  return Math.abs(x - S.x) <= W / 2 + padding && Math.abs(y - S.y) <= H / 2 + padding;
+}
+
 function drawWorld(W, H, t) {
   ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
   if (images.city.complete && images.city.width) {
@@ -1365,14 +1563,15 @@ function drawWorld(W, H, t) {
   for (let y = gridY; y < S.y + H; y += grid) { ctx.beginPath(); ctx.moveTo(S.x - W, y); ctx.lineTo(S.x + W, y); ctx.stroke(); }
 
   drawHazards();
-  for (const gem of S.gems) { const bob = Math.sin(t * .006 + gem.x) * 3; sprite(images.vfx, 1, 1, 3, 2, gem.x - 24, gem.y - 24 + bob, 48, 48); }
+  for (const gem of S.gems) { if (!visibleWorld(gem.x, gem.y, W, H, 70)) continue; const bob = Math.sin(t * .006 + gem.x) * 3; sprite(images.vfx, 1, 1, 3, 2, gem.x - 24, gem.y - 24 + bob, 48, 48); }
   for (const chest of S.chests) {
+    if (!visibleWorld(chest.x, chest.y, W, H, 90)) continue;
     const bob = Math.sin(t * .007 + chest.phase) * 7, size = 42 + Math.sin(t * .009) * 4;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = '#ffd34e'; ctx.shadowBlur = 24; ctx.shadowColor = '#ffb92f'; ctx.translate(chest.x, chest.y + bob); ctx.rotate(t * .0015); ctx.fillRect(-size / 2, -size / 2, size, size); ctx.fillStyle = '#fff3a4'; ctx.fillRect(-size * .2, -size * .2, size * .4, size * .4); ctx.restore();
   }
-  for (const mob of S.mobs) drawMob(mob, t);
+  for (const mob of S.mobs) if (visibleWorld(mob.x, mob.y, W, H, mob.kind === 'boss' ? 190 : 110)) drawMob(mob, t);
   drawProjectiles(); drawEffects();
-  for (const particle of S.particles) { ctx.save(); ctx.globalAlpha = clamp(particle.life / particle.max, 0, 1); ctx.fillStyle = particle.color; ctx.shadowBlur = innerWidth < 760 ? 0 : 8; ctx.shadowColor = particle.color; ctx.fillRect(particle.x - particle.size / 2, particle.y - particle.size / 2, particle.size, particle.size); ctx.restore(); }
+  for (const particle of S.particles) { if (!visibleWorld(particle.x, particle.y, W, H, 50)) continue; ctx.save(); ctx.globalAlpha = clamp(particle.life / particle.max, 0, 1); ctx.fillStyle = particle.color; ctx.shadowBlur = innerWidth < 760 || S.mobs.length > 85 ? 0 : 8; ctx.shadowColor = particle.color; ctx.fillRect(particle.x - particle.size / 2, particle.y - particle.size / 2, particle.size, particle.size); ctx.restore(); }
   drawOrbitals(t);
 
   const aimAngle = Math.atan2(S.aimY, S.aimX);
@@ -1424,6 +1623,7 @@ function updateHud() {
     const names = { oni: 'NEON ONI / 집행자', seraph: 'SERAPH EYE / 관측자', witch: 'RIFT EMPRESS / 균열 마녀', dragon: 'CYBER WYRM / 코어 드래곤' };
     const affixNames = { overclock: 'OVERCLOCK', minefield: 'MINEFIELD', echo: 'ECHO', hunter: 'HUNTER' };
     ui.bossName.textContent = `#${S.bossActive.number} ${names[S.bossActive.bossType]} · ${S.bossActive.affixes.map(id => affixNames[id]).join('+')}`;
+    const remaining = Math.max(0, Math.ceil(S.bossActive.deadline - S.time)); ui.bossTimer.textContent = `LIMIT ${formatTime(remaining)}`; ui.bossTimer.classList.toggle('danger', remaining <= 10);
     ui.bossBar.style.width = `${Math.max(0, S.bossActive.hp / S.bossActive.maxHp * 100)}%`; ui.bossHud.classList.remove('hidden');
   } else ui.bossHud.classList.add('hidden');
 }
