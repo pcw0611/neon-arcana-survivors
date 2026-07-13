@@ -39,6 +39,7 @@ let lastHud = 0;
 let chosen = [];
 const keys = new Set();
 let joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 };
+let mouseAim = { inside: false, valid: false, moved: false, x: 1, y: 0 };
 
 const AudioEngine = (() => {
   let ac, master, musicBus, seBus, compressor, timer;
@@ -234,6 +235,15 @@ function upgradeDescription(upgrade, rank = 0) {
   if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
   if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해' : '광검 피해 +25%';
   if (upgrade.id === 'multishot') return rank === 0 ? '성좌탄 +1 · 투사체 집중 빌드 개방' : '동시에 발사하는 성좌탄 +1';
+  if (upgrade.id === 'orbit_pulse') {
+    if (rank <= 0) return '모든 위성이 충격파 방출 · 발동 간격 4.5초';
+    if (rank < upgrade.max) {
+      const current = Math.max(1.8, 5.3 - rank * .8);
+      const next = Math.max(1.8, 5.3 - (rank + 1) * .8);
+      return `충격파 발동 간격 0.8초 감소 · ${current.toFixed(1)}초 → ${next.toFixed(1)}초`;
+    }
+    return '충격파 발동 간격 2.9초 · 레벨마다 0.8초 감소';
+  }
   const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
   if (limitBuild) return `마스터 특수기 피해 +4%p (무한) · 범위 +2%p (LV.20까지) · 현재 피해 +${rank * 4}% / 범위 +${Math.min(20, rank) * 2}%`;
   return upgrade.desc;
@@ -408,6 +418,7 @@ async function submitScore() {
 async function begin() {
   await AudioEngine.init(); AudioEngine.scene('battle');
   S = fresh(); running = true; chosen = [];
+  mouseAim = { inside: false, valid: false, moved: false, x: 1, y: 0 };
   ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden'); ui.rankDetailScreen.classList.add('hidden');
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
@@ -814,15 +825,32 @@ ui.relicScreen.addEventListener('pointerdown', event => {
 });
 canvas.addEventListener('pointerdown', event => {
   AudioEngine.resume(); if (!running || S?.paused) return;
+  if (event.pointerType === 'mouse') { updateMouseAim(event); return; }
   joy = { on: true, id: event.pointerId, sx: event.clientX, sy: event.clientY, x: 0, y: 0 }; canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
+  if (event.pointerType === 'mouse') { updateMouseAim(event); return; }
   if (!joy.on || event.pointerId !== joy.id) return;
   const dx = event.clientX - joy.sx, dy = event.clientY - joy.sy, length = Math.hypot(dx, dy);
   joy.x = dx / Math.max(length, 64); joy.y = dy / Math.max(length, 64);
 });
 canvas.addEventListener('pointerup', () => { joy.on = false; joy.x = joy.y = 0; });
 canvas.addEventListener('pointercancel', () => { joy.on = false; joy.x = joy.y = 0; });
+canvas.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') updateMouseAim(event); });
+canvas.addEventListener('pointerleave', event => {
+  if (event.pointerType === 'mouse') { mouseAim.inside = false; mouseAim.valid = false; }
+});
+addEventListener('blur', () => { mouseAim.inside = false; mouseAim.valid = false; });
+
+function updateMouseAim(event) {
+  const rect = canvas.getBoundingClientRect();
+  const dx = event.clientX - (rect.left + rect.width / 2), dy = event.clientY - (rect.top + rect.height / 2);
+  const length = Math.hypot(dx, dy); mouseAim.inside = true; mouseAim.moved = true;
+  if (length < 12) { mouseAim.valid = false; return; }
+  mouseAim.x = dx / length; mouseAim.y = dy / length; mouseAim.valid = true;
+}
+
+function hasMouseAim() { return mouseAim.inside && mouseAim.valid && mouseAim.moved && !joy.on; }
 
 function toggleSound() { const on = AudioEngine.toggle(); ui.sound.textContent = on ? 'SOUND ON' : 'MUTED'; }
 ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin; $('#mainMenu').onclick = returnToMain;
@@ -1108,7 +1136,7 @@ function createVolley(baseAngle, damageScale = 1, extra = 0) {
 function fire() {
   const target = findTarget(); if (!target) return;
   const base = Math.atan2(target.y - S.y, target.x - S.x); S.volleyCount++;
-  if (!S.moving) { S.aimX = Math.cos(base); S.aimY = Math.sin(base); S.facing = Math.cos(base) < 0 ? -1 : 1; }
+  if (!S.moving && !hasMouseAim()) { S.aimX = Math.cos(base); S.aimY = Math.sin(base); S.facing = Math.cos(base) < 0 ? -1 : 1; }
   const splitLevel = relicLevel('split_core');
   const extra = splitLevel && S.volleyCount % Math.max(2, 5 - splitLevel) === 0 ? 2 + Math.floor((splitLevel - 1) / 2) : 0;
   createVolley(base, 1, extra);
@@ -1171,7 +1199,8 @@ function saberSlash() {
     const priority = mob.kind === 'treasure' ? .55 : mob.kind === 'boss' ? .72 : 1;
     if (distance * priority < best) { best = distance * priority; target = mob; }
   }
-  const base = target ? Math.atan2(target.y - S.y, target.x - S.x) : Math.atan2(S.aimY, S.aimX);
+  const directedAim = hasMouseAim() || S.moving;
+  const base = directedAim ? Math.atan2(S.aimY, S.aimX) : target ? Math.atan2(target.y - S.y, target.x - S.x) : Math.atan2(S.aimY, S.aimX);
   const sweeps = 1 + S.saberEcho;
   for (let sweep = 0; sweep < sweeps; sweep++) {
     const angle = base + (sweep - (sweeps - 1) / 2) * .48;
@@ -1183,7 +1212,7 @@ function saberSlash() {
     }
     effect('saber', S.x, S.y, { life: .24, max: .24, angle, radius: S.saberRange, arc: S.saberArc, index: sweep });
   }
-  S.aimX = Math.cos(base); S.aimY = Math.sin(base); if (!S.moving) S.facing = Math.cos(base) < 0 ? -1 : 1;
+  S.aimX = Math.cos(base); S.aimY = Math.sin(base); if (directedAim || !S.moving) S.facing = Math.cos(base) < 0 ? -1 : 1;
   S.saberActive = .22; S.shake = Math.max(S.shake, 2.5); AudioEngine.se('saber');
 }
 
@@ -1382,7 +1411,11 @@ function update(dt, W, H) {
   let dy = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);
   if (joy.on) { dx = joy.x; dy = joy.y; }
   const length = Math.hypot(dx, dy) || 1; S.moving = Math.hypot(dx, dy) > .14;
-  if (S.moving) { S.aimX = dx / length; S.aimY = dy / length; if (dx < -.05) S.facing = -1; else if (dx > .05) S.facing = 1; }
+  if (hasMouseAim()) {
+    S.aimX = mouseAim.x; S.aimY = mouseAim.y; S.facing = mouseAim.x < 0 ? -1 : 1;
+  } else if (S.moving) {
+    S.aimX = dx / length; S.aimY = dy / length; if (dx < -.05) S.facing = -1; else if (dx > .05) S.facing = 1;
+  }
   S.x += dx / length * S.speed * S.temporarySpeed * dt; S.y += dy / length * S.speed * S.temporarySpeed * dt;
 
   if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; S.hp = Math.min(S.maxHp, S.hp + S.regen); }
@@ -1393,7 +1426,7 @@ function update(dt, W, H) {
     const baseInterval = Math.max(.09, .5 / Math.pow(1 + S.time / 210, .76));
     const interval = regularCount === 0 ? .12 : deficit > 0 ? Math.min(.11, baseInterval) : baseInterval;
     const batch = regularCount === 0 ? 5 : deficit > 50 ? 5 : deficit > 28 ? 4 : deficit > 12 ? 3 : deficit > 0 ? 2 : 1;
-    S.spawnClock = interval * (S.bossActive ? 1.12 : 1);
+    S.spawnClock = interval * (S.bossActive ? 1.12 : 1) / .9;
     for (let i = 0; i < batch; i++) spawnEnemy(W, H);
   }
   if (S.shotClock <= 0) { S.shotClock = Math.max(.1, S.rate); fire(); }

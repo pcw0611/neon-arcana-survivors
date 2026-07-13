@@ -70,7 +70,7 @@ async function topScores(database: D1Database) {
     `SELECT id, player, score, kills, level, duration, victory, loadout_json AS loadoutJson, created_at AS createdAt
      FROM leaderboard_scores
      ORDER BY score DESC, duration DESC, created_at ASC
-     LIMIT 10`,
+     LIMIT 100`,
   ).all<Record<string, unknown>>();
   return result.results.map((record: Record<string, unknown>) => {
     const { loadoutJson, ...row } = record;
