@@ -179,6 +179,9 @@ const upgrades = [
   { id: 'guard', icon: '⬡', name: '성좌 방벽', desc: '피격 무효 확률 +6%', max: 6, tags: ['survival'], apply: s => { s.guard += .06; } },
   { id: 'fortune', icon: '♢', name: '마력 정제', desc: '획득 경험치 +22%', max: 5, tags: ['growth'], apply: s => { s.xpGain *= 1.22; } },
   { id: 'relic_slot', icon: '▣', name: '차원 수납 확장', desc: '유물 슬롯 +1 (최대 7)', max: 4, tags: ['utility'], weight: 2.4, requires: s => s.relicSlots < 7 && s.relics.length >= s.relicSlots && s.level >= 8 + (s.ranks.relic_slot || 0) * 7, apply: s => { s.relicSlots++; } },
+  { id: 'limit_master_projectile', icon: '∞', name: '성좌포 한계돌파', desc: '마스터 레이저 피해와 범위 강화', max: Infinity, tags: ['projectile'], weight: .9, requires: s => isMastered('projectile', s), apply: () => {} },
+  { id: 'limit_master_saber', icon: '∞', name: '광검 한계돌파', desc: '마스터 휠윈드 피해와 범위 강화', max: Infinity, tags: ['saber'], weight: .9, requires: s => isMastered('saber', s), apply: () => {} },
+  { id: 'limit_master_orbit', icon: '∞', name: '위성 한계돌파', desc: '마스터 추격 폭발 피해와 범위 강화', max: Infinity, tags: ['orbit'], weight: .9, requires: s => isMastered('orbit', s), apply: () => {} },
   { id: 'limit_power', icon: '∞', name: '한계 돌파 · 힘', desc: '모든 공격 피해량 +6%', max: 999, tags: ['projectile', 'saber', 'orbit'], weight: .12, requires: s => s.level >= 35, apply: s => { s.damage *= 1.06; } },
   { id: 'limit_vital', icon: '∞', name: '한계 돌파 · 생명', desc: '최대 체력 +5, 체력 5 회복', max: 999, tags: ['survival'], weight: .12, requires: s => s.level >= 35, apply: s => { s.maxHp += 5; s.hp = Math.min(s.maxHp, s.hp + 5); } },
   { id: 'limit_growth', icon: '∞', name: '한계 돌파 · 공명', desc: '경험치 +7%, 흡수 범위 +20', max: 999, tags: ['growth'], weight: .1, requires: s => s.level >= 35, apply: s => { s.xpGain = Math.min(4, s.xpGain * 1.07); s.magnet += 20; } },
@@ -218,22 +221,34 @@ const relics = [
 const relicById = new Map(relics.map(relic => [relic.id, relic]));
 const upgradeById = new Map(upgrades.map(upgrade => [upgrade.id, upgrade]));
 const masterySpecs = {
-  projectile: { id: 'multishot', label: '성좌포', interval: 9.5, note: '주기적으로 화면을 가르는 관통 성좌 레이저를 발사합니다.' },
-  saber: { id: 'saber', label: '아스트랄 광검', interval: 7.5, note: '주기적으로 전방위를 베는 황금 휠윈드를 발동합니다.' },
-  orbit: { id: 'orbit', label: '수호 위성', interval: 10.5, note: '위성들이 적을 추격해 폭발한 뒤 다시 복귀합니다.' },
+  projectile: { id: 'multishot', limitId: 'limit_master_projectile', label: '성좌포', interval: 9.5, note: '주기적으로 화면을 가르는 관통 성좌 레이저를 발사합니다.' },
+  saber: { id: 'saber', limitId: 'limit_master_saber', label: '아스트랄 광검', interval: 7.5, note: '주기적으로 전방위를 베는 황금 휠윈드를 발동합니다.' },
+  orbit: { id: 'orbit', limitId: 'limit_master_orbit', label: '수호 위성', interval: 10.5, note: '위성들이 적을 추격해 폭발한 뒤 다시 복귀합니다.' },
 };
 const hasRelic = (id) => Boolean(S?.relics.some(relic => relic.id === id));
 const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
 
 function upgradeDescription(upgrade, rank = 0) {
   if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
-  if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 빌드 개방 · 기본 베기 피해 대폭 증가' : '광검 피해 +36%';
+  if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해 · 기본 베기 피해 대폭 증가' : '광검 피해 +36%';
   if (upgrade.id === 'multishot') return rank === 0 ? '성좌탄 +1 · 투사체 집중 빌드 개방' : '동시에 발사하는 성좌탄 +1';
+  const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
+  if (limitBuild) return `마스터 특수기 피해 +4%p (무한) · 범위 +2%p (LV.20까지) · 현재 피해 +${rank * 4}% / 범위 +${Math.min(20, rank) * 2}%`;
   return upgrade.desc;
 }
 
 function masteryBuildForUpgrade(id) {
   return Object.keys(masterySpecs).find(build => masterySpecs[build].id === id);
+}
+
+function limitBreakBuildForUpgrade(id) {
+  return Object.keys(masterySpecs).find(build => masterySpecs[build].limitId === id);
+}
+
+function limitBreakLevel(build, state = S) { return state?.ranks[masterySpecs[build]?.limitId] || 0; }
+function masteryScale(build, state = S) {
+  const level = limitBreakLevel(build, state);
+  return { level, damage: 1 + level * .04, range: 1 + Math.min(20, level) * .02 };
 }
 
 function isMastered(build, state = S) {
@@ -340,16 +355,17 @@ async function loadLeaderboard(target = ui.startRanks) {
 }
 
 async function submitScore() {
-  if (!S || S.submitted) return;
-  S.submitted = true; ui.finalRanks.innerHTML = '<div class="rank-status">점수 등록 중…</div>';
+  const run = S; if (!run || run.submitted) return;
+  run.submitted = true; ui.finalRanks.innerHTML = '<div class="rank-status">점수 등록 중…</div>';
   try {
     const response = await fetch('/api/leaderboard', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ player: cleanName(), kills: S.kills, level: S.level, duration: Math.floor(S.time), victory: S.bossesKilled > 0, bosses: S.bossesKilled }),
+      body: JSON.stringify({ player: cleanName(), kills: run.kills, level: run.level, duration: Math.floor(run.time), victory: run.bossesKilled > 0, bosses: run.bossesKilled }),
     });
     if (!response.ok) throw new Error();
-    const data = await response.json(); S.score = Number(data.score ?? S.score); ui.finalScore.textContent = `SCORE ${S.score.toLocaleString()} · RIFT DEPTH ${S.bossesKilled}`; renderRanks(ui.finalRanks, data.scores || [], data.rank);
-  } catch { ui.finalRanks.innerHTML = '<div class="rank-status">점수 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.</div>'; }
+    const data = await response.json(); run.score = Number(data.score ?? run.score);
+    if (S === run) { ui.finalScore.textContent = `SCORE ${run.score.toLocaleString()} · RIFT DEPTH ${run.bossesKilled}`; renderRanks(ui.finalRanks, data.scores || [], data.rank); }
+  } catch { if (S === run) ui.finalRanks.innerHTML = '<div class="rank-status">점수 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.</div>'; }
 }
 
 async function begin() {
@@ -371,6 +387,13 @@ function endGame() {
   ui.finalScore.textContent = `SCORE ${S.score.toLocaleString()} · RIFT DEPTH ${S.bossesKilled}`;
   ui.over.querySelector('h2').textContent = '작전 종료'; ui.bossHud.classList.add('hidden');
   ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.over.classList.remove('hidden'); submitScore();
+}
+
+function returnToMain() {
+  running = false; keys.clear(); joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 }; S = null;
+  ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden');
+  ui.hud.classList.add('hidden'); ui.build.classList.add('hidden'); ui.radar.classList.add('hidden'); ui.relicTray.classList.add('hidden'); ui.bossHud.classList.add('hidden'); ui.warning.classList.add('hidden');
+  ui.start.classList.remove('hidden'); AudioEngine.scene('menu'); loadLeaderboard();
 }
 
 function affinityScores() {
@@ -444,9 +467,9 @@ function openLevelChoices() {
   chosen = out; ui.cards.innerHTML = '';
   out.forEach((upgrade, index) => {
     const rank = S.ranks[upgrade.id] || 0, button = document.createElement('button');
-    const build = masteryBuildForUpgrade(upgrade.id), awakening = Boolean(build && rank + 1 === upgrade.max);
-    button.className = `choice${awakening ? ' mastery-ready' : ''}`;
-    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgrade.name}</strong><small>${upgradeDescription(upgrade, rank)}${awakening ? `<br><b style="color:#ffd965">MAX 특수 효과: ${masterySpecs[build].note}</b>` : ''}</small><em>${awakening ? 'MAX LV · MASTERY' : `RANK ${rank} → ${rank + 1}`} · [${index + 1}]</em>`;
+    const build = masteryBuildForUpgrade(upgrade.id), limitBuild = limitBreakBuildForUpgrade(upgrade.id), awakening = Boolean(build && rank + 1 === upgrade.max);
+    button.className = `choice${awakening || limitBuild ? ' mastery-ready' : ''}`;
+    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgrade.name}</strong><small>${upgradeDescription(upgrade, rank)}${awakening ? `<br><b style="color:#ffd965">MAX 특수 효과: ${masterySpecs[build].note}</b>` : ''}</small><em>${awakening ? 'MAX LV · MASTERY' : limitBuild ? `한계돌파 LV.${rank} → LV.${rank + 1}` : `RANK ${rank} → ${rank + 1}`} · [${index + 1}]</em>`;
     button.onclick = () => choose(index); ui.cards.appendChild(button);
   });
   S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); ui.choices.classList.remove('hidden');
@@ -460,8 +483,10 @@ function choose(index) {
   if (masteredBuild && isMastered(masteredBuild)) {
     S.masteryClocks[masteredBuild] = .35; showWarning(`${masterySpecs[masteredBuild].label} · MAX MASTERY`); AudioEngine.se('relic');
   }
+  const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
+  if (limitBuild) { S.masteryClocks[limitBuild] = .35; AudioEngine.se('relic'); }
   effect('level', S.x, S.y, { life: .85, max: .85 });
-  ui.choices.classList.add('hidden'); AudioEngine.se('select'); finishReward(`${upgrade.icon} ${upgrade.name}  RANK ${S.ranks[upgrade.id]}`);
+  ui.choices.classList.add('hidden'); AudioEngine.se('select'); finishReward(`${upgrade.icon} ${upgrade.name}  ${limitBuild ? `한계돌파 LV.${S.ranks[upgrade.id]}` : `RANK ${S.ranks[upgrade.id]}`}`);
 }
 
 function rarityWeights(time) {
@@ -642,9 +667,10 @@ function finishReward(message) {
 }
 
 function updateBuild() {
-  ui.build.innerHTML = Object.entries(S.ranks).map(([id, rank]) => {
+  ui.build.innerHTML = Object.entries(S.ranks).filter(([id]) => !limitBreakBuildForUpgrade(id)).map(([id, rank]) => {
     const upgrade = upgradeById.get(id), build = masteryBuildForUpgrade(id), mastered = Boolean(build && isMastered(build));
-    return upgrade ? `<span class="${mastered ? 'mastered' : ''}">${upgrade.icon} ${upgrade.name} ${mastered ? 'MAX LV' : rank}</span>` : '';
+    const limit = build ? limitBreakLevel(build) : 0;
+    return upgrade ? `<span class="${mastered ? 'mastered' : ''}">${upgrade.icon} ${upgrade.name} ${mastered ? `MAX LV${limit ? ` · 한계돌파 ${limit}` : ''}` : rank}</span>` : '';
   }).join('');
 }
 
@@ -672,8 +698,9 @@ function renderCodex(tab = 'builds') {
   }
   ui.codexGrid.innerHTML = upgrades.filter(upgrade => !upgrade.id.startsWith('limit_')).map(upgrade => {
     const rank = S?.ranks[upgrade.id] || 0, build = masteryBuildForUpgrade(upgrade.id), mastered = Boolean(build && S && isMastered(build));
-    const status = mastered ? 'MAX LV' : `LV.${rank}/${upgrade.max}`;
-    const mastery = build ? `<p class="master-note">MAX 특수 효과 · ${masterySpecs[build].note}</p>` : '';
+    const limit = build ? limitBreakLevel(build) : 0;
+    const status = mastered ? `MAX LV${limit ? ` · 한계돌파 ${limit}` : ''}` : `LV.${rank}/${upgrade.max}`;
+    const mastery = build ? `<p class="master-note">MAX 특수 효과 · ${masterySpecs[build].note}<br>한계돌파: 피해 +${limit * 4}% · 범위 +${Math.min(20, limit) * 2}%${limit >= 20 ? ' (범위 최대)' : ''}</p>` : '';
     return `<article class="codex-entry${mastered ? ' mastered' : rank ? '' : ' locked'}"><header><span>${upgrade.icon} ${upgrade.name}</span><em>${status}</em></header><p>${upgradeDescription(upgrade, rank)}</p>${mastery}</article>`;
   }).join('');
 }
@@ -760,7 +787,7 @@ canvas.addEventListener('pointerup', () => { joy.on = false; joy.x = joy.y = 0; 
 canvas.addEventListener('pointercancel', () => { joy.on = false; joy.x = joy.y = 0; });
 
 function toggleSound() { const on = AudioEngine.toggle(); ui.sound.textContent = on ? 'SOUND ON' : 'MUTED'; }
-ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin;
+ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin; $('#mainMenu').onclick = returnToMain;
 ui.codexButton.onclick = openCodex; ui.codexClose.onclick = closeCodex;
 document.querySelectorAll('[data-codex]').forEach(button => button.onclick = () => renderCodex(button.dataset.codex));
 
@@ -780,7 +807,7 @@ function enemyDamageScale() { return 1 + Math.floor(S.time / 165); }
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
   const warder = time > 70 ? Math.min(S.saberLevel ? .13 : .08, (time - 70) / 850) : 0;
-  const bomber = time > 300 ? Math.min(.09, (time - 300) / 2400) : 0;
+  const bomber = time > 55 ? Math.min(.1, (time - 55) / 720) : 0;
   const splitter = time > 190 ? Math.min(.11, (time - 190) / 1700) : 0;
   const charger = time > 105 ? Math.min(.15, (time - 105) / 1150) : 0;
   const gunner = time > 52 ? Math.min(.19, (time - 52) / 850) : 0;
@@ -799,9 +826,9 @@ function spawnEnemy(W, H, options = {}) {
   const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(90, 150));
   const eliteChance = clamp((S.time - 20) / 620, 0, .48), elite = options.elite ?? Math.random() < eliteChance;
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
-  const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.3, warder: 1.35 }[archetype];
+  const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.08, warder: 1.35 }[archetype];
   const hp = Math.ceil(baseHp * archetypeHp * (elite ? 2.8 : 1) * (options.child ? .42 : 1));
-  const archetypeSpeed = archetype === 'warder' ? .82 : 1;
+  const archetypeSpeed = archetype === 'warder' ? .82 : archetype === 'bomber' ? 1.28 : 1;
   const baseSpeed = Math.min(150, 61 + S.time * .075) * (options.child ? 1.18 : 1) * archetypeSpeed;
   S.mobs.push({
     kind: 'mob', archetype, x: options.x ?? S.x + Math.cos(angle) * distance,
@@ -977,7 +1004,18 @@ function updateMob(mob, dt) {
   const gravityLevel = relicLevel('gravity_halo');
   const auraSlow = gravityLevel && distance < 260 + gravityLevel * 12 ? Math.max(.48, .82 - gravityLevel * .06) : 1;
   const movementScale = (mob.frozen > 0 ? .12 : mob.slow > 0 ? .72 : 1) * auraSlow;
-  if (mob.archetype === 'gunner') {
+  if (mob.archetype === 'bomber') {
+    if (mob.state === 'fuse') {
+      mob.x += dx / distance * mob.speed * .12 * dt * movementScale; mob.y += dy / distance * mob.speed * .12 * dt * movementScale;
+      if (mob.stateClock <= 0) {
+        mob.dead = true; mob.selfDestruct = true; effect('ring', mob.x, mob.y, { life: .5, max: .5, radius: 112, color: '#ff3d66' }); burst(mob.x, mob.y, '#ff4b62', 18, 240); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 6);
+        if (distance < 112 + 18) hurtPlayer(mob.damage * 2.35); return;
+      }
+    } else {
+      mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
+      if (distance < 122) { mob.state = 'fuse'; mob.stateClock = .72; AudioEngine.se('boss'); }
+    }
+  } else if (mob.archetype === 'gunner') {
     const desired = 275, direction = distance > desired + 35 ? 1 : distance < desired - 35 ? -1 : 0;
     mob.x += dx / distance * mob.speed * direction * dt * movementScale; mob.y += dy / distance * mob.speed * direction * dt * movementScale;
     if (mob.shootClock <= 0) { enemyBullet(mob.x, mob.y, angle, 255 + Math.min(100, S.time * .06), 7, mob.damage); mob.shootClock = random(2.2, 3.5); }
@@ -994,6 +1032,7 @@ function updateMob(mob, dt) {
   } else {
     mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
   }
+  if (mob.archetype === 'bomber' && mob.state === 'fuse') return;
   if (mob.state === 'dash') mob.facing = mob.vx < 0 ? -1 : 1;
   if (distance < mob.r + 21) hurtPlayer(mob.damage);
 }
@@ -1046,7 +1085,7 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
     mob.shield -= actual;
     if (mob.shield <= 0) {
       mob.hp += Math.min(0, mob.shield); mob.shield = 0; mob.frozen = Math.max(mob.frozen, 1);
-      effect('ring', mob.x, mob.y, { life: .38, max: .38, radius: 72, color: '#64f5ff' }); burst(mob.x, mob.y, '#64f5ff', 10, 170); showToast('ARC SHIELD BREAK · SABER WEAKNESS');
+      effect('ring', mob.x, mob.y, { life: .38, max: .38, radius: 72, color: '#64f5ff' }); burst(mob.x, mob.y, '#64f5ff', 10, 170);
     }
   } else mob.hp -= actual;
   mob.hitFlash = .08;
@@ -1155,14 +1194,15 @@ function updateMasteries(dt) {
   if (isMastered('projectile') && S.masteryClocks.projectile <= 0) {
     const target = findTarget(); S.masteryClocks.projectile = target ? masterySpecs.projectile.interval : .4;
     if (target) {
-      const angle = Math.atan2(target.y - S.y, target.x - S.x), tx = S.x + Math.cos(angle) * 1250, ty = S.y + Math.sin(angle) * 1250;
-      for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + 48) damageMob(mob, S.damage * 9, 'projectile');
-      effect('masterLaser', S.x, S.y, { tx, ty, life: .52, max: .52 }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
+      const scale = masteryScale('projectile'), angle = Math.atan2(target.y - S.y, target.x - S.x), length = 1250 * scale.range, width = 48 * scale.range;
+      const tx = S.x + Math.cos(angle) * length, ty = S.y + Math.sin(angle) * length;
+      for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + width) damageMob(mob, S.damage * 9 * scale.damage, 'projectile');
+      effect('masterLaser', S.x, S.y, { tx, ty, widthScale: scale.range, life: .52, max: .52 }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
     }
   }
   if (isMastered('saber') && S.masteryClocks.saber <= 0) {
-    const radius = Math.max(220, S.saberRange * 1.75); S.masteryClocks.saber = masterySpecs.saber.interval;
-    for (const mob of nearbyMobs(S.x, S.y, radius + 80)) if (!mob.dead && Math.hypot(mob.x - S.x, mob.y - S.y) < radius + mob.r) damageMob(mob, S.damage * S.saberDamage * 2.4, 'saber');
+    const scale = masteryScale('saber'), radius = Math.max(220, S.saberRange * 1.75) * scale.range; S.masteryClocks.saber = masterySpecs.saber.interval;
+    for (const mob of nearbyMobs(S.x, S.y, radius + 80)) if (!mob.dead && Math.hypot(mob.x - S.x, mob.y - S.y) < radius + mob.r) damageMob(mob, S.damage * S.saberDamage * 2.4 * scale.damage, 'saber');
     effect('masterWhirl', S.x, S.y, { radius, life: .72, max: .72 }); S.saberActive = .7; S.shake = Math.max(S.shake, 7); AudioEngine.se('saber');
   }
   if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault) {
@@ -1172,9 +1212,9 @@ function updateMasteries(dt) {
   if (S.orbitAssault) {
     const age = S.time - S.orbitAssault.start, target = S.orbitAssault.target;
     if (age >= .55 && !S.orbitAssault.exploded) {
-      S.orbitAssault.exploded = true;
-      for (const mob of nearbyMobs(target.x, target.y, 250)) if (!mob.dead && Math.hypot(mob.x - target.x, mob.y - target.y) < 180 + mob.r) damageMob(mob, S.damage * S.orbitDamage * Math.max(2, S.orbitals) * 1.35, 'orbit');
-      effect('ring', target.x, target.y, { radius: 180, life: .62, max: .62, color: '#ffd95c' }); burst(target.x, target.y, '#ffd95c', 24, 260); AudioEngine.se('treasure');
+      const scale = masteryScale('orbit'), radius = 180 * scale.range; S.orbitAssault.exploded = true;
+      for (const mob of nearbyMobs(target.x, target.y, radius + 80)) if (!mob.dead && Math.hypot(mob.x - target.x, mob.y - target.y) < radius + mob.r) damageMob(mob, S.damage * S.orbitDamage * Math.max(2, S.orbitals) * 1.35 * scale.damage, 'orbit');
+      effect('ring', target.x, target.y, { radius, life: .62, max: .62, color: '#ffd95c' }); burst(target.x, target.y, '#ffd95c', 24, 260); AudioEngine.se('treasure');
     }
     if (age >= 1.3) S.orbitAssault = null;
   }
@@ -1240,7 +1280,6 @@ function handleDeath(mob, W, H) {
     if (mob.archetype === 'splitter' && !mob.child) {
       for (let i = 0; i < 2; i++) spawnEnemy(W, H, { x: mob.x + random(-18, 18), y: mob.y + random(-18, 18), child: true, archetype: 'stalker', ignoreCap: true });
     }
-    if (mob.archetype === 'bomber') S.hazards.push({ x: mob.x, y: mob.y, r: 76, warmup: .65, life: 1.35, type: 'circle', damage: mob.damage + 1 });
     onKillHooks();
   }
 }
@@ -1431,6 +1470,9 @@ function drawMob(mob, t) {
     if (mob.archetype === 'warder' && mob.shield > 0) {
       ctx.save(); ctx.globalAlpha = .45 + Math.sin(t * .009 + mob.id) * .15; ctx.strokeStyle = '#7dffff'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 12, 0, TAU); ctx.stroke(); ctx.restore();
     }
+    if (mob.archetype === 'bomber' && mob.state === 'fuse') {
+      const pulse = clamp(mob.stateClock / .72, 0, 1); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = pulse < .3 ? '#fff' : '#ff456d'; ctx.fillStyle = '#ff264433'; ctx.lineWidth = 5 + (1 - pulse) * 6; ctx.beginPath(); ctx.arc(mob.x, mob.y, 36 + (1 - pulse) * 76, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
   }
   ctx.restore();
 
@@ -1477,9 +1519,10 @@ function drawEffects() {
     if (!visibleWorld(item.x, item.y, innerWidth, innerHeight, Math.max(180, item.radius || 0)) && item.type !== 'masterLaser') continue;
     const progress = 1 - item.life / item.max, alpha = clamp(item.life / item.max * 2, 0, 1);
     if (item.type === 'masterLaser') {
+      const widthScale = item.widthScale || 1;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.lineCap = 'round'; ctx.shadowBlur = 35; ctx.shadowColor = '#6cf7ff';
-      ctx.strokeStyle = '#36dfff44'; ctx.lineWidth = 70 * (1 - progress * .45); ctx.beginPath(); ctx.moveTo(item.x, item.y); ctx.lineTo(item.tx, item.ty); ctx.stroke();
-      ctx.strokeStyle = '#8cfaff'; ctx.lineWidth = 28 * (1 - progress * .4); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke(); ctx.restore(); continue;
+      ctx.strokeStyle = '#36dfff44'; ctx.lineWidth = 70 * widthScale * (1 - progress * .45); ctx.beginPath(); ctx.moveTo(item.x, item.y); ctx.lineTo(item.tx, item.ty); ctx.stroke();
+      ctx.strokeStyle = '#8cfaff'; ctx.lineWidth = 28 * widthScale * (1 - progress * .4); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 6 * widthScale; ctx.stroke(); ctx.restore(); continue;
     }
     if (item.type === 'masterWhirl') {
       ctx.save(); ctx.translate(item.x, item.y); ctx.rotate(progress * TAU * 2.6); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = 28; ctx.shadowColor = '#ffd85c';
@@ -1547,6 +1590,14 @@ function visibleWorld(x, y, W, H, padding = 140) {
   return Math.abs(x - S.x) <= W / 2 + padding && Math.abs(y - S.y) <= H / 2 + padding;
 }
 
+function drawPlayerHpBar() {
+  const width = 88, height = 8, x = S.x - width / 2, y = S.y + 49, ratio = clamp(S.hp / Math.max(1, S.maxHp), 0, 1);
+  ctx.save(); ctx.fillStyle = '#030712dd'; ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
+  ctx.fillStyle = ratio > .55 ? '#51f0a4' : ratio > .25 ? '#ffd159' : '#ff426f'; ctx.fillRect(x, y, width * ratio, height);
+  ctx.strokeStyle = '#d9fbffcc'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
+  ctx.fillStyle = '#fff'; ctx.font = '900 8px monospace'; ctx.textAlign = 'center'; ctx.fillText(`${Math.ceil(S.hp)} / ${Math.ceil(S.maxHp)}`, S.x, y + 7); ctx.restore();
+}
+
 function drawWorld(W, H, t) {
   ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
   if (images.city.complete && images.city.width) {
@@ -1580,6 +1631,7 @@ function drawWorld(W, H, t) {
   ctx.shadowBlur = 28; ctx.shadowColor = '#36eaff';
   sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1, S.facing < 0);
   ctx.shadowBlur = 0;
+  drawPlayerHpBar();
   if (!S.moving) { ctx.strokeStyle = '#65efff66'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S.x, S.y + 18, 27 + Math.sin(t * .004) * 3, 0, TAU); ctx.stroke(); }
   ctx.restore();
 }
