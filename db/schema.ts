@@ -11,6 +11,7 @@ export const leaderboardScores = sqliteTable(
     level: integer("level").notNull(),
     duration: integer("duration").notNull(),
     victory: integer("victory", { mode: "boolean" }).notNull().default(false),
+    loadoutJson: text("loadout_json"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [index("leaderboard_score_idx").on(table.score, table.createdAt)],

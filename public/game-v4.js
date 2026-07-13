@@ -17,6 +17,8 @@ const ui = {
   relicDetails: $('#relicDetails'), relicSlots: $('#relicSlots'), relicScreen: $('#relicScreen'), relicTitle: $('#relicTitle'),
   relicSub: $('#relicSub'), relicNew: $('#relicNew'), relicCards: $('#relicCards'),
   codexButton: $('#codexButton'), codexScreen: $('#codexScreen'), codexClose: $('#codexClose'), codexGrid: $('#codexGrid'),
+  rankDetailScreen: $('#rankDetailScreen'), rankDetailTitle: $('#rankDetailTitle'), rankDetailClose: $('#rankDetailClose'),
+  rankDetailSummary: $('#rankDetailSummary'), rankDetailBuilds: $('#rankDetailBuilds'), rankDetailRelics: $('#rankDetailRelics'), rankDetailEmpty: $('#rankDetailEmpty'),
 };
 
 const images = {
@@ -155,19 +157,19 @@ const AudioEngine = (() => {
 const upgrades = [
   { id: 'power', icon: '◆', name: '룬 증폭', desc: '모든 공격 피해량 +12%', max: 10, tags: ['projectile', 'saber', 'orbit'], apply: s => { s.damage *= 1.12; } },
   { id: 'haste', icon: '⌁', name: '영창 가속', desc: '성좌탄 공격 간격 13% 감소', max: 7, tags: ['projectile'], apply: s => { s.rate = Math.max(.1, s.rate * .87); } },
-  { id: 'multishot', icon: '≋', name: '쌍성 궤도', desc: '동시에 발사하는 성좌탄 +1', max: 5, tags: ['projectile'], apply: s => { s.multishot++; } },
+  { id: 'multishot', icon: '≋', name: '쌍성 궤도', desc: '동시에 발사하는 성좌탄 +1', max: 8, tags: ['projectile'], apply: s => { s.multishot++; } },
   { id: 'pierce', icon: '↠', name: '위상 관통', desc: '성좌탄 관통 횟수 +1', max: 6, tags: ['projectile'], apply: s => { s.pierce++; } },
   { id: 'critical', icon: '✦', name: '운명 간섭', desc: '치명타 확률 +8%, 배율 +0.18', max: 6, tags: ['projectile', 'saber'], apply: s => { s.crit += .08; s.critMult += .18; } },
   { id: 'blast', icon: '✺', name: '붕괴 잔향', desc: '명중 폭발 범위 +22', max: 6, tags: ['projectile', 'area'], apply: s => { s.blast += 22; } },
   { id: 'chain', icon: 'ϟ', name: '연쇄 낙뢰', desc: '주변 적에게 낙뢰 +1회', max: 5, tags: ['projectile', 'area'], apply: s => { s.chain++; } },
   { id: 'size', icon: '◉', name: '거대 성핵', desc: '성좌탄 크기 +18%, 피해 +10%', max: 6, tags: ['projectile'], apply: s => { s.shotScale *= 1.18; s.projectileMult *= 1.1; } },
-  { id: 'orbit', icon: '☄', name: '수호 위성', desc: '공격 위성 +1, 위성 빌드 개방', max: 6, tags: ['orbit'], apply: s => { s.orbitals++; } },
+  { id: 'orbit', icon: '☄', name: '수호 위성', desc: '공격 위성 +1, 위성 빌드 개방', max: 8, tags: ['orbit'], apply: s => { s.orbitals++; } },
   { id: 'orbit_speed', icon: '⟳', name: '초고속 공전', desc: '위성 회전 속도 +24%', max: 5, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitSpeed *= 1.24; } },
   { id: 'orbit_size', icon: '⊚', name: '거대 위성핵', desc: '위성 크기 +20%, 피해 +16%', max: 5, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitSize *= 1.2; s.orbitDamage *= 1.16; } },
   { id: 'orbit_range', icon: '◎', name: '이중 공전면', desc: '공전 반경 +16, 위성 피해 +10%', max: 4, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitRadius += 16; s.orbitDamage *= 1.1; } },
   { id: 'orbit_shock', icon: '✹', name: '초신성 방전', desc: '위성 명중 시 12% 확률로 범위 방전', max: 4, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitShock += .12; } },
   { id: 'orbit_pulse', icon: '◌', name: '맥동 성환', desc: '주기적으로 모든 위성이 충격파 방출', max: 3, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitPulse++; } },
-  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '광검 피해 +36%', max: 6, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.36; } },
+  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '광검 피해 +25%', max: 8, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.25; } },
   { id: 'saber_reach', icon: '⌒', name: '월광 검로', desc: '광검 사거리 +20, 베기 각도 확대', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRange += 20; s.saberArc += .14; } },
   { id: 'saber_haste', icon: '≪', name: '찰나 발도', desc: '광검 공격 간격 17% 감소', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRate = Math.max(.22, s.saberRate * .83); } },
   { id: 'saber_echo', icon: '〽', name: '잔상 연격', desc: '광검 추가 잔상 베기 +1', max: 3, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberEcho++; } },
@@ -230,7 +232,7 @@ const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
 
 function upgradeDescription(upgrade, rank = 0) {
   if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
-  if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해 · 기본 베기 피해 대폭 증가' : '광검 피해 +36%';
+  if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해' : '광검 피해 +25%';
   if (upgrade.id === 'multishot') return rank === 0 ? '성좌탄 +1 · 투사체 집중 빌드 개방' : '동시에 발사하는 성좌탄 +1';
   const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
   if (limitBuild) return `마스터 특수기 피해 +4%p (무한) · 범위 +2%p (LV.20까지) · 현재 피해 +${rank * 4}% / 범위 +${Math.min(20, rank) * 2}%`;
@@ -342,8 +344,43 @@ function formatTime(seconds) {
 
 function renderRanks(target, rows, ownRank) {
   target.innerHTML = rows.length
-    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span></div>`).join('') + (ownRank ? `<div class="rank-status">이번 기록 순위: #${ownRank}</div>` : '')
+    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span><button class="rank-detail" data-rank-index="${index}">상세</button></div>`).join('') + (ownRank ? `<div class="rank-status">이번 기록 순위: #${ownRank}</div>` : '')
     : '<div class="rank-status">아직 등록된 기록이 없습니다.</div>';
+  target.querySelectorAll('.rank-detail').forEach(button => button.onclick = () => openRankDetail(rows[Number(button.dataset.rankIndex)]));
+}
+
+function openRankDetail(row) {
+  if (!row) return;
+  const loadout = row.loadout && typeof row.loadout === 'object' ? row.loadout : null;
+  ui.rankDetailTitle.textContent = `${row.player || 'UNKNOWN'} · 종료 시 빌드`;
+  ui.rankDetailSummary.innerHTML = `<span>결과<b>${row.victory ? '보스 격파' : '작전 종료'}</b></span><span>점수<b>${Number(row.score || 0).toLocaleString()}</b></span><span>생존<b>${formatTime(row.duration || 0)}</b></span><span>레벨 / 킬<b>LV.${Number(row.level || 1)} · ${Number(row.kills || 0).toLocaleString()}</b></span><span>보스<b>${Number(loadout?.bosses || 0)} 격파 · ${Number(loadout?.bossFailures || 0)} 실패</b></span>`;
+  const upgradeEntries = loadout?.upgrades && typeof loadout.upgrades === 'object' ? Object.entries(loadout.upgrades) : [];
+  const relicEntries = Array.isArray(loadout?.relics) ? loadout.relics : [];
+  ui.rankDetailBuilds.innerHTML = upgradeEntries.map(([id, rawRank]) => {
+    const upgrade = upgradeById.get(id), rank = Math.max(1, Math.floor(Number(rawRank) || 1)); if (!upgrade) return '';
+    const build = masteryBuildForUpgrade(id), mastered = Boolean(build && rank >= upgrade.max);
+    const note = mastered ? `<br><span style="color:#ffd965">MAX 특수 효과 · ${masterySpecs[build].note}</span>` : '';
+    return `<article class="rank-loadout-item" style="--rarity:${mastered ? '#ffd45a' : '#54e8ff'}"><strong>${upgrade.icon} ${upgrade.name} · ${limitBreakBuildForUpgrade(id) ? `한계돌파 LV.${rank}` : mastered ? 'MAX LV' : `LV.${rank}`}</strong><small>${upgradeDescription(upgrade, Math.max(0, rank - 1))}${note}</small></article>`;
+  }).join('') || '<article class="rank-loadout-item"><strong>술식 정보 없음</strong><small>저장된 강화 효과가 없습니다.</small></article>';
+  ui.rankDetailRelics.innerHTML = relicEntries.map(entry => {
+    const relic = relicById.get(String(entry?.id || '')); if (!relic) return '';
+    const level = Math.max(1, Math.floor(Number(entry.level) || 1)), rarity = rarities[relic.rarity];
+    return `<article class="rank-loadout-item" style="--rarity:${rarity.color}"><strong>${relic.icon} ${rarity.name} · ${relic.name} LV.${level}</strong><small>${relicEffectText(relic, level)}</small></article>`;
+  }).join('') || '<article class="rank-loadout-item"><strong>획득 유물 없음</strong><small>이 기록에는 저장된 유물이 없습니다.</small></article>';
+  if (!loadout) { ui.rankDetailBuilds.innerHTML = ''; ui.rankDetailRelics.innerHTML = ''; }
+  ui.rankDetailEmpty.classList.toggle('hidden', Boolean(loadout)); ui.rankDetailScreen.classList.remove('hidden');
+}
+
+function closeRankDetail() { ui.rankDetailScreen.classList.add('hidden'); }
+
+function runLoadoutSnapshot(run) {
+  return {
+    v: 1,
+    upgrades: Object.fromEntries(Object.entries(run.ranks).filter(([, rank]) => Number.isFinite(rank) && rank > 0).map(([id, rank]) => [id, Math.floor(rank)])),
+    relics: run.relics.slice(0, 7).map(relic => ({ id: relic.id, level: Math.max(1, Math.floor(relic.level || 1)) })),
+    bosses: run.bossesKilled,
+    bossFailures: run.bossFailures,
+  };
 }
 
 async function loadLeaderboard(target = ui.startRanks) {
@@ -360,7 +397,7 @@ async function submitScore() {
   try {
     const response = await fetch('/api/leaderboard', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ player: cleanName(), kills: run.kills, level: run.level, duration: Math.floor(run.time), victory: run.bossesKilled > 0, bosses: run.bossesKilled }),
+      body: JSON.stringify({ player: cleanName(), kills: run.kills, level: run.level, duration: Math.floor(run.time), victory: run.bossesKilled > 0, bosses: run.bossesKilled, loadout: runLoadoutSnapshot(run) }),
     });
     if (!response.ok) throw new Error();
     const data = await response.json(); run.score = Number(data.score ?? run.score);
@@ -371,7 +408,7 @@ async function submitScore() {
 async function begin() {
   await AudioEngine.init(); AudioEngine.scene('battle');
   S = fresh(); running = true; chosen = [];
-  ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden');
+  ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden'); ui.rankDetailScreen.classList.add('hidden');
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
   S.spawnClock = 0;
@@ -391,7 +428,7 @@ function endGame() {
 
 function returnToMain() {
   running = false; keys.clear(); joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 }; S = null;
-  ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden');
+  ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden'); ui.rankDetailScreen.classList.add('hidden');
   ui.hud.classList.add('hidden'); ui.build.classList.add('hidden'); ui.radar.classList.add('hidden'); ui.relicTray.classList.add('hidden'); ui.bossHud.classList.add('hidden'); ui.warning.classList.add('hidden');
   ui.start.classList.remove('hidden'); AudioEngine.scene('menu'); loadLeaderboard();
 }
@@ -754,6 +791,7 @@ resize(); addEventListener('resize', resize);
 addEventListener('keydown', event => {
   AudioEngine.resume(); const key = event.key.toLowerCase(); keys.add(key);
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
+  if (key === 'escape' && !ui.rankDetailScreen.classList.contains('hidden')) { keys.delete(key); closeRankDetail(); return; }
   if (key === 'escape' && S?.codexOpen) { keys.delete(key); closeCodex(); return; }
   if (key === 'm') toggleSound();
   if (S?.paused && S.relicAwaitDismiss) { keys.delete(key); dismissRelicResult(); return; }
@@ -789,6 +827,7 @@ canvas.addEventListener('pointercancel', () => { joy.on = false; joy.x = joy.y =
 function toggleSound() { const on = AudioEngine.toggle(); ui.sound.textContent = on ? 'SOUND ON' : 'MUTED'; }
 ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin; $('#mainMenu').onclick = returnToMain;
 ui.codexButton.onclick = openCodex; ui.codexClose.onclick = closeCodex;
+ui.rankDetailClose.onclick = closeRankDetail;
 document.querySelectorAll('[data-codex]').forEach(button => button.onclick = () => renderCodex(button.dataset.codex));
 
 function difficultyScale() {
@@ -802,7 +841,7 @@ function edgeSpawnDistance(W, H, angle, padding = 76) {
   return Math.min(horizontal, vertical);
 }
 
-function enemyDamageScale() { return 1 + Math.floor(S.time / 165); }
+function enemyDamageScale() { return 1 + S.time / 150 + Math.floor(S.time / 300) * .5 + S.bossFailures * .15; }
 
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
@@ -828,7 +867,7 @@ function spawnEnemy(W, H, options = {}) {
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
   const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.08, warder: 1.35 }[archetype];
   const hp = Math.ceil(baseHp * archetypeHp * (elite ? 2.8 : 1) * (options.child ? .42 : 1));
-  const archetypeSpeed = archetype === 'warder' ? .82 : archetype === 'bomber' ? 1.28 : 1;
+  const archetypeSpeed = archetype === 'warder' ? .82 : archetype === 'bomber' ? 1.42 : 1;
   const baseSpeed = Math.min(150, 61 + S.time * .075) * (options.child ? 1.18 : 1) * archetypeSpeed;
   S.mobs.push({
     kind: 'mob', archetype, x: options.x ?? S.x + Math.cos(angle) * distance,
@@ -988,6 +1027,12 @@ function updateBoss(mob, dt) {
   if (distance < mob.r + 22) hurtPlayer(mob.damage);
 }
 
+function detonateBomber(mob) {
+  if (mob.selfDestruct) return;
+  mob.selfDestruct = true; effect('ring', mob.x, mob.y, { life: .5, max: .5, radius: 112, color: '#ff3d66' }); burst(mob.x, mob.y, '#ff4b62', 18, 240); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 6);
+  if (Math.hypot(S.x - mob.x, S.y - mob.y) < 130) hurtPlayer(mob.damage * 2.35);
+}
+
 function updateMob(mob, dt) {
   mob.age += dt; mob.hitFlash -= dt; mob.slow -= dt; mob.frozen -= dt; mob.stateClock -= dt; mob.shootClock -= dt; mob.specialClock -= dt;
   const dx = S.x - mob.x, dy = S.y - mob.y, distance = Math.hypot(dx, dy) || 1, angle = Math.atan2(dy, dx);
@@ -1006,10 +1051,9 @@ function updateMob(mob, dt) {
   const movementScale = (mob.frozen > 0 ? .12 : mob.slow > 0 ? .72 : 1) * auraSlow;
   if (mob.archetype === 'bomber') {
     if (mob.state === 'fuse') {
-      mob.x += dx / distance * mob.speed * .12 * dt * movementScale; mob.y += dy / distance * mob.speed * .12 * dt * movementScale;
+      mob.x += dx / distance * mob.speed * .22 * dt * movementScale; mob.y += dy / distance * mob.speed * .22 * dt * movementScale;
       if (mob.stateClock <= 0) {
-        mob.dead = true; mob.selfDestruct = true; effect('ring', mob.x, mob.y, { life: .5, max: .5, radius: 112, color: '#ff3d66' }); burst(mob.x, mob.y, '#ff4b62', 18, 240); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 6);
-        if (distance < 112 + 18) hurtPlayer(mob.damage * 2.35); return;
+        detonateBomber(mob); mob.dead = true; return;
       }
     } else {
       mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
@@ -1258,6 +1302,7 @@ function relicDropChance(source, tier = 1, cycle = 0) {
 
 function handleDeath(mob, W, H) {
   if (mob.dead) return;
+  if (mob.kind === 'mob' && mob.archetype === 'bomber') detonateBomber(mob);
   mob.dead = true; effect('death', mob.x, mob.y, { life: .55, max: .55, color: mob.kind === 'treasure' ? '#ffd34e' : '#f64eff' });
   burst(mob.x, mob.y, mob.kind === 'treasure' ? '#ffd34e' : '#e950ff', mob.kind === 'boss' ? 24 : 8, mob.kind === 'boss' ? 250 : 150); AudioEngine.se('kill');
   if (mob.kind === 'boss') {

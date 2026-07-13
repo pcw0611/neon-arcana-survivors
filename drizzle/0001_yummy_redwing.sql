@@ -1,0 +1,1 @@
+ALTER TABLE `leaderboard_scores` ADD `loadout_json` text;

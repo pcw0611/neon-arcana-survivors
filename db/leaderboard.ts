@@ -6,6 +6,7 @@ export const CREATE_LEADERBOARD_TABLE = `CREATE TABLE IF NOT EXISTS leaderboard_
   level INTEGER NOT NULL,
   duration INTEGER NOT NULL,
   victory INTEGER NOT NULL DEFAULT 0,
+  loadout_json TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`;
 
