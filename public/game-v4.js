@@ -14,7 +14,7 @@ const ui = {
   bossHud: $('#bossHud'), bossName: $('#bossName'), bossBar: $('#bossBar'),
   warning: $('#warning'), startRanks: $('#startRanks'), finalRanks: $('#finalRanks'),
   finalScore: $('#finalScore'), playerName: $('#playerName'), relicTray: $('#relicTray'),
-  relicSlots: $('#relicSlots'), relicScreen: $('#relicScreen'), relicTitle: $('#relicTitle'),
+  relicDetails: $('#relicDetails'), relicSlots: $('#relicSlots'), relicScreen: $('#relicScreen'), relicTitle: $('#relicTitle'),
   relicSub: $('#relicSub'), relicNew: $('#relicNew'), relicCards: $('#relicCards'),
 };
 
@@ -248,6 +248,7 @@ function fresh() {
     mobs: [], shots: [], delayedVolleys: [], enemyShots: [], hazards: [], gems: [],
     chests: [], effects: [], particles: [], ranks: {}, orbitHits: new Map(),
     rewardQueue: [], activeReward: null, relics: [], acquiredRelics: new Set(), relicSlots: 3, rarityBias: 0,
+    relicRoulette: false, relicAwaitDismiss: false, relicResultMessage: '',
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
     nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false,
     nextWorldEvent: random(58, 72), worldEventIndex: 0, slotPity: 0,
@@ -304,8 +305,8 @@ async function begin() {
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
   const openingOffset = Math.random() * TAU;
-  for (let i = 0; i < 18; i++) {
-    const angle = openingOffset + i * TAU / 18;
+  for (let i = 0; i < 32; i++) {
+    const angle = openingOffset + i * TAU / 32;
     spawnEnemy(innerWidth, innerHeight, { angle, distance: edgeSpawnDistance(innerWidth, innerHeight, angle, 42), ignoreCap: true });
   }
   S.spawnClock = .28;
@@ -478,7 +479,7 @@ function rollRelicAward(reward) {
 }
 
 function openRelicReward(reward) {
-  S.paused = true; S.relicRoulette = true; S.relicCandidate = null; S.relicReplaceIndex = null;
+  S.paused = true; S.relicRoulette = true; S.relicAwaitDismiss = false; S.relicResultMessage = ''; S.relicCandidate = null; S.relicReplaceIndex = null;
   const result = rollRelicAward(reward); S.relicRouletteResult = result;
   ui.relicTitle.textContent = reward.source === 'boss' ? '보스 유물 슬롯' : '잭팟 유물 슬롯';
   ui.relicSub.textContent = S.relics.length >= S.relicSlots ? '슬롯이 가득 차 중복 유물이 나오면 자동으로 레벨업합니다' : '획득 유물이 자동으로 결정됩니다';
@@ -499,12 +500,26 @@ function awardRelic(definition) {
   if (existing) {
     existing.level = (existing.level || 1) + 1; existing.equip(S, false);
     effect('relic', S.x, S.y, { life: 1.15, max: 1.15, color: rarities[existing.rarity].color });
-    updateRelicTray(); finishReward(`${existing.icon} ${existing.name} · RELIC LV.${existing.level}`); return;
+    updateRelicTray(); showRelicResult(existing, `${existing.icon} ${existing.name} · RELIC LV.${existing.level}`, true); return;
   }
   const instance = { ...definition, level: 1 }, first = !S.acquiredRelics.has(instance.id);
   S.acquiredRelics.add(instance.id); S.relics.push(instance); instance.equip(S, first);
   effect('relic', S.x, S.y, { life: 1.15, max: 1.15, color: rarities[instance.rarity].color });
-  updateRelicTray(); finishReward(`${instance.icon} ${rarities[instance.rarity].name} 유물 · ${instance.name}`);
+  updateRelicTray(); showRelicResult(instance, `${instance.icon} ${rarities[instance.rarity].name} 유물 · ${instance.name}`, false);
+}
+
+function showRelicResult(relic, message, upgraded) {
+  const rarity = rarities[relic.rarity];
+  S.relicRoulette = false; S.relicAwaitDismiss = true; S.relicResultMessage = message;
+  ui.relicTitle.textContent = upgraded ? '유물 레벨 업!' : '새 유물 획득!';
+  ui.relicSub.textContent = '효과를 확인한 뒤 화면을 터치하거나 아무 키를 눌러 계속하세요';
+  ui.relicCards.innerHTML = `<div class="relic-card result-ready" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:pointer"><span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name} · LV.${relic.level || 1}</strong><small>${relic.desc}</small><em>TAP / PRESS KEY</em></div>`;
+}
+
+function dismissRelicResult() {
+  if (!S?.relicAwaitDismiss) return;
+  const message = S.relicResultMessage; S.relicAwaitDismiss = false; S.relicResultMessage = '';
+  finishReward(message);
 }
 
 function renderRelicChoices() {
@@ -567,7 +582,7 @@ function salvageRelic(relic) {
 
 function finishReward(message) {
   ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden');
-  S.paused = false; S.activeReward = null; S.relicRoulette = false; S.relicCandidate = null; S.relicReplaceIndex = null;
+  S.paused = false; S.activeReward = null; S.relicRoulette = false; S.relicAwaitDismiss = false; S.relicResultMessage = ''; S.relicCandidate = null; S.relicReplaceIndex = null;
   AudioEngine.se('select'); AudioEngine.scene('battle'); if (message) showToast(message);
   updateBuild(); updateRelicTray(); setTimeout(processRewards, 120);
 }
@@ -579,6 +594,10 @@ function updateBuild() {
 }
 
 function updateRelicTray() {
+  ui.relicDetails.innerHTML = S.relics.length ? S.relics.map(relic => {
+    const rarity = rarities[relic.rarity];
+    return `<div class="relic-detail" style="--rarity:${rarity.color}"><b>${relic.icon} ${relic.name} <em>LV.${relic.level || 1}</em></b><span>${relic.desc}</span></div>`;
+  }).join('') : '<div class="relic-detail empty"><b>장착 유물 없음</b><span>보스와 잭팟 그렘린을 사냥하세요</span></div>';
   ui.relicSlots.innerHTML = '';
   for (let i = 0; i < S.relicSlots; i++) {
     const relic = S.relics[i], slot = document.createElement('span'); slot.className = `relic-slot${relic ? '' : ' empty'}`;
@@ -622,6 +641,7 @@ addEventListener('keydown', event => {
   AudioEngine.resume(); const key = event.key.toLowerCase(); keys.add(key);
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
   if (key === 'm') toggleSound();
+  if (S?.paused && S.relicAwaitDismiss) { keys.delete(key); dismissRelicResult(); return; }
   if (S?.paused && ['1', '2', '3'].includes(key)) {
     if (S.activeReward?.type === 'level') choose(Number(key) - 1);
     else if (S.activeReward?.type === 'relic' && !S.relicRoulette && !S.relicCandidate) selectRelic(Number(key) - 1);
@@ -635,6 +655,10 @@ addEventListener('keydown', event => {
   }
 });
 addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
+ui.relicScreen.addEventListener('pointerdown', event => {
+  AudioEngine.resume();
+  if (S?.relicAwaitDismiss) { event.preventDefault(); dismissRelicResult(); }
+});
 canvas.addEventListener('pointerdown', event => {
   AudioEngine.resume(); if (!running || S?.paused) return;
   joy = { on: true, id: event.pointerId, sx: event.clientX, sy: event.clientY, x: 0, y: 0 }; canvas.setPointerCapture(event.pointerId);
@@ -677,10 +701,10 @@ function chooseArchetype() {
 }
 
 function spawnEnemy(W, H, options = {}) {
-  if (S.mobs.length >= 190) return;
-  const cap = Math.min(170, 82 + Math.floor(S.time * .14));
+  if (S.mobs.length >= 230) return;
+  const cap = Math.min(210, 96 + Math.floor(S.time * .16));
   if (!options.ignoreCap && S.mobs.filter(mob => mob.kind === 'mob').length >= cap) return;
-  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(58, 92));
+  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(34, 68));
   const eliteChance = clamp((S.time - 20) / 620, 0, .48), elite = options.elite ?? Math.random() < eliteChance;
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
   const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.3 }[archetype];
@@ -689,7 +713,7 @@ function spawnEnemy(W, H, options = {}) {
   S.mobs.push({
     kind: 'mob', archetype, x: options.x ?? S.x + Math.cos(angle) * distance,
     y: options.y ?? S.y + Math.sin(angle) * distance, r: options.child ? 13 : elite ? 28 : 18 + Math.random() * 5,
-    hp, maxHp: hp, speed: baseSpeed * (elite ? .86 : 1), damage: enemyDamageScale() + (elite ? 1 : 0),
+    hp, maxHp: hp, speed: baseSpeed * (elite ? .86 : 1), damage: enemyDamageScale() * .68 + (elite ? .9 : 0),
     elite, child: Boolean(options.child), slow: 0, frozen: 0, phase: Math.random() * 2 | 0,
     id: Math.random(), age: 0, state: 'move', stateClock: random(2.4, 4.5), shootClock: random(1.4, 3.4),
     specialClock: random(2.8, 5.2), vx: 0, vy: 0, facing: 1, hitFlash: 0,
@@ -1085,7 +1109,7 @@ function processLevelUps() {
 }
 
 function update(dt, W, H) {
-  S.time += dt; S.inv -= dt; S.shotClock -= dt; S.saberClock -= dt; S.healClock += dt; S.saberActive -= dt;
+  S.time += dt; S.inv -= dt; S.shotClock -= dt; S.spawnClock = Math.max(-1, S.spawnClock - dt); S.saberClock -= dt; S.healClock += dt; S.saberActive -= dt;
   S.temporarySpeedClock -= dt; if (S.temporarySpeedClock <= 0) S.temporarySpeed = 1;
   S.shake = Math.max(0, S.shake - dt * 25); AudioEngine.setIntensity(Math.min(5, Math.floor(S.time / 60)));
 
@@ -1103,12 +1127,12 @@ function update(dt, W, H) {
 
   if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; S.hp = Math.min(S.maxHp, S.hp + S.regen); }
   if (S.spawnClock <= 0) {
-    const regularCount = S.mobs.filter(mob => mob.kind === 'mob').length;
-    const densityTarget = Math.min(170, 28 + Math.floor(S.time * .25));
+    const regularCount = S.mobs.filter(mob => mob.kind === 'mob' && !mob.dead && mob.hp > 0).length;
+    const densityTarget = Math.min(205, 48 + Math.floor(S.time * .28));
     const deficit = Math.max(0, densityTarget - regularCount);
     const baseInterval = Math.max(.09, .5 / Math.pow(1 + S.time / 210, .76));
-    const interval = deficit > 0 ? Math.min(.11, baseInterval) : baseInterval;
-    const batch = deficit > 30 ? 4 : deficit > 16 ? 3 : deficit > 6 ? 2 : 1;
+    const interval = regularCount === 0 ? .04 : deficit > 0 ? Math.min(.085, baseInterval) : baseInterval;
+    const batch = regularCount === 0 ? 12 : deficit > 80 ? 8 : deficit > 40 ? 6 : deficit > 20 ? 4 : deficit > 8 ? 3 : deficit > 0 ? 2 : 1;
     S.spawnClock = interval * (S.bossActive ? 1.12 : 1);
     for (let i = 0; i < batch; i++) spawnEnemy(W, H);
   }
