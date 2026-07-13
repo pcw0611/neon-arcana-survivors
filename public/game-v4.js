@@ -128,6 +128,7 @@ const AudioEngine = (() => {
     if (name === 'level') [74, 77, 81, 86].forEach((m, i) => tone(freq(m), .16, 'triangle', .075, t + i * .08, 1.01));
     if (name === 'boss') { tone(82, .7, 'sawtooth', .12, t, .5); noise(.45, .09, t); }
     if (name === 'treasure') { [69, 76, 81, 88].forEach((m, i) => tone(freq(m), .2, 'square', .07, t + i * .07, 1.02)); }
+    if (name === 'reel' && allow(name, 52)) tone(freq(62 + Math.floor(Math.random() * 18)), .055, 'square', .045, t, 1.12);
     if (name === 'relic') { [72, 79, 84, 91].forEach((m, i) => tone(freq(m), .28, 'triangle', .08, t + i * .1, 1.01)); }
     if (name === 'wave') { tone(105, .45, 'sawtooth', .08, t, .55); noise(.3, .06, t); }
     if (name === 'over') [62, 60, 57, 50].forEach((m, i) => tone(freq(m), .32, 'sine', .08, t + i * .19, .92));
@@ -216,8 +217,12 @@ const relics = [
 const relicById = new Map(relics.map(relic => [relic.id, relic]));
 const upgradeById = new Map(upgrades.map(upgrade => [upgrade.id, upgrade]));
 const hasRelic = (id) => Boolean(S?.relics.some(relic => relic.id === id));
+const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
 
 function relicKillTick(state, id, interval, heal) {
+  const level = state.relics.find(relic => relic.id === id)?.level || 1;
+  interval = Math.max(3, Math.ceil(interval / (1 + (level - 1) * .35)));
+  heal += Math.floor((level - 1) / 2);
   const key = `kills:${id}`; state.relicUses[key] = (state.relicUses[key] || 0) + 1;
   if (state.relicUses[key] >= interval) { state.relicUses[key] = 0; state.hp = Math.min(state.maxHp, state.hp + heal); }
 }
@@ -298,6 +303,12 @@ async function begin() {
   ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden');
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
+  const openingOffset = Math.random() * TAU;
+  for (let i = 0; i < 18; i++) {
+    const angle = openingOffset + i * TAU / 18;
+    spawnEnemy(innerWidth, innerHeight, { angle, distance: edgeSpawnDistance(innerWidth, innerHeight, angle, 42), ignoreCap: true });
+  }
+  S.spawnClock = .28;
 }
 
 function endGame() {
@@ -319,7 +330,7 @@ function affinityScores() {
     for (const tag of upgrade?.tags || []) scores[tag] = (scores[tag] || 0) + rank;
   }
   for (const relic of S.relics) {
-    for (const tag of relic.tags || []) scores[tag] = (scores[tag] || 0) + 1.5 + relic.rarity * .5;
+    for (const tag of relic.tags || []) scores[tag] = (scores[tag] || 0) + (1.5 + relic.rarity * .5) * (relic.level || 1);
   }
   return scores;
 }
@@ -447,10 +458,53 @@ function relicCard(relic, action, label = '장착') {
   button.onclick = action; return button;
 }
 
+function rollRelicAward(reward) {
+  const inventoryFull = S.relics.length >= S.relicSlots;
+  const candidates = inventoryFull ? S.relics.map(item => relicById.get(item.id)) : relics;
+  const targetRarity = rollRarity(reward.source, reward.tier);
+  let pool = [];
+  for (let distance = 0; distance < 5 && !pool.length; distance++) {
+    const high = targetRarity + distance, low = targetRarity - distance;
+    if (high <= 4) pool = candidates.filter(relic => relic.rarity === high);
+    if (!pool.length && low >= 0) pool = candidates.filter(relic => relic.rarity === low);
+  }
+  if (!pool.length) pool = candidates;
+  const affinity = affinityScores();
+  return weightedPick(pool, relic => {
+    const owned = relicLevel(relic.id) > 0 ? 1.18 : 1.35;
+    const match = Math.max(0, ...(relic.tags || []).map(tag => affinity[tag] || 0));
+    return owned * Math.min(1.8, 1 + match * .12);
+  });
+}
+
 function openRelicReward(reward) {
-  S.paused = true; S.relicCandidate = null; S.relicChoices = relicOptions(reward);
-  S.relicReplaceIndex = null; renderRelicChoices();
-  AudioEngine.se('relic'); AudioEngine.scene('choice'); ui.relicScreen.classList.remove('hidden');
+  S.paused = true; S.relicRoulette = true; S.relicCandidate = null; S.relicReplaceIndex = null;
+  const result = rollRelicAward(reward); S.relicRouletteResult = result;
+  ui.relicTitle.textContent = reward.source === 'boss' ? '보스 유물 슬롯' : '잭팟 유물 슬롯';
+  ui.relicSub.textContent = S.relics.length >= S.relicSlots ? '슬롯이 가득 차 중복 유물이 나오면 자동으로 레벨업합니다' : '획득 유물이 자동으로 결정됩니다';
+  ui.relicNew.innerHTML = ''; ui.relicCards.innerHTML = ''; ui.relicScreen.classList.remove('hidden'); AudioEngine.scene('choice');
+  let tick = 0;
+  const spin = () => {
+    const preview = tick >= 18 ? result : relics[Math.floor(Math.random() * relics.length)];
+    const rarity = rarities[preview.rarity], currentLevel = relicLevel(preview.id);
+    ui.relicCards.innerHTML = `<div class="relic-card" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:default"><span class="relic-icon">${preview.icon}</span><span class="rarity">${tick >= 18 ? rarity.name : 'SEARCHING'} RELIC</span><strong>${preview.name}</strong><small>${tick >= 18 ? preview.desc : '공명 주파수 탐색 중…'}</small><em>${tick >= 18 ? (currentLevel ? `LV.${currentLevel} → LV.${currentLevel + 1}` : 'NEW RELIC') : '◈ ◇ ◈'}</em></div>`;
+    if (tick < 18) { tick++; AudioEngine.se('reel'); setTimeout(spin, 45 + tick * 5); }
+    else { AudioEngine.se('relic'); setTimeout(() => awardRelic(result), 520); }
+  };
+  spin();
+}
+
+function awardRelic(definition) {
+  const existing = S.relics.find(relic => relic.id === definition.id);
+  if (existing) {
+    existing.level = (existing.level || 1) + 1; existing.equip(S, false);
+    effect('relic', S.x, S.y, { life: 1.15, max: 1.15, color: rarities[existing.rarity].color });
+    updateRelicTray(); finishReward(`${existing.icon} ${existing.name} · RELIC LV.${existing.level}`); return;
+  }
+  const instance = { ...definition, level: 1 }, first = !S.acquiredRelics.has(instance.id);
+  S.acquiredRelics.add(instance.id); S.relics.push(instance); instance.equip(S, first);
+  effect('relic', S.x, S.y, { life: 1.15, max: 1.15, color: rarities[instance.rarity].color });
+  updateRelicTray(); finishReward(`${instance.icon} ${rarities[instance.rarity].name} 유물 · ${instance.name}`);
 }
 
 function renderRelicChoices() {
@@ -513,7 +567,7 @@ function salvageRelic(relic) {
 
 function finishReward(message) {
   ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden');
-  S.paused = false; S.activeReward = null; S.relicCandidate = null; S.relicReplaceIndex = null;
+  S.paused = false; S.activeReward = null; S.relicRoulette = false; S.relicCandidate = null; S.relicReplaceIndex = null;
   AudioEngine.se('select'); AudioEngine.scene('battle'); if (message) showToast(message);
   updateBuild(); updateRelicTray(); setTimeout(processRewards, 120);
 }
@@ -528,7 +582,7 @@ function updateRelicTray() {
   ui.relicSlots.innerHTML = '';
   for (let i = 0; i < S.relicSlots; i++) {
     const relic = S.relics[i], slot = document.createElement('span'); slot.className = `relic-slot${relic ? '' : ' empty'}`;
-    slot.textContent = relic?.icon || '＋'; slot.title = relic ? `${rarities[relic.rarity].name} · ${relic.name}: ${relic.desc}` : '빈 유물 슬롯';
+    slot.innerHTML = relic ? `${relic.icon}<small>LV.${relic.level || 1}</small>` : '＋'; slot.title = relic ? `${rarities[relic.rarity].name} · ${relic.name} LV.${relic.level || 1}: ${relic.desc}` : '빈 유물 슬롯';
     if (relic) slot.style.setProperty('--rarity', rarities[relic.rarity].color); ui.relicSlots.appendChild(slot);
   }
 }
@@ -570,9 +624,9 @@ addEventListener('keydown', event => {
   if (key === 'm') toggleSound();
   if (S?.paused && ['1', '2', '3'].includes(key)) {
     if (S.activeReward?.type === 'level') choose(Number(key) - 1);
-    else if (S.activeReward?.type === 'relic' && !S.relicCandidate) selectRelic(Number(key) - 1);
+    else if (S.activeReward?.type === 'relic' && !S.relicRoulette && !S.relicCandidate) selectRelic(Number(key) - 1);
   }
-  if (S?.paused && S.activeReward?.type === 'relic' && S.relicCandidate) {
+  if (S?.paused && S.activeReward?.type === 'relic' && !S.relicRoulette && S.relicCandidate) {
     if (/^[1-7]$/.test(key) && Number(key) <= S.relics.length) previewRelicReplacement(Number(key) - 1, S.relicCandidate);
     if (key === 'enter' && S.relicReplaceIndex != null) replaceRelic(S.relicReplaceIndex, S.relicCandidate);
     if (key === 'escape') {
@@ -601,6 +655,12 @@ function difficultyScale() {
   return 1 + time / 170 + Math.pow(time / 420, 1.35);
 }
 
+function edgeSpawnDistance(W, H, angle, padding = 76) {
+  const horizontal = (W / 2 + padding) / Math.max(.08, Math.abs(Math.cos(angle)));
+  const vertical = (H / 2 + padding) / Math.max(.08, Math.abs(Math.sin(angle)));
+  return Math.min(horizontal, vertical);
+}
+
 function enemyDamageScale() { return 1 + Math.floor(S.time / 165); }
 
 function chooseArchetype() {
@@ -620,7 +680,7 @@ function spawnEnemy(W, H, options = {}) {
   if (S.mobs.length >= 190) return;
   const cap = Math.min(170, 82 + Math.floor(S.time * .14));
   if (!options.ignoreCap && S.mobs.filter(mob => mob.kind === 'mob').length >= cap) return;
-  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? Math.hypot(W, H) * .58;
+  const angle = options.angle ?? Math.random() * TAU, distance = options.distance ?? edgeSpawnDistance(W, H, angle, random(58, 92));
   const eliteChance = clamp((S.time - 20) / 620, 0, .48), elite = options.elite ?? Math.random() < eliteChance;
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
   const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.3 }[archetype];
@@ -638,7 +698,7 @@ function spawnEnemy(W, H, options = {}) {
 
 function spawnTreasure(W, H) {
   if (S.mobs.some(mob => mob.kind === 'treasure')) return;
-  const angle = Math.random() * TAU, distance = Math.hypot(W, H) * .52;
+  const angle = Math.random() * TAU, distance = edgeSpawnDistance(W, H, angle, 125);
   const hp = Math.ceil(13 * difficultyScale() * (1 + S.treasureNumber * .13));
   S.mobs.push({
     kind: 'treasure', x: S.x + Math.cos(angle) * distance, y: S.y + Math.sin(angle) * distance,
@@ -659,7 +719,7 @@ function bossAffixes(number) {
 function spawnBoss(W, H) {
   const number = S.bossIndex + 1, tier = (S.bossIndex % 3) + 1, cycle = Math.floor(S.bossIndex / 3);
   const types = tier === 3 ? ['witch', 'dragon'] : ['oni', 'seraph'];
-  const type = types[Math.floor(Math.random() * types.length)], angle = Math.random() * TAU, distance = Math.hypot(W, H) * .5;
+  const type = types[Math.floor(Math.random() * types.length)], angle = Math.random() * TAU, distance = edgeSpawnDistance(W, H, angle, 145);
   const modifier = ['swift', 'armored', 'unstable'][Math.random() * 3 | 0];
   const base = [0, 170, 440, 1050][tier];
   const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * (modifier === 'armored' ? 1.25 : 1));
@@ -766,7 +826,8 @@ function updateMob(mob, dt) {
     return;
   }
 
-  const auraSlow = hasRelic('gravity_halo') && distance < 260 ? .76 : 1;
+  const gravityLevel = relicLevel('gravity_halo');
+  const auraSlow = gravityLevel && distance < 260 + gravityLevel * 12 ? Math.max(.48, .82 - gravityLevel * .06) : 1;
   const movementScale = (mob.frozen > 0 ? .12 : mob.slow > 0 ? .72 : 1) * auraSlow;
   if (mob.archetype === 'gunner') {
     const desired = 275, direction = distance > desired + 35 ? 1 : distance < desired - 35 ? -1 : 0;
@@ -817,9 +878,11 @@ function fire() {
   const target = findTarget(); if (!target) return;
   const base = Math.atan2(target.y - S.y, target.x - S.x); S.volleyCount++;
   if (!S.moving) { S.aimX = Math.cos(base); S.aimY = Math.sin(base); S.facing = Math.cos(base) < 0 ? -1 : 1; }
-  const extra = hasRelic('split_core') && S.volleyCount % 4 === 0 ? 2 : 0;
+  const splitLevel = relicLevel('split_core');
+  const extra = splitLevel && S.volleyCount % Math.max(2, 5 - splitLevel) === 0 ? 2 + Math.floor((splitLevel - 1) / 2) : 0;
   createVolley(base, 1, extra);
-  if (hasRelic('echo_chamber') && S.volleyCount % 6 === 0) S.delayedVolleys.push({ due: S.time + .12, angle: base, damage: .7 });
+  const echoLevel = relicLevel('echo_chamber');
+  if (echoLevel && S.volleyCount % Math.max(3, 7 - echoLevel) === 0) S.delayedVolleys.push({ due: S.time + .12, angle: base, damage: Math.min(1, .65 + echoLevel * .1) });
   AudioEngine.se('fire');
 }
 
@@ -829,7 +892,8 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
   const frozenBonus = mob.frozen > 0 ? 1.25 : 1;
   const actual = alreadyScaled ? amount : amount * S.damageMult * typeMult * frozenBonus;
   mob.hp -= actual; mob.hitFlash = .08;
-  if (hasRelic('execution') && mob.kind === 'mob' && mob.hp > 0 && mob.hp / mob.maxHp < .15) mob.hp = 0;
+  const executionLevel = relicLevel('execution');
+  if (executionLevel && mob.kind === 'mob' && mob.hp > 0 && mob.hp / mob.maxHp < Math.min(.35, .12 + executionLevel * .04)) mob.hp = 0;
   effect('hit', mob.x, mob.y, { life: critical ? .28 : .2, max: critical ? .28 : .2, critical, kind });
   if (critical) burst(mob.x, mob.y, '#ff71ef', 5, 120);
   return actual;
@@ -926,8 +990,9 @@ function hurtPlayer(amount = 1) {
   if (Math.random() < guardChance) {
     S.inv = .25; S.temporarySpeed = 1.3; S.temporarySpeedClock = 1.2; showToast('⬡ BLOCK'); effect('ring', S.x, S.y, { life: .35, max: .35, radius: 55, color: '#8afff5' }); return;
   }
-  if (S.hp - amount <= 0 && hasRelic('phoenix') && !S.relicUses.phoenix) {
-    S.relicUses.phoenix = true; S.hp = S.maxHp * .4; S.inv = 2.5; effect('relic', S.x, S.y, { life: 1.4, max: 1.4, color: '#ff9f45' }); showWarning('PHOENIX KERNEL // REBOOT'); return;
+  const phoenixLevel = relicLevel('phoenix'), phoenixUses = S.relicUses.phoenix || 0;
+  if (S.hp - amount <= 0 && phoenixLevel && phoenixUses < phoenixLevel) {
+    S.relicUses.phoenix = phoenixUses + 1; S.hp = S.maxHp * Math.min(.7, .35 + phoenixLevel * .05); S.inv = 2.5; effect('relic', S.x, S.y, { life: 1.4, max: 1.4, color: '#ff9f45' }); showWarning(`PHOENIX KERNEL // REBOOT ${S.relicUses.phoenix}/${phoenixLevel}`); return;
   }
   S.hp -= amount; S.inv = .55; S.shake = Math.max(S.shake, 7); AudioEngine.se('hurt'); damageFlash(); burst(S.x, S.y, '#ff3978', 10, 180);
   if (S.hp <= 0) { S.hp = 0; endGame(); }
@@ -950,6 +1015,11 @@ function dropChest(x, y, source, tier, rewarded = false) {
 
 function onKillHooks() { for (const relic of S.relics) relic.onKill?.(S); }
 
+function relicDropChance(source, tier = 1, cycle = 0) {
+  if (source === 'treasure') return Math.min(.84, .68 + S.time / 3600);
+  return Math.min(.9, [.0, .42, .58, .72][tier] + cycle * .035);
+}
+
 function handleDeath(mob, W, H) {
   if (mob.dead) return;
   mob.dead = true; effect('death', mob.x, mob.y, { life: .55, max: .55, color: mob.kind === 'treasure' ? '#ffd34e' : '#f64eff' });
@@ -958,12 +1028,17 @@ function handleDeath(mob, W, H) {
   if (mob.kind === 'boss') {
     S.kills += mob.tier * 15; S.bossesKilled++; S.bossActive = null; ui.bossHud.classList.add('hidden');
     S.xp += S.nextXp * (1.15 + mob.tier * .38); S.hp = Math.min(S.maxHp, S.hp + 5 + mob.tier * 3);
-    dropChest(mob.x, mob.y, 'boss', mob.tier, true); S.nextBossAt = S.time + random(58, 72) + mob.tier * 4; S.bossWarned = false;
-    showToast(`BOSS #${mob.number} DOWN · RELIC CACHE`); S.shake = 14;
+    if (Math.random() < relicDropChance('boss', mob.tier, mob.cycle)) {
+      dropChest(mob.x, mob.y, 'boss', mob.tier, true); showToast(`BOSS #${mob.number} DOWN · RELIC DROP`);
+    } else showToast(`BOSS #${mob.number} DOWN · NO RELIC`);
+    S.nextBossAt = S.time + random(58, 72) + mob.tier * 4; S.bossWarned = false; S.shake = 14;
   } else if (mob.kind === 'treasure') {
-    S.kills += 10; dropChest(mob.x, mob.y, 'treasure', Math.min(3, 1 + Math.floor(S.time / 240)));
+    S.kills += 10;
+    if (Math.random() < relicDropChance('treasure')) {
+      dropChest(mob.x, mob.y, 'treasure', Math.min(3, 1 + Math.floor(S.time / 240))); showToast('JACKPOT GREMLIN DOWN · RELIC DROP');
+    } else showToast('JACKPOT GREMLIN DOWN · NO RELIC');
     for (let i = 0; i < 12; i++) dropGem(mob.x + random(-55, 55), mob.y + random(-55, 55), 2 + Math.floor(S.time / 240));
-    S.nextTreasureAt = S.time + random(48, 68) * S.treasureRateMult; showToast('JACKPOT GREMLIN DOWN · PREMIUM CACHE');
+    S.nextTreasureAt = S.time + random(48, 68) * S.treasureRateMult;
   } else {
     S.kills++; S.xp += .72 * S.xpGain;
     dropGem(mob.x, mob.y, (mob.elite ? 3 : 1) + Math.floor(S.time / 300));
@@ -1028,7 +1103,14 @@ function update(dt, W, H) {
 
   if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; S.hp = Math.min(S.maxHp, S.hp + S.regen); }
   if (S.spawnClock <= 0) {
-    const interval = Math.max(.105, .66 / Math.pow(1 + S.time / 230, .72)); S.spawnClock = interval * (S.bossActive ? 1.35 : 1); spawnEnemy(W, H);
+    const regularCount = S.mobs.filter(mob => mob.kind === 'mob').length;
+    const densityTarget = Math.min(170, 28 + Math.floor(S.time * .25));
+    const deficit = Math.max(0, densityTarget - regularCount);
+    const baseInterval = Math.max(.09, .5 / Math.pow(1 + S.time / 210, .76));
+    const interval = deficit > 0 ? Math.min(.11, baseInterval) : baseInterval;
+    const batch = deficit > 30 ? 4 : deficit > 16 ? 3 : deficit > 6 ? 2 : 1;
+    S.spawnClock = interval * (S.bossActive ? 1.12 : 1);
+    for (let i = 0; i < batch; i++) spawnEnemy(W, H);
   }
   if (S.shotClock <= 0) { S.shotClock = Math.max(.1, S.rate); fire(); }
   if (S.saberLevel > 0 && S.saberClock <= 0) { S.saberClock = Math.max(.2, S.saberRate); saberSlash(); }
