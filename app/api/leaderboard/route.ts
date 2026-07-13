@@ -1,4 +1,5 @@
 import { getD1 } from "../../../db";
+import { ensureLeaderboardSchema } from "../../../db/leaderboard";
 
 type SubmittedScore = {
   player?: unknown;
@@ -7,26 +8,6 @@ type SubmittedScore = {
   duration?: unknown;
   victory?: unknown;
 };
-
-const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS leaderboard_scores (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  player TEXT NOT NULL,
-  score INTEGER NOT NULL,
-  kills INTEGER NOT NULL,
-  level INTEGER NOT NULL,
-  duration INTEGER NOT NULL,
-  victory INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)`;
-const CREATE_INDEX = `CREATE INDEX IF NOT EXISTS leaderboard_score_idx
-  ON leaderboard_scores (score DESC, created_at ASC)`;
-
-async function ensureSchema(database: D1Database) {
-  await database.batch([
-    database.prepare(CREATE_TABLE),
-    database.prepare(CREATE_INDEX),
-  ]);
-}
 
 async function topScores(database: D1Database) {
   const result = await database.prepare(
@@ -46,7 +27,7 @@ function integer(value: unknown, min: number, max: number): number {
 export async function GET() {
   try {
     const database = getD1();
-    await ensureSchema(database);
+    await ensureLeaderboardSchema(database);
     return Response.json({ scores: await topScores(database) });
   } catch (error) {
     return Response.json(
@@ -61,7 +42,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as SubmittedScore;
     const player = String(body.player ?? "")
       .trim()
-      .replace(/[^0-9A-Za-z가-힣_\- ]/g, "")
+      .replace(/[^\p{L}\p{N}_\- ]/gu, "")
       .slice(0, 12);
     if (player.length < 2) {
       return Response.json({ error: "Nickname must be 2-12 characters" }, { status: 400 });
@@ -73,7 +54,7 @@ export async function POST(request: Request) {
     const victory = body.victory === true;
     const score = kills * 10 + level * 120 + duration * 4 + (victory ? 2500 : 0);
     const database = getD1();
-    await ensureSchema(database);
+    await ensureLeaderboardSchema(database);
     const insert = await database.prepare(
       `INSERT INTO leaderboard_scores (player, score, kills, level, duration, victory)
        VALUES (?, ?, ?, ?, ?, ?)
