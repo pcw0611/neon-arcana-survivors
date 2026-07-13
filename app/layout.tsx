@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
   const metadataBase = new URL(`${protocol}://${host}`);
   const title = "Neon Arcana: Cyber Rift";
-  const description = "보스전과 글로벌 랭킹이 있는 3분 사이버펑크 생존 액션 게임";
+  const description = "빌드와 유물을 완성하며 끝없는 균열에서 살아남는 사이버펑크 생존 액션 게임";
   return {
     metadataBase,
     title,

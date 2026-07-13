@@ -7,6 +7,7 @@ type SubmittedScore = {
   level?: unknown;
   duration?: unknown;
   victory?: unknown;
+  bosses?: unknown;
 };
 
 async function topScores(database: D1Database) {
@@ -48,11 +49,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "Nickname must be 2-12 characters" }, { status: 400 });
     }
 
-    const kills = integer(body.kills, 0, 10000);
-    const level = integer(body.level, 1, 100);
-    const duration = integer(body.duration, 0, 180);
+    const kills = integer(body.kills, 0, 1000000);
+    const level = integer(body.level, 1, 10000);
+    const duration = integer(body.duration, 0, 86400);
+    const bosses = integer(body.bosses, 0, 10000);
     const victory = body.victory === true;
-    const score = kills * 10 + level * 120 + duration * 4 + (victory ? 2500 : 0);
+    const score = kills * 10 + level * 120 + duration * 4 + bosses * 1000 + (victory ? 2500 : 0);
     const database = getD1();
     await ensureLeaderboardSchema(database);
     const insert = await database.prepare(
