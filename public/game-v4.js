@@ -6,10 +6,20 @@ const ctx = canvas.getContext('2d');
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const random = (min, max) => min + Math.random() * (max - min);
+const I18n = window.NeonI18n;
+
+function tr(key, variables, fallback = '') {
+  const value = I18n?.t(key, variables);
+  return !value || value === key ? fallback || key : value;
+}
+function currentLanguage() { return I18n?.getLanguage?.() || 'ko'; }
+function upgradeName(upgrade) { return tr(`upgrade.${upgrade.id}.name`, null, upgrade.name); }
+function relicName(relic) { return tr(`relic.${relic.id}.name`, null, relic.name); }
+function localizedBaseDescription(group, item, fallback) { return tr(`${group}.${item.id}.desc`, null, fallback); }
 
 const ui = {
   hud: $('#hud'), xp: $('#xpbar'), lv: $('#lv'), hp: $('#hp'), kills: $('#kills'),
-  clock: $('#clock'), sound: $('#sound'), build: $('#build'), radar: $('#radarLabel'),
+  clock: $('#clock'), build: $('#build'), radar: $('#radarLabel'), menuButton: $('#menuButton'),
   start: $('#start'), choices: $('#choices'), cards: $('#cards'), over: $('#over'),
   bossHud: $('#bossHud'), bossName: $('#bossName'), bossTimer: $('#bossTimer'), bossBar: $('#bossBar'),
   warning: $('#warning'), startRanks: $('#startRanks'), finalRanks: $('#finalRanks'),
@@ -19,6 +29,8 @@ const ui = {
   codexButton: $('#codexButton'), codexScreen: $('#codexScreen'), codexClose: $('#codexClose'), codexGrid: $('#codexGrid'),
   rankDetailScreen: $('#rankDetailScreen'), rankDetailTitle: $('#rankDetailTitle'), rankDetailClose: $('#rankDetailClose'),
   rankDetailSummary: $('#rankDetailSummary'), rankDetailBuilds: $('#rankDetailBuilds'), rankDetailRelics: $('#rankDetailRelics'), rankDetailEmpty: $('#rankDetailEmpty'),
+  gameMenu: $('#gameMenu'), menuResume: $('#menuResume'), menuSound: $('#menuSound'), menuSoundState: $('#menuSoundState'),
+  menuLanguage: $('#menuLanguage'), menuQuit: $('#menuQuit'), startLanguage: $('#startLanguage'),
 };
 
 const images = {
@@ -40,6 +52,21 @@ let chosen = [];
 const keys = new Set();
 let joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 };
 let mouseAim = { inside: false, valid: false, moved: false, x: 1, y: 0 };
+const panelTimers = new WeakMap();
+
+function showPanel(node) {
+  if (!node) return;
+  if (typeof clearTimeout === 'function') clearTimeout(panelTimers.get(node)); node.classList.remove('hidden', 'tween-out');
+}
+
+function hidePanel(node, immediate = false) {
+  if (!node) return;
+  if (typeof clearTimeout === 'function') clearTimeout(panelTimers.get(node));
+  if (immediate || node.classList.contains('hidden')) { node.classList.remove('tween-out'); node.classList.add('hidden'); return; }
+  node.classList.add('tween-out');
+  const timer = setTimeout(() => { node.classList.add('hidden'); node.classList.remove('tween-out'); panelTimers.delete(node); }, 175);
+  panelTimers.set(node, timer);
+}
 
 const AudioEngine = (() => {
   let ac, master, musicBus, seBus, compressor, timer;
@@ -152,25 +179,26 @@ const AudioEngine = (() => {
     return !muted;
   }
 
-  return { init, resume, se, scene, toggle, setIntensity: (value) => { intensity = value; } };
+  return { init, resume, se, scene, toggle, isMuted: () => muted, setIntensity: (value) => { intensity = value; } };
 })();
 
 const upgrades = [
   { id: 'power', icon: '◆', name: '룬 증폭', desc: '모든 공격 피해량 +12%', max: 10, tags: ['projectile', 'saber', 'orbit'], apply: s => { s.damage *= 1.12; } },
   { id: 'haste', icon: '⌁', name: '영창 가속', desc: '성좌탄 공격 간격 13% 감소', max: 7, tags: ['projectile'], apply: s => { s.rate = Math.max(.1, s.rate * .87); } },
-  { id: 'multishot', icon: '≋', name: '쌍성 궤도', desc: '동시에 발사하는 성좌탄 +1', max: 8, tags: ['projectile'], apply: s => { s.multishot++; } },
+  { id: 'multishot', icon: '≋', name: '쌍성 궤도', desc: '동시에 발사하는 성좌탄 +1', max: 7, tags: ['projectile'], apply: s => { s.multishot++; } },
   { id: 'pierce', icon: '↠', name: '위상 관통', desc: '성좌탄 관통 횟수 +1', max: 6, tags: ['projectile'], apply: s => { s.pierce++; } },
   { id: 'critical', icon: '✦', name: '운명 간섭', desc: '치명타 확률 +8%, 배율 +0.18', max: 6, tags: ['projectile', 'saber'], apply: s => { s.crit += .08; s.critMult += .18; } },
   { id: 'blast', icon: '✺', name: '붕괴 잔향', desc: '명중 폭발 범위 +22', max: 6, tags: ['projectile', 'area'], apply: s => { s.blast += 22; } },
   { id: 'chain', icon: 'ϟ', name: '연쇄 낙뢰', desc: '주변 적에게 낙뢰 +1회', max: 5, tags: ['projectile', 'area'], apply: s => { s.chain++; } },
   { id: 'size', icon: '◉', name: '거대 성핵', desc: '성좌탄 크기 +18%, 피해 +10%', max: 6, tags: ['projectile'], apply: s => { s.shotScale *= 1.18; s.projectileMult *= 1.1; } },
-  { id: 'orbit', icon: '☄', name: '수호 위성', desc: '공격 위성 +1, 위성 빌드 개방', max: 8, tags: ['orbit'], apply: s => { s.orbitals++; } },
+  { id: 'orbit', icon: '☄', name: '수호 위성', desc: '공격 위성 +1, 위성 빌드 개방', max: 7, tags: ['orbit'], apply: s => { s.orbitals++; } },
   { id: 'orbit_speed', icon: '⟳', name: '초고속 공전', desc: '위성 회전 속도 +24%', max: 5, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitSpeed *= 1.24; } },
   { id: 'orbit_size', icon: '⊚', name: '거대 위성핵', desc: '위성 크기 +20%, 피해 +16%', max: 5, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitSize *= 1.2; s.orbitDamage *= 1.16; } },
   { id: 'orbit_range', icon: '◎', name: '이중 공전면', desc: '공전 반경 +16, 위성 피해 +10%', max: 4, tags: ['orbit'], requires: s => s.orbitals > 0, apply: s => { s.orbitRadius += 16; s.orbitDamage *= 1.1; } },
   { id: 'orbit_shock', icon: '✹', name: '초신성 방전', desc: '위성 명중 시 12% 확률로 범위 방전', max: 4, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitShock += .12; } },
+  { id: 'orbit_guard', icon: '⬡', name: '성환 요격막', desc: '위성에 닿은 적 투사체를 6% 확률로 소거', max: 5, tags: ['orbit', 'survival'], requires: s => s.orbitals > 0, apply: s => { s.orbitGuard += .06; } },
   { id: 'orbit_pulse', icon: '◌', name: '맥동 성환', desc: '주기적으로 모든 위성이 충격파 방출', max: 3, tags: ['orbit', 'area'], requires: s => s.orbitals > 0, apply: s => { s.orbitPulse++; } },
-  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '광검 피해 +25%', max: 8, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.25; } },
+  { id: 'saber', icon: '╱', name: '아스트랄 광검', desc: '광검 피해 +25%', max: 7, tags: ['saber'], apply: s => { s.saberLevel++; s.saberDamage *= 1.25; } },
   { id: 'saber_reach', icon: '⌒', name: '월광 검로', desc: '광검 사거리 +20, 베기 각도 확대', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRange += 20; s.saberArc += .14; } },
   { id: 'saber_haste', icon: '≪', name: '찰나 발도', desc: '광검 공격 간격 17% 감소', max: 5, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberRate = Math.max(.22, s.saberRate * .83); } },
   { id: 'saber_echo', icon: '〽', name: '잔상 연격', desc: '광검 추가 잔상 베기 +1', max: 3, tags: ['saber'], requires: s => s.saberLevel > 0, apply: s => { s.saberEcho++; } },
@@ -185,7 +213,7 @@ const upgrades = [
   { id: 'limit_master_projectile', icon: '∞', name: '성좌포 한계돌파', desc: '마스터 레이저 피해와 범위 강화', max: Infinity, tags: ['projectile'], weight: .9, requires: s => isMastered('projectile', s), apply: () => {} },
   { id: 'limit_master_saber', icon: '∞', name: '광검 한계돌파', desc: '마스터 휠윈드 피해와 범위 강화', max: Infinity, tags: ['saber'], weight: .9, requires: s => isMastered('saber', s), apply: () => {} },
   { id: 'limit_master_orbit', icon: '∞', name: '위성 한계돌파', desc: '마스터 추격 폭발 피해와 범위 강화', max: Infinity, tags: ['orbit'], weight: .9, requires: s => isMastered('orbit', s), apply: () => {} },
-  { id: 'limit_power', icon: '∞', name: '한계 돌파 · 힘', desc: '모든 공격 피해량 +6%', max: 999, tags: ['projectile', 'saber', 'orbit'], weight: .12, requires: s => s.level >= 35, apply: s => { s.damage *= 1.06; } },
+  { id: 'limit_power', icon: '∞', name: '한계 돌파 · 힘', desc: '모든 공격 피해량 점진 증가', max: 999, tags: ['projectile', 'saber', 'orbit'], weight: .12, requires: s => s.level >= 35, apply: () => {} },
   { id: 'limit_vital', icon: '∞', name: '한계 돌파 · 생명', desc: '최대 체력 +5, 체력 5 회복', max: 999, tags: ['survival'], weight: .12, requires: s => s.level >= 35, apply: s => { s.maxHp += 5; s.hp = Math.min(s.maxHp, s.hp + 5); } },
   { id: 'limit_growth', icon: '∞', name: '한계 돌파 · 공명', desc: '경험치 +7%, 흡수 범위 +20', max: 999, tags: ['growth'], weight: .1, requires: s => s.level >= 35, apply: s => { s.xpGain = Math.min(4, s.xpGain * 1.07); s.magnet += 20; } },
 ];
@@ -228,10 +256,15 @@ const masterySpecs = {
   saber: { id: 'saber', limitId: 'limit_master_saber', label: '아스트랄 광검', interval: 7.5, note: '주기적으로 전방위를 베는 황금 휠윈드를 발동합니다.' },
   orbit: { id: 'orbit', limitId: 'limit_master_orbit', label: '수호 위성', interval: 10.5, note: '위성들이 적을 추격해 폭발한 뒤 다시 복귀합니다.' },
 };
+const rarityKeys = ['common', 'rare', 'unique', 'legendary', 'mythic'];
+function rarityName(index) { return tr(`rarity.${rarityKeys[index]}`, null, rarities[index]?.name || ''); }
+function masteryLabel(build) { return tr(`mastery.${build}.name`, null, masterySpecs[build]?.label || build); }
+function masteryNote(build) { return tr(`mastery.${build}.desc`, null, masterySpecs[build]?.note || ''); }
 const hasRelic = (id) => Boolean(S?.relics.some(relic => relic.id === id));
 const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
 
 function upgradeDescription(upgrade, rank = 0) {
+  if (currentLanguage() !== 'ko') return localizedBaseDescription('upgrade', upgrade, upgrade.desc);
   if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
   if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해' : '광검 피해 +25%';
   if (upgrade.id === 'multishot') return rank === 0 ? '성좌탄 +1 · 투사체 집중 빌드 개방' : '동시에 발사하는 성좌탄 +1';
@@ -246,6 +279,10 @@ function upgradeDescription(upgrade, rank = 0) {
   }
   const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
   if (limitBuild) return `마스터 특수기 피해 +4%p (무한) · 범위 +2%p (LV.20까지) · 현재 피해 +${rank * 4}% / 범위 +${Math.min(20, rank) * 2}%`;
+  if (upgrade.id === 'limit_power') {
+    const current = Math.min(20, rank) * 2 + Math.max(0, rank - 20) * .5;
+    return `모든 공격 피해 +${rank < 20 ? 2 : .5}%p · 현재 +${current.toFixed(current % 1 ? 1 : 0)}%`;
+  }
   return upgrade.desc;
 }
 
@@ -263,15 +300,21 @@ function masteryScale(build, state = S) {
   return { level, damage: 1 + level * .04, range: 1 + Math.min(20, level) * .02 };
 }
 
+function endlessPowerScale(state = S) {
+  const level = state?.ranks.limit_power || 0;
+  return 1 + Math.min(20, level) * .02 + Math.max(0, level - 20) * .005;
+}
+
 function isMastered(build, state = S) {
   const spec = masterySpecs[build], upgrade = spec && upgradeById.get(spec.id);
   return Boolean(upgrade && (state?.ranks[spec.id] || 0) >= upgrade.max);
 }
 
 const percentGain = (factor, level) => Math.round((Math.pow(factor, level) - 1) * 100);
-const killInterval = (base, level) => Math.max(3, Math.ceil(base / (1 + (level - 1) * .35)));
+const killInterval = (base, level) => Math.max(6, Math.ceil(base / (1 + (level - 1) * .28)));
 
 function relicEffectText(relic, requestedLevel = relic?.level || 1) {
+  if (currentLanguage() !== 'ko') return localizedBaseDescription('relic', relic, relic?.desc || '');
   const level = Math.max(1, requestedLevel || 1), healBonus = Math.floor((level - 1) / 2);
   const effects = {
     arc_cell: () => `모든 공격 피해 +${percentGain(1.15, level)}%`,
@@ -300,10 +343,26 @@ function relicEffectText(relic, requestedLevel = relic?.level || 1) {
 
 function relicKillTick(state, id, interval, heal) {
   const level = state.relics.find(relic => relic.id === id)?.level || 1;
-  interval = Math.max(3, Math.ceil(interval / (1 + (level - 1) * .35)));
+  interval = killInterval(interval, level);
   heal += Math.floor((level - 1) / 2);
   const key = `kills:${id}`; state.relicUses[key] = (state.relicUses[key] || 0) + 1;
-  if (state.relicUses[key] >= interval) { state.relicUses[key] = 0; state.hp = Math.min(state.maxHp, state.hp + heal); }
+  if (state.relicUses[key] >= interval) { state.relicUses[key] = 0; healPlayer(heal, state); }
+}
+
+function healingScale(state = S) {
+  const latePenalty = 1 / (1 + Math.max(0, (state?.time || 0) - 600) / 1800);
+  return latePenalty * ((state?.recoveryLock || 0) > 0 ? .35 : 1);
+}
+
+function healPlayer(amount, state = S) {
+  if (!state || amount <= 0) return 0;
+  const scaled = Math.max(.1, amount * healingScale(state));
+  const actual = Number.isFinite(state.healBudget) ? Math.min(scaled, Math.max(0, state.healBudget)) : scaled;
+  if (actual <= 0) return 0;
+  const before = state.hp; state.hp = Math.min(state.maxHp, state.hp + actual);
+  const healed = state.hp - before;
+  if (Number.isFinite(state.healBudget)) state.healBudget = Math.max(0, state.healBudget - healed);
+  return healed;
 }
 
 function rescaleTreasureTimer(state, factor) {
@@ -317,11 +376,11 @@ function fresh() {
     rate: .54, multishot: 1, pierce: 0, crit: .07, critMult: 1.75,
     blast: 0, blastDamage: .35, chain: 0, chainDamage: .28, shotScale: 1,
     orbitals: 0, orbitSpeed: 2.5, orbitRadius: 78, orbitSize: 1, orbitDamage: .72,
-    orbitCooldown: .45, orbitShock: 0, orbitPulse: 0, orbitPulseClock: 4,
+    orbitCooldown: .45, orbitShock: 0, orbitGuard: 0, orbitPulse: 0, orbitPulseClock: 4,
     saberLevel: 0, saberDamage: 2.3, saberRange: 118, saberArc: 1.38,
     saberRate: 1.02, saberClock: 0, saberEcho: 0, saberGuard: 0, saberActive: 0,
-    magnet: 280, magnetMult: 1, regen: 0, guard: 0, xpGain: 1,
-    shotClock: 0, spawnClock: 0, healClock: 0, time: 0, xp: 0, nextXp: 8,
+    magnet: 280, magnetMult: 1, regen: 0, guard: 0, xpGain: 1, recoveryLock: 0,
+    shotClock: 0, spawnClock: 0, healClock: 0, healBudgetClock: 1, healBudget: 2, time: 0, xp: 0, nextXp: 8,
     level: 1, kills: 0, bossesKilled: 0, inv: 0, moving: false, paused: false,
     over: false, victory: false, submitted: false, score: 0, volleyCount: 0,
     mobs: [], mobGrid: new Map(), shots: [], delayedVolleys: [], enemyShots: [], hazards: [], gems: [],
@@ -330,10 +389,10 @@ function fresh() {
     relicRoulette: false, relicAwaitDismiss: false, relicResultMessage: '',
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
     nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false, bossFailures: 0,
-    nextWorldEvent: random(58, 72), worldEventIndex: 0, slotPity: 0,
+    slotPity: 0,
     shake: 0, relicUses: {}, temporarySpeed: 1, temporarySpeedClock: 0,
     masteryClocks: { projectile: 8, saber: 6, orbit: 9 }, orbitAssault: null,
-    codexOpen: false, codexWasPaused: false,
+    codexOpen: false, codexWasPaused: false, menuOpen: false, menuWasPaused: false, abandoned: false,
   };
 }
 
@@ -342,7 +401,7 @@ function escapeHtml(value) {
 }
 
 function cleanName() {
-  const value = (ui.playerName.value || 'ASTRA').trim().replace(/[^0-9A-Za-z가-힣_\- ]/g, '').slice(0, 12);
+  const value = (ui.playerName.value || 'ASTRA').trim().replace(/[^\p{L}\p{N}_\- ]/gu, '').slice(0, 12);
   return value.length >= 2 ? value : 'ASTRA';
 }
 
@@ -354,34 +413,34 @@ function formatTime(seconds) {
 
 function renderRanks(target, rows, ownRank) {
   target.innerHTML = rows.length
-    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span><button class="rank-detail" data-rank-index="${index}">상세</button></div>`).join('') + (ownRank ? `<div class="rank-status">이번 기록 순위: #${ownRank}</div>` : '')
-    : '<div class="rank-status">아직 등록된 기록이 없습니다.</div>';
+    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span><button class="rank-detail" data-rank-index="${index}">${tr('common.details', null, '상세')}</button></div>`).join('') + (ownRank ? `<div class="rank-status">${tr('ranking.ownRank', { rank: ownRank }, `이번 기록 순위: #${ownRank}`)}</div>` : '')
+    : `<div class="rank-status">${tr('common.none', null, '기록 없음')}</div>`;
   target.querySelectorAll('.rank-detail').forEach(button => button.onclick = () => openRankDetail(rows[Number(button.dataset.rankIndex)]));
 }
 
 function openRankDetail(row) {
   if (!row) return;
   const loadout = row.loadout && typeof row.loadout === 'object' ? row.loadout : null;
-  ui.rankDetailTitle.textContent = `${row.player || 'UNKNOWN'} · 종료 시 빌드`;
-  ui.rankDetailSummary.innerHTML = `<span>결과<b>${row.victory ? '보스 격파' : '작전 종료'}</b></span><span>점수<b>${Number(row.score || 0).toLocaleString()}</b></span><span>생존<b>${formatTime(row.duration || 0)}</b></span><span>레벨 / 킬<b>LV.${Number(row.level || 1)} · ${Number(row.kills || 0).toLocaleString()}</b></span><span>보스<b>${Number(loadout?.bosses || 0)} 격파 · ${Number(loadout?.bossFailures || 0)} 실패</b></span>`;
+  ui.rankDetailTitle.textContent = tr('ranking.loadoutTitle', { player: row.player || 'UNKNOWN' }, `${row.player || 'UNKNOWN'} · 종료 시 빌드`);
+  ui.rankDetailSummary.innerHTML = `<span>${tr('ranking.result', null, '결과')}<b>${row.victory ? tr('gameOver.riftSealed', null, '보스 격파') : tr('gameOver.title', null, '작전 종료')}</b></span><span>${tr('term.score', null, '점수')}<b>${Number(row.score || 0).toLocaleString()}</b></span><span>${tr('ranking.survival', null, '생존')}<b>${formatTime(row.duration || 0)}</b></span><span>${tr('ranking.levelKills', null, '레벨 / 킬')}<b>LV.${Number(row.level || 1)} · ${Number(row.kills || 0).toLocaleString()}</b></span><span>${tr('ranking.bossRecord', null, '보스')}<b>${tr('ranking.bosses', { wins: Number(loadout?.bosses || 0), fails: Number(loadout?.bossFailures || 0) }, `${Number(loadout?.bosses || 0)} 격파`)}</b></span>`;
   const upgradeEntries = loadout?.upgrades && typeof loadout.upgrades === 'object' ? Object.entries(loadout.upgrades) : [];
   const relicEntries = Array.isArray(loadout?.relics) ? loadout.relics : [];
   ui.rankDetailBuilds.innerHTML = upgradeEntries.map(([id, rawRank]) => {
     const upgrade = upgradeById.get(id), rank = Math.max(1, Math.floor(Number(rawRank) || 1)); if (!upgrade) return '';
     const build = masteryBuildForUpgrade(id), mastered = Boolean(build && rank >= upgrade.max);
-    const note = mastered ? `<br><span style="color:#ffd965">MAX 특수 효과 · ${masterySpecs[build].note}</span>` : '';
-    return `<article class="rank-loadout-item" style="--rarity:${mastered ? '#ffd45a' : '#54e8ff'}"><strong>${upgrade.icon} ${upgrade.name} · ${limitBreakBuildForUpgrade(id) ? `한계돌파 LV.${rank}` : mastered ? 'MAX LV' : `LV.${rank}`}</strong><small>${upgradeDescription(upgrade, Math.max(0, rank - 1))}${note}</small></article>`;
-  }).join('') || '<article class="rank-loadout-item"><strong>술식 정보 없음</strong><small>저장된 강화 효과가 없습니다.</small></article>';
+    const note = mastered ? `<br><span style="color:#ffd965">MAX · ${masteryNote(build)}</span>` : '';
+    return `<article class="rank-loadout-item" style="--rarity:${mastered ? '#ffd45a' : '#54e8ff'}"><strong>${upgrade.icon} ${upgradeName(upgrade)} · ${limitBreakBuildForUpgrade(id) ? `${tr('common.limitBreak', null, '한계돌파')} LV.${rank}` : mastered ? 'MAX LV' : `LV.${rank}`}</strong><small>${upgradeDescription(upgrade, Math.max(0, rank - 1))}${note}</small></article>`;
+  }).join('') || `<article class="rank-loadout-item"><strong>${tr('ranking.noTechnique', null, '술식 정보 없음')}</strong><small>${tr('ranking.noTechniqueDesc', null, '저장된 강화 효과가 없습니다.')}</small></article>`;
   ui.rankDetailRelics.innerHTML = relicEntries.map(entry => {
     const relic = relicById.get(String(entry?.id || '')); if (!relic) return '';
     const level = Math.max(1, Math.floor(Number(entry.level) || 1)), rarity = rarities[relic.rarity];
-    return `<article class="rank-loadout-item" style="--rarity:${rarity.color}"><strong>${relic.icon} ${rarity.name} · ${relic.name} LV.${level}</strong><small>${relicEffectText(relic, level)}</small></article>`;
-  }).join('') || '<article class="rank-loadout-item"><strong>획득 유물 없음</strong><small>이 기록에는 저장된 유물이 없습니다.</small></article>';
+    return `<article class="rank-loadout-item" style="--rarity:${rarity.color}"><strong>${relic.icon} ${rarityName(relic.rarity)} · ${relicName(relic)} LV.${level}</strong><small>${relicEffectText(relic, level)}</small></article>`;
+  }).join('') || `<article class="rank-loadout-item"><strong>${tr('ranking.noRelic', null, '획득 유물 없음')}</strong><small>${tr('ranking.noRelicDesc', null, '이 기록에는 저장된 유물이 없습니다.')}</small></article>`;
   if (!loadout) { ui.rankDetailBuilds.innerHTML = ''; ui.rankDetailRelics.innerHTML = ''; }
-  ui.rankDetailEmpty.classList.toggle('hidden', Boolean(loadout)); ui.rankDetailScreen.classList.remove('hidden');
+  ui.rankDetailEmpty.classList.toggle('hidden', Boolean(loadout)); showPanel(ui.rankDetailScreen);
 }
 
-function closeRankDetail() { ui.rankDetailScreen.classList.add('hidden'); }
+function closeRankDetail() { hidePanel(ui.rankDetailScreen); }
 
 function runLoadoutSnapshot(run) {
   return {
@@ -398,12 +457,12 @@ async function loadLeaderboard(target = ui.startRanks) {
     const response = await fetch('/api/leaderboard', { cache: 'no-store' });
     if (!response.ok) throw new Error();
     const data = await response.json(); renderRanks(target, data.scores || []);
-  } catch { target.innerHTML = '<div class="rank-status">온라인 랭킹 연결 대기 중</div>'; }
+  } catch { target.innerHTML = `<div class="rank-status">${tr('ranking.connecting', null, '온라인 랭킹 연결 대기 중')}</div>`; }
 }
 
 async function submitScore() {
   const run = S; if (!run || run.submitted) return;
-  run.submitted = true; ui.finalRanks.innerHTML = '<div class="rank-status">점수 등록 중…</div>';
+  run.submitted = true; ui.finalRanks.innerHTML = `<div class="rank-status">${tr('ranking.submitting', null, '점수 등록 중…')}</div>`;
   try {
     const response = await fetch('/api/leaderboard', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -412,36 +471,59 @@ async function submitScore() {
     if (!response.ok) throw new Error();
     const data = await response.json(); run.score = Number(data.score ?? run.score);
     if (S === run) { ui.finalScore.textContent = `SCORE ${run.score.toLocaleString()} · RIFT DEPTH ${run.bossesKilled}`; renderRanks(ui.finalRanks, data.scores || [], data.rank); }
-  } catch { if (S === run) ui.finalRanks.innerHTML = '<div class="rank-status">점수 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.</div>'; }
+  } catch { if (S === run) ui.finalRanks.innerHTML = `<div class="rank-status">${tr('ranking.submitFailed', null, '점수 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.')}</div>`; }
 }
 
 async function begin() {
   await AudioEngine.init(); AudioEngine.scene('battle');
   S = fresh(); running = true; chosen = [];
   mouseAim = { inside: false, valid: false, moved: false, x: 1, y: 0 };
-  ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden'); ui.rankDetailScreen.classList.add('hidden');
+  hidePanel(ui.start, true); hidePanel(ui.over, true); hidePanel(ui.choices, true); hidePanel(ui.relicScreen, true); hidePanel(ui.codexScreen, true); hidePanel(ui.rankDetailScreen, true); hidePanel(ui.gameMenu, true);
   ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
   S.spawnClock = 0;
 }
 
-function endGame() {
+function endGame(reason = 'defeat') {
   if (S.over) return;
-  S.over = true; S.victory = S.bossesKilled > 0; running = false;
+  S.over = true; S.abandoned = reason === 'abandon'; S.victory = S.bossesKilled > 0; running = false;
   S.score = S.kills * 10 + S.level * 120 + Math.floor(S.time) * 4 + S.bossesKilled * 1000 + (S.victory ? 2500 : 0);
   AudioEngine.se('over'); AudioEngine.scene('over');
   $('#resultTime').textContent = formatTime(S.time); $('#resultKills').textContent = S.kills;
   $('#resultBosses').textContent = S.bossesKilled; $('#resultLevel').textContent = S.level;
   ui.finalScore.textContent = `SCORE ${S.score.toLocaleString()} · RIFT DEPTH ${S.bossesKilled}`;
-  ui.over.querySelector('h2').textContent = '작전 종료'; ui.bossHud.classList.add('hidden');
-  ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.over.classList.remove('hidden'); submitScore();
+  ui.over.querySelector('h2').textContent = S.abandoned ? tr('gameOver.abandoned', null, '작전 포기') : tr('gameOver.title', null, '작전 종료'); ui.bossHud.classList.add('hidden');
+  hidePanel(ui.gameMenu, true); hidePanel(ui.choices, true); hidePanel(ui.relicScreen, true); hidePanel(ui.codexScreen, true); showPanel(ui.over); submitScore();
 }
 
 function returnToMain() {
   running = false; keys.clear(); joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 }; S = null;
-  ui.over.classList.add('hidden'); ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden'); ui.codexScreen.classList.add('hidden'); ui.rankDetailScreen.classList.add('hidden');
+  hidePanel(ui.over, true); hidePanel(ui.choices, true); hidePanel(ui.relicScreen, true); hidePanel(ui.codexScreen, true); hidePanel(ui.rankDetailScreen, true); hidePanel(ui.gameMenu, true);
   ui.hud.classList.add('hidden'); ui.build.classList.add('hidden'); ui.radar.classList.add('hidden'); ui.relicTray.classList.add('hidden'); ui.bossHud.classList.add('hidden'); ui.warning.classList.add('hidden');
-  ui.start.classList.remove('hidden'); AudioEngine.scene('menu'); loadLeaderboard();
+  showPanel(ui.start); AudioEngine.scene('menu'); loadLeaderboard();
+}
+
+function updateSoundUi() {
+  const muted = AudioEngine.isMuted();
+  if (ui.menuSoundState) ui.menuSoundState.textContent = muted ? tr('common.off', null, 'OFF') : tr('common.on', null, 'ON');
+  ui.menuSound?.setAttribute('aria-pressed', String(muted));
+}
+
+function openGameMenu() {
+  if (!S || !running || S.over || S.menuOpen || S.activeReward) return;
+  S.menuWasPaused = S.paused; S.paused = true; S.menuOpen = true; keys.clear();
+  ui.menuButton?.setAttribute('aria-expanded', 'true'); showPanel(ui.gameMenu); updateSoundUi();
+}
+
+function closeGameMenu() {
+  if (!S?.menuOpen) return;
+  S.menuOpen = false; S.paused = Boolean(S.menuWasPaused); ui.menuButton?.setAttribute('aria-expanded', 'false'); hidePanel(ui.gameMenu);
+  AudioEngine.scene(S.paused ? 'choice' : 'battle');
+}
+
+function abandonRun() {
+  if (!S || !running || S.over) return;
+  S.menuOpen = false; ui.menuButton?.setAttribute('aria-expanded', 'false'); endGame('abandon');
 }
 
 function affinityScores() {
@@ -517,10 +599,10 @@ function openLevelChoices() {
     const rank = S.ranks[upgrade.id] || 0, button = document.createElement('button');
     const build = masteryBuildForUpgrade(upgrade.id), limitBuild = limitBreakBuildForUpgrade(upgrade.id), awakening = Boolean(build && rank + 1 === upgrade.max);
     button.className = `choice${awakening || limitBuild ? ' mastery-ready' : ''}`;
-    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgrade.name}</strong><small>${upgradeDescription(upgrade, rank)}${awakening ? `<br><b style="color:#ffd965">MAX 특수 효과: ${masterySpecs[build].note}</b>` : ''}</small><em>${awakening ? 'MAX LV · MASTERY' : limitBuild ? `한계돌파 LV.${rank} → LV.${rank + 1}` : `RANK ${rank} → ${rank + 1}`} · [${index + 1}]</em>`;
+    button.innerHTML = `<span class="icon">${upgrade.icon}</span><strong>${upgradeName(upgrade)}</strong><small>${upgradeDescription(upgrade, rank)}${awakening ? `<br><b style="color:#ffd965">MAX · ${masteryNote(build)}</b>` : ''}</small><em>${awakening ? 'MAX LV · MASTERY' : limitBuild ? `${tr('common.limitBreak', null, '한계돌파')} LV.${rank} → LV.${rank + 1}` : `RANK ${rank} → ${rank + 1}`} · [${index + 1}]</em>`;
     button.onclick = () => choose(index); ui.cards.appendChild(button);
   });
-  S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); ui.choices.classList.remove('hidden');
+  S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); showPanel(ui.choices);
 }
 
 function choose(index) {
@@ -529,12 +611,12 @@ function choose(index) {
   upgrade.apply(S); S.ranks[upgrade.id] = (S.ranks[upgrade.id] || 0) + 1;
   const masteredBuild = masteryBuildForUpgrade(upgrade.id);
   if (masteredBuild && isMastered(masteredBuild)) {
-    S.masteryClocks[masteredBuild] = .35; showWarning(`${masterySpecs[masteredBuild].label} · MAX MASTERY`); AudioEngine.se('relic');
+    S.masteryClocks[masteredBuild] = .35; showWarning(`${masteryLabel(masteredBuild)} · MAX MASTERY`); AudioEngine.se('relic');
   }
   const limitBuild = limitBreakBuildForUpgrade(upgrade.id);
   if (limitBuild) { S.masteryClocks[limitBuild] = .35; AudioEngine.se('relic'); }
   effect('level', S.x, S.y, { life: .85, max: .85 });
-  ui.choices.classList.add('hidden'); AudioEngine.se('select'); finishReward(`${upgrade.icon} ${upgrade.name}  ${limitBuild ? `한계돌파 LV.${S.ranks[upgrade.id]}` : `RANK ${S.ranks[upgrade.id]}`}`);
+  hidePanel(ui.choices); AudioEngine.se('select'); finishReward(`${upgrade.icon} ${upgradeName(upgrade)}  ${limitBuild ? `한계돌파 LV.${S.ranks[upgrade.id]}` : `RANK ${S.ranks[upgrade.id]}`}`);
 }
 
 function rarityWeights(time) {
@@ -582,7 +664,7 @@ function relicOptions(reward) {
 function relicCard(relic, action, label = '장착') {
   const rarity = rarities[relic.rarity], button = document.createElement('button');
   button.className = 'relic-card'; button.style.setProperty('--rarity', rarity.color);
-  button.innerHTML = `<span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name}</strong><small>${relicEffectText(relic)}</small><em>${label}</em>`;
+  button.innerHTML = `<span class="relic-icon">${relic.icon}</span><span class="rarity">${rarityName(relic.rarity)} RELIC</span><strong>${relicName(relic)}</strong><small>${relicEffectText(relic)}</small><em>${label}</em>`;
   button.onclick = action; return button;
 }
 
@@ -610,12 +692,12 @@ function openRelicReward(reward) {
   const result = rollRelicAward(reward); S.relicRouletteResult = result;
   ui.relicTitle.textContent = reward.source === 'boss' ? '보스 유물 슬롯' : '잭팟 유물 슬롯';
   ui.relicSub.textContent = S.relics.length >= S.relicSlots ? '슬롯이 가득 차 중복 유물이 나오면 자동으로 레벨업합니다' : '획득 유물이 자동으로 결정됩니다';
-  ui.relicNew.innerHTML = ''; ui.relicCards.innerHTML = ''; ui.relicScreen.classList.remove('hidden'); AudioEngine.scene('choice');
+  ui.relicNew.innerHTML = ''; ui.relicCards.innerHTML = ''; showPanel(ui.relicScreen); AudioEngine.scene('choice');
   let tick = 0;
   const spin = () => {
     const preview = tick >= 18 ? result : relics[Math.floor(Math.random() * relics.length)];
     const rarity = rarities[preview.rarity], currentLevel = relicLevel(preview.id);
-    ui.relicCards.innerHTML = `<div class="relic-card" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:default"><span class="relic-icon">${preview.icon}</span><span class="rarity">${tick >= 18 ? rarity.name : 'SEARCHING'} RELIC</span><strong>${preview.name}</strong><small>${tick >= 18 ? relicEffectText(preview, currentLevel + 1) : '공명 주파수 탐색 중…'}</small><em>${tick >= 18 ? (currentLevel ? `LV.${currentLevel} → LV.${currentLevel + 1}` : 'NEW RELIC') : '◈ ◇ ◈'}</em></div>`;
+    ui.relicCards.innerHTML = `<div class="relic-card" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:default"><span class="relic-icon">${preview.icon}</span><span class="rarity">${tick >= 18 ? rarityName(preview.rarity) : 'SEARCHING'} RELIC</span><strong>${relicName(preview)}</strong><small>${tick >= 18 ? relicEffectText(preview, currentLevel + 1) : '공명 주파수 탐색 중…'}</small><em>${tick >= 18 ? (currentLevel ? `LV.${currentLevel} → LV.${currentLevel + 1}` : 'NEW RELIC') : '◈ ◇ ◈'}</em></div>`;
     if (tick < 18) { tick++; AudioEngine.se('reel'); setTimeout(spin, 45 + tick * 5); }
     else { AudioEngine.se('relic'); setTimeout(() => awardRelic(result), 520); }
   };
@@ -640,7 +722,7 @@ function showRelicResult(relic, message, upgraded) {
   S.relicRoulette = false; S.relicAwaitDismiss = true; S.relicResultMessage = message;
   ui.relicTitle.textContent = upgraded ? '유물 레벨 업!' : '새 유물 획득!';
   ui.relicSub.textContent = '효과를 확인한 뒤 화면을 터치하거나 아무 키를 눌러 계속하세요';
-  ui.relicCards.innerHTML = `<div class="relic-card result-ready" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:pointer"><span class="relic-icon">${relic.icon}</span><span class="rarity">${rarity.name} RELIC</span><strong>${relic.name} · LV.${relic.level || 1}</strong><small>${relicEffectText(relic)}</small><em>TAP / PRESS KEY</em></div>`;
+  ui.relicCards.innerHTML = `<div class="relic-card result-ready" style="--rarity:${rarity.color};grid-column:1/-1;min-width:min(82vw,360px);margin:auto;cursor:pointer"><span class="relic-icon">${relic.icon}</span><span class="rarity">${rarityName(relic.rarity)} RELIC</span><strong>${relicName(relic)} · LV.${relic.level || 1}</strong><small>${relicEffectText(relic)}</small><em>TAP / PRESS KEY</em></div>`;
 }
 
 function dismissRelicResult() {
@@ -708,24 +790,24 @@ function salvageRelic(relic) {
 }
 
 function finishReward(message) {
-  ui.choices.classList.add('hidden'); ui.relicScreen.classList.add('hidden');
+  hidePanel(ui.choices); hidePanel(ui.relicScreen);
   S.paused = false; S.activeReward = null; S.relicRoulette = false; S.relicAwaitDismiss = false; S.relicResultMessage = ''; S.relicCandidate = null; S.relicReplaceIndex = null;
   AudioEngine.se('select'); AudioEngine.scene('battle'); if (message) showToast(message);
-  updateBuild(); updateRelicTray(); setTimeout(processRewards, 120);
+  updateBuild(); updateRelicTray(); setTimeout(processRewards, 210);
 }
 
 function updateBuild() {
   ui.build.innerHTML = Object.entries(S.ranks).filter(([id]) => !limitBreakBuildForUpgrade(id)).map(([id, rank]) => {
     const upgrade = upgradeById.get(id), build = masteryBuildForUpgrade(id), mastered = Boolean(build && isMastered(build));
     const limit = build ? limitBreakLevel(build) : 0;
-    return upgrade ? `<span class="${mastered ? 'mastered' : ''}">${upgrade.icon} ${upgrade.name} ${mastered ? `MAX LV${limit ? ` · 한계돌파 ${limit}` : ''}` : rank}</span>` : '';
+    return upgrade ? `<span class="${mastered ? 'mastered' : ''}">${upgrade.icon} ${upgradeName(upgrade)} ${mastered ? `MAX LV${limit ? ` · ${tr('common.limitBreak', null, '한계돌파')} ${limit}` : ''}` : rank}</span>` : '';
   }).join('');
 }
 
 function updateRelicTray() {
   ui.relicDetails.innerHTML = S.relics.length ? S.relics.map(relic => {
     const rarity = rarities[relic.rarity];
-    return `<div class="relic-detail" style="--rarity:${rarity.color}"><b>${relic.icon} ${relic.name} <em>LV.${relic.level || 1}</em></b><span>${relicEffectText(relic)}</span></div>`;
+    return `<div class="relic-detail" style="--rarity:${rarity.color}"><b>${relic.icon} ${relicName(relic)} <em>LV.${relic.level || 1}</em></b><span>${relicEffectText(relic)}</span></div>`;
   }).join('') : '<div class="relic-detail empty"><b>장착 유물 없음</b><span>보스와 잭팟 그렘린을 사냥하세요</span></div>';
   ui.relicSlots.innerHTML = '';
   for (let i = 0; i < S.relicSlots; i++) {
@@ -740,7 +822,7 @@ function renderCodex(tab = 'builds') {
   if (tab === 'relics') {
     ui.codexGrid.innerHTML = relics.map(relic => {
       const owned = S?.relics.find(item => item.id === relic.id), level = owned?.level || 1, rarity = rarities[relic.rarity];
-      return `<article class="codex-entry${owned ? '' : ' locked'}" style="--rarity:${rarity.color}"><header><span>${relic.icon} ${relic.name}</span><em>${owned ? `보유 LV.${level}` : rarity.name}</em></header><p>${relicEffectText(relic, level)}</p></article>`;
+      return `<article class="codex-entry${owned ? '' : ' locked'}" style="--rarity:${rarity.color}"><header><span>${relic.icon} ${relicName(relic)}</span><em>${owned ? `LV.${level}` : rarityName(relic.rarity)}</em></header><p>${relicEffectText(relic, level)}</p></article>`;
     }).join('');
     return;
   }
@@ -748,19 +830,19 @@ function renderCodex(tab = 'builds') {
     const rank = S?.ranks[upgrade.id] || 0, build = masteryBuildForUpgrade(upgrade.id), mastered = Boolean(build && S && isMastered(build));
     const limit = build ? limitBreakLevel(build) : 0;
     const status = mastered ? `MAX LV${limit ? ` · 한계돌파 ${limit}` : ''}` : `LV.${rank}/${upgrade.max}`;
-    const mastery = build ? `<p class="master-note">MAX 특수 효과 · ${masterySpecs[build].note}<br>한계돌파: 피해 +${limit * 4}% · 범위 +${Math.min(20, limit) * 2}%${limit >= 20 ? ' (범위 최대)' : ''}</p>` : '';
-    return `<article class="codex-entry${mastered ? ' mastered' : rank ? '' : ' locked'}"><header><span>${upgrade.icon} ${upgrade.name}</span><em>${status}</em></header><p>${upgradeDescription(upgrade, rank)}</p>${mastery}</article>`;
+    const mastery = build ? `<p class="master-note">MAX · ${masteryNote(build)}<br>${tr('common.limitBreak', null, '한계돌파')}: +${limit * 4}% DMG · +${Math.min(20, limit) * 2}% AREA${limit >= 20 ? ' (MAX)' : ''}</p>` : '';
+    return `<article class="codex-entry${mastered ? ' mastered' : rank ? '' : ' locked'}"><header><span>${upgrade.icon} ${upgradeName(upgrade)}</span><em>${status}</em></header><p>${upgradeDescription(upgrade, rank)}</p>${mastery}</article>`;
   }).join('');
 }
 
 function openCodex() {
   if (S?.activeReward) { showToast('보상 선택을 먼저 완료하세요'); return; }
   if (S) { S.codexWasPaused = S.paused; S.paused = true; S.codexOpen = true; }
-  renderCodex('builds'); ui.codexScreen.classList.remove('hidden'); AudioEngine.scene('choice');
+  renderCodex('builds'); showPanel(ui.codexScreen); AudioEngine.scene('choice');
 }
 
 function closeCodex() {
-  ui.codexScreen.classList.add('hidden');
+  hidePanel(ui.codexScreen);
   if (S) { S.paused = S.codexWasPaused; S.codexOpen = false; }
   AudioEngine.scene(S && running && !S.over ? 'battle' : 'menu');
 }
@@ -792,6 +874,35 @@ function burst(x, y, color, count = 8, speed = 150) {
   }
 }
 
+function applyStaticTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = tr(node.dataset.i18n, null, node.textContent); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(node => { node.placeholder = tr(node.dataset.i18nPlaceholder, null, node.placeholder); });
+  const language = currentLanguage();
+  if (ui.startLanguage) ui.startLanguage.value = language;
+  if (ui.menuLanguage) ui.menuLanguage.value = language;
+  if (ui.menuButton) ui.menuButton.setAttribute('aria-label', tr('menu.open', null, '메뉴'));
+  if (ui.codexButton) ui.codexButton.textContent = `▤ ${tr('hud.codex', null, '도감')}`;
+  if (ui.rankDetailClose) ui.rankDetailClose.textContent = `${tr('common.close', null, '닫기')} ×`;
+  if (ui.menuQuit?.querySelector('span')) ui.menuQuit.querySelector('span').textContent = tr('menu.quit', null, '작전 포기');
+  updateSoundUi();
+  if (S) { updateBuild(); updateRelicTray(); if (S.codexOpen) renderCodex('builds'); }
+}
+
+function chooseLanguage(language, persist = true) {
+  if (!I18n?.setLanguage(language, persist)) return;
+  applyStaticTranslations();
+}
+
+async function initializeLanguage() {
+  applyStaticTranslations();
+  if (!I18n || I18n.hasStoredLanguage?.() || location.protocol === 'file:') return;
+  try {
+    const response = await fetch('/api/locale', { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json(); chooseLanguage(data.language || 'en', false);
+  } catch { /* Local/offline builds use the browser language selected by game-i18n.js. */ }
+}
+
 function resize() {
   const pixelBudget = 3000000, budgetDpr = Math.sqrt(pixelBudget / Math.max(1, innerWidth * innerHeight));
   const dpr = Math.max(.75, Math.min(devicePixelRatio, innerWidth < 760 ? 1.35 : 1.5, budgetDpr)); canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
@@ -804,6 +915,8 @@ addEventListener('keydown', event => {
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
   if (key === 'escape' && !ui.rankDetailScreen.classList.contains('hidden')) { keys.delete(key); closeRankDetail(); return; }
   if (key === 'escape' && S?.codexOpen) { keys.delete(key); closeCodex(); return; }
+  if (key === 'escape' && S?.menuOpen) { keys.delete(key); closeGameMenu(); return; }
+  if (key === 'escape' && S && running && !S.over && !S.activeReward) { keys.delete(key); openGameMenu(); return; }
   if (key === 'm') toggleSound();
   if (S?.paused && S.relicAwaitDismiss) { keys.delete(key); dismissRelicResult(); return; }
   if (S?.paused && ['1', '2', '3'].includes(key)) {
@@ -852,15 +965,18 @@ function updateMouseAim(event) {
 
 function hasMouseAim() { return mouseAim.inside && mouseAim.valid && mouseAim.moved && !joy.on; }
 
-function toggleSound() { const on = AudioEngine.toggle(); ui.sound.textContent = on ? 'SOUND ON' : 'MUTED'; }
-ui.sound.onclick = toggleSound; $('#startButton').onclick = begin; $('#retry').onclick = begin; $('#mainMenu').onclick = returnToMain;
+function toggleSound() { AudioEngine.toggle(); updateSoundUi(); }
+ui.menuButton.onclick = openGameMenu; ui.menuResume.onclick = closeGameMenu; ui.menuSound.onclick = toggleSound; ui.menuQuit.onclick = abandonRun;
+ui.startLanguage.onchange = event => chooseLanguage(event.target.value); ui.menuLanguage.onchange = event => chooseLanguage(event.target.value);
+$('#startButton').onclick = begin; $('#retry').onclick = begin; $('#mainMenu').onclick = returnToMain;
 ui.codexButton.onclick = openCodex; ui.codexClose.onclick = closeCodex;
 ui.rankDetailClose.onclick = closeRankDetail;
 document.querySelectorAll('[data-codex]').forEach(button => button.onclick = () => renderCodex(button.dataset.codex));
 
 function difficultyScale() {
   const time = S.time;
-  return (1 + time / 170 + Math.pow(time / 420, 1.35)) * (1 + S.bossFailures * .1);
+  const lateGame = time <= 600 ? 1 : Math.pow(1 + (time - 600) / 480, 1.18);
+  return (1 + time / 170 + Math.pow(time / 420, 1.35)) * lateGame * (1 + S.bossFailures * .1);
 }
 
 function edgeSpawnDistance(W, H, angle, padding = 76) {
@@ -869,7 +985,18 @@ function edgeSpawnDistance(W, H, angle, padding = 76) {
   return Math.min(horizontal, vertical);
 }
 
-function enemyDamageScale() { return 1 + S.time / 150 + Math.floor(S.time / 300) * .5 + S.bossFailures * .15; }
+function enemyDamageScale() { return 1 + S.time / 145 + Math.floor(S.time / 300) * .55 + Math.pow(S.time / 900, 1.2) + S.bossFailures * .15; }
+
+function diminishingMultiplier(value) {
+  const compressed = value <= 3 ? value : 3 + Math.log2(value / 3) * 1.5;
+  const blend = clamp((S.time - 600) / 600, 0, 1);
+  return value + (compressed - value) * blend;
+}
+
+function bossPatternDamage(flatDamage) {
+  const healthRatio = .04 + Math.min(.16, S.time / 10500);
+  return Math.max(flatDamage, S.maxHp * healthRatio);
+}
 
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
@@ -895,13 +1022,13 @@ function spawnEnemy(W, H, options = {}) {
   const scale = difficultyScale(), baseHp = Math.max(2, 3.2 * scale), archetype = options.archetype || chooseArchetype();
   const archetypeHp = { stalker: 1, gunner: 1.25, charger: 1.45, splitter: 1.6, bomber: 1.08, warder: 1.35 }[archetype];
   const hp = Math.ceil(baseHp * archetypeHp * (elite ? 2.8 : 1) * (options.child ? .42 : 1));
-  const archetypeSpeed = archetype === 'warder' ? .82 : archetype === 'bomber' ? 1.42 : 1;
+  const archetypeSpeed = archetype === 'warder' ? .82 : archetype === 'bomber' ? 1.52 + Math.min(.48, S.time / 2500) : 1;
   const baseSpeed = Math.min(150, 61 + S.time * .075) * (options.child ? 1.18 : 1) * archetypeSpeed;
   S.mobs.push({
     kind: 'mob', archetype, x: options.x ?? S.x + Math.cos(angle) * distance,
     y: options.y ?? S.y + Math.sin(angle) * distance, r: options.child ? 13 : elite ? 28 : 18 + Math.random() * 5,
     hp, maxHp: hp, shield: archetype === 'warder' ? Math.ceil(hp * .75) : 0, maxShield: archetype === 'warder' ? Math.ceil(hp * .75) : 0,
-    speed: baseSpeed * (elite ? .86 : 1), damage: enemyDamageScale() * .52 + (elite ? .75 : 0),
+    speed: baseSpeed * (elite && archetype !== 'bomber' ? .86 : 1), damage: enemyDamageScale() * .52 + (elite ? .75 : 0),
     elite, child: Boolean(options.child), slow: 0, frozen: 0, phase: Math.random() * 2 | 0,
     id: Math.random(), age: 0, state: 'move', stateClock: random(2.4, 4.5), shootClock: random(1.4, 3.4),
     specialClock: random(2.8, 5.2), vx: 0, vy: 0, facing: 1, hitFlash: 0,
@@ -934,15 +1061,17 @@ function spawnBoss(W, H) {
   const type = types[Math.floor(Math.random() * types.length)], angle = Math.random() * TAU, distance = edgeSpawnDistance(W, H, angle, 145);
   const modifier = ['swift', 'armored', 'unstable'][Math.random() * 3 | 0];
   const base = [0, 170, 440, 1050][tier];
-  const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * (modifier === 'armored' ? 1.25 : 1));
+  const lateBoss = S.time <= 600 ? 1 : Math.pow(1 + (S.time - 600) / 600, .9);
+  const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * lateBoss * (modifier === 'armored' ? 1.25 : 1));
   const timeLimit = Math.max(30, [0, 45, 52, 60][tier] - cycle * 2);
   const boss = {
     kind: 'boss', bossType: type, tier, number, cycle, modifier, affixes: bossAffixes(number),
     x: S.x + Math.cos(angle) * distance, y: S.y + Math.sin(angle) * distance,
     r: tier === 3 ? 62 : 46, hp, maxHp: hp,
     speed: (tier === 3 ? 51 : 58) * (modifier === 'swift' ? 1.18 : 1) * Math.min(1.35, 1 + cycle * .05),
-    damage: 2 + Math.floor(number / 2), elite: true, slow: 0, frozen: 0, phase: 0,
+    damage: Math.max(2 + Math.floor(number / 2), enemyDamageScale() * .75), elite: true, slow: 0, frozen: 0, phase: 0,
     id: Math.random(), age: 0, timeLimit, deadline: S.time + timeLimit, deadlineWarned: false, patternClock: 1.15, specialClock: 3.8, affixClock: 4.5,
+    eventClock: Math.max(6.5, 10.5 - cycle * .35), eventIndex: Math.floor(Math.random() * 3), phaseIndex: 0, phaseInv: 0, forceFieldPattern: false,
     state: 'move', stateClock: 0, vx: 0, vy: 0, facing: 1, hitFlash: 0,
   };
   S.mobs.push(boss); S.bossActive = boss; S.bossIndex++; S.bossWarned = false; S.nextBossAt = Infinity;
@@ -951,7 +1080,7 @@ function spawnBoss(W, H) {
 
 function handleBossTimeout(W, H) {
   const boss = S.bossActive; if (!boss || boss.hp <= 0) return;
-  boss.dead = true; boss.escaped = true; S.bossActive = null; S.bossFailures++;
+  boss.dead = true; boss.escaped = true; S.bossActive = null; S.bossFailures++; clearBossPatterns(boss.id);
   S.nextBossAt = S.time + random(42, 52); S.bossWarned = false; ui.bossHud.classList.add('hidden');
   for (let i = 0; i < 6; i++) spawnEnemy(W, H, { elite: true, ignoreCap: true });
   effect('ring', S.x, S.y, { life: .9, max: .9, radius: 210, color: '#ff356d' }); burst(S.x, S.y, '#ff356d', 22, 260);
@@ -959,14 +1088,20 @@ function handleBossTimeout(W, H) {
   hurtPlayer(Math.max(8, S.maxHp * .18), true);
 }
 
-function enemyBullet(x, y, angle, speed = 230, radius = 7, damage = enemyDamageScale()) {
+function enemyBullet(x, y, angle, speed = 230, radius = 7, damage = enemyDamageScale(), ownerBossId = null) {
   if (S.enemyShots.length >= 440) return;
-  S.enemyShots.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: radius, damage, life: 7 });
+  const bossPattern = Boolean(ownerBossId);
+  S.enemyShots.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: radius, damage: bossPattern ? bossPatternDamage(damage) : damage, life: 7, bossPattern, ownerBossId, orbitGuardChecked: false });
 }
 
 function radial(mob, count, speed, offset = S.time * .7) {
-  const bulletSpeed = speed * Math.min(1.65, 1 + (mob.number || 0) * .045);
-  for (let i = 0; i < count; i++) enemyBullet(mob.x, mob.y, offset + i * TAU / count, bulletSpeed, mob.tier === 3 ? 9 : 7, mob.damage || enemyDamageScale());
+  const bulletSpeed = speed * Math.min(2.15, 1 + (mob.number || 0) * .052);
+  for (let i = 0; i < count; i++) enemyBullet(mob.x, mob.y, offset + i * TAU / count, bulletSpeed, mob.tier === 3 ? 9 : 7, mob.damage || enemyDamageScale(), mob.kind === 'boss' ? mob.id : null);
+}
+
+function clearBossPatterns(ownerBossId) {
+  S.enemyShots = S.enemyShots.filter(projectile => projectile.ownerBossId !== ownerBossId);
+  S.hazards = S.hazards.filter(hazard => hazard.ownerBossId !== ownerBossId);
 }
 
 function pointSegmentDistance(px, py, ax, ay, bx, by) {
@@ -998,6 +1133,7 @@ function angleDelta(a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 function updateBoss(mob, dt) {
   mob.age += dt; mob.patternClock -= dt; mob.specialClock -= dt; mob.affixClock -= dt; mob.stateClock -= dt;
+  mob.eventClock -= dt; mob.phaseInv -= dt; mob.patternLock = Math.max(0, (mob.patternLock || 0) - dt);
   mob.hitFlash -= dt; mob.frozen -= dt; mob.slow -= dt;
   const dx = S.x - mob.x, dy = S.y - mob.y, distance = Math.hypot(dx, dy) || 1, angle = Math.atan2(dy, dx);
   mob.facing = dx < 0 ? -1 : 1;
@@ -1005,60 +1141,72 @@ function updateBoss(mob, dt) {
   const cadence = Math.max(.48, Math.pow(.965, mob.number - 1)) * (mob.affixes.includes('overclock') ? .78 : 1) * (mob.modifier === 'unstable' ? .85 : 1);
   const movementScale = mob.frozen > 0 ? .25 : mob.slow > 0 ? .72 : 1;
 
+  if (mob.phaseInv > 0) return;
+  if (mob.forceFieldPattern || (mob.eventClock <= 0 && mob.patternLock <= 0)) {
+    triggerBossFieldPattern(mob); mob.forceFieldPattern = false;
+  }
+
   if (mob.bossType === 'oni') {
     if (mob.state === 'dash') {
       mob.x += mob.vx * dt * movementScale; mob.y += mob.vy * dt * movementScale;
       if (mob.stateClock <= 0) mob.state = 'move';
     } else if (mob.state === 'telegraph') {
-      if (mob.stateClock <= 0) { mob.state = 'dash'; mob.stateClock = .5; mob.vx = Math.cos(angle) * (rage ? 790 : 680); mob.vy = Math.sin(angle) * (rage ? 790 : 680); }
+      if (mob.stateClock <= 0) { mob.state = 'dash'; mob.stateClock = .5; mob.vx = Math.cos(mob.castAngle) * (rage ? 790 : 680); mob.vy = Math.sin(mob.castAngle) * (rage ? 790 : 680); }
     } else {
       mob.x += dx / distance * mob.speed * .58 * dt * movementScale; mob.y += dy / distance * mob.speed * .58 * dt * movementScale;
-      if (mob.patternClock <= 0) {
-        mob.state = 'telegraph'; mob.stateClock = .72; mob.patternClock = (rage ? 2.25 : 3.05) * cadence;
-        S.hazards.push({ x: mob.x, y: mob.y, tx: S.x, ty: S.y, r: 34, warmup: .72, life: 1.35, type: 'line', damage: mob.damage });
+      if (mob.patternClock <= 0 && mob.patternLock <= 0) {
+        mob.state = 'telegraph'; mob.stateClock = .78; mob.castAngle = angle; mob.patternClock = (rage ? 2.25 : 3.05) * cadence;
+        S.hazards.push({ x: mob.x, y: mob.y, tx: mob.x + Math.cos(mob.castAngle) * 1100, ty: mob.y + Math.sin(mob.castAngle) * 1100, r: 34, warmup: .78, life: 1.35, type: 'line', damage: bossPatternDamage(mob.damage), bossPattern: true, ownerBossId: mob.id });
       }
     }
   } else if (mob.bossType === 'seraph') {
     const desired = 310, direction = distance > desired + 35 ? 1 : distance < desired - 35 ? -1 : 0;
     mob.x += dx / distance * mob.speed * direction * dt * movementScale; mob.y += dy / distance * mob.speed * direction * dt * movementScale;
-    if (mob.patternClock <= 0) { radial(mob, rage ? 16 : 11, rage ? 285 : 230); mob.patternClock = (rage ? 1.6 : 2.3) * cadence; }
-    if (mob.specialClock <= 0) {
-      for (let i = -2; i <= 2; i++) enemyBullet(mob.x, mob.y, angle + i * .11, 340, 8, mob.damage);
+    if (mob.patternClock <= 0 && mob.patternLock <= 0) { radial(mob, rage ? 16 : 11, rage ? 320 : 260); mob.patternClock = (rage ? 1.6 : 2.3) * cadence; }
+    if (mob.specialClock <= 0 && mob.patternLock <= 0) {
+      for (let i = -2; i <= 2; i++) enemyBullet(mob.x, mob.y, angle + i * .11, 370, 8, mob.damage, mob.id);
       mob.specialClock = 4.2 * cadence;
     }
   } else if (mob.bossType === 'witch') {
     const tangent = angle + Math.PI / 2;
     mob.x += (Math.cos(angle) * (distance > 340 ? 38 : -18) + Math.cos(tangent) * 58) * dt * movementScale;
     mob.y += (Math.sin(angle) * (distance > 340 ? 38 : -18) + Math.sin(tangent) * 58) * dt * movementScale;
-    if (mob.patternClock <= 0) {
-      for (let i = 0; i < (rage ? 6 : 4); i++) S.hazards.push({ x: S.x + random(-280, 280), y: S.y + random(-210, 210), r: 58, warmup: .95, life: 2.1, type: 'circle', damage: mob.damage + 1 });
+    if (mob.patternClock <= 0 && mob.patternLock <= 0) {
+      for (let i = 0; i < (rage ? 6 : 4); i++) S.hazards.push({ x: S.x + random(-280, 280), y: S.y + random(-210, 210), r: 58, warmup: 1.02, life: 2.1, type: 'circle', damage: bossPatternDamage(mob.damage + 1), bossPattern: true, ownerBossId: mob.id });
       mob.patternClock = (rage ? 2.9 : 4) * cadence;
     }
-    if (mob.specialClock <= 0) { radial(mob, 14 + Math.min(8, Math.floor(mob.number / 2)), 205); mob.specialClock = 5.2 * cadence; }
+    if (mob.specialClock <= 0 && mob.patternLock <= 0) { radial(mob, 14 + Math.min(8, Math.floor(mob.number / 2)), 235); mob.specialClock = 5.2 * cadence; }
   } else {
     mob.x += dx / distance * mob.speed * .72 * dt * movementScale; mob.y += dy / distance * mob.speed * .72 * dt * movementScale;
-    if (mob.patternClock <= 0) {
+    if (mob.patternClock <= 0 && mob.patternLock <= 0) {
       const fan = Math.min(5, 3 + Math.floor(mob.number / 3));
-      for (let i = -fan; i <= fan; i++) enemyBullet(mob.x, mob.y, angle + i * .12, rage ? 385 : 325, 9, mob.damage);
+      for (let i = -fan; i <= fan; i++) enemyBullet(mob.x, mob.y, angle + i * .12, rage ? 425 : 355, 9, mob.damage, mob.id);
       mob.patternClock = (rage ? 1.35 : 2.05) * cadence;
     }
-    if (mob.specialClock <= 0) { radial(mob, 18 + Math.min(8, mob.cycle * 2), 225); mob.specialClock = 4.8 * cadence; }
+    if (mob.specialClock <= 0 && mob.patternLock <= 0) { radial(mob, 18 + Math.min(8, mob.cycle * 2), 255); mob.specialClock = 4.8 * cadence; }
   }
 
-  if (mob.affixClock <= 0) {
-    if (mob.affixes.includes('minefield')) for (let i = 0; i < 3 + Math.min(3, mob.cycle); i++) S.hazards.push({ x: S.x + random(-230, 230), y: S.y + random(-170, 170), r: 52, warmup: .85, life: 1.9, type: 'circle', damage: mob.damage });
+  if (mob.affixClock <= 0 && mob.patternLock <= 0) {
+    if (mob.affixes.includes('minefield')) for (let i = 0; i < 3 + Math.min(3, mob.cycle); i++) S.hazards.push({ x: S.x + random(-230, 230), y: S.y + random(-170, 170), r: 52, warmup: .92, life: 1.9, type: 'circle', damage: bossPatternDamage(mob.damage), bossPattern: true, ownerBossId: mob.id });
     if (mob.affixes.includes('echo')) radial(mob, 10 + Math.min(8, mob.cycle * 2), 245, S.time * .8 + .17);
-    if (mob.affixes.includes('hunter')) for (let i = -1; i <= 1; i++) enemyBullet(mob.x, mob.y, angle + i * .16, 410, 8, mob.damage);
+    if (mob.affixes.includes('hunter')) for (let i = -1; i <= 1; i++) enemyBullet(mob.x, mob.y, angle + i * .16, 440, 8, mob.damage, mob.id);
     mob.affixClock = Math.max(3.4, 6.2 - mob.cycle * .25);
   }
   if (mob.state === 'dash') mob.facing = mob.vx < 0 ? -1 : 1;
   if (distance < mob.r + 22) hurtPlayer(mob.damage);
 }
 
-function detonateBomber(mob) {
-  if (mob.selfDestruct) return;
-  mob.selfDestruct = true; effect('ring', mob.x, mob.y, { life: .5, max: .5, radius: 112, color: '#ff3d66' }); burst(mob.x, mob.y, '#ff4b62', 18, 240); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 6);
-  if (Math.hypot(S.x - mob.x, S.y - mob.y) < 130) hurtPlayer(mob.damage * 2.35);
+function spawnBomberFuse(mob) {
+  if (mob.bombFuseSpawned) return false;
+  mob.bombFuseSpawned = true;
+  const fuseDuration = Math.max(.82, 1.15 - Math.min(.25, S.time / 7200));
+  S.hazards.push({
+    type: 'bombFuse', x: mob.x, y: mob.y, r: 126, warmup: fuseDuration, startWarmup: fuseDuration,
+    life: fuseDuration + .28, damage: mob.damage * 2.35, detonated: false, hit: false,
+    phase: mob.phase || 0, facing: mob.facing || 1, sourceRadius: mob.r,
+  });
+  AudioEngine.se('boss');
+  return true;
 }
 
 function updateMob(mob, dt) {
@@ -1078,15 +1226,8 @@ function updateMob(mob, dt) {
   const auraSlow = gravityLevel && distance < 260 + gravityLevel * 12 ? Math.max(.48, .82 - gravityLevel * .06) : 1;
   const movementScale = (mob.frozen > 0 ? .12 : mob.slow > 0 ? .72 : 1) * auraSlow;
   if (mob.archetype === 'bomber') {
-    if (mob.state === 'fuse') {
-      mob.x += dx / distance * mob.speed * .22 * dt * movementScale; mob.y += dy / distance * mob.speed * .22 * dt * movementScale;
-      if (mob.stateClock <= 0) {
-        detonateBomber(mob); mob.dead = true; return;
-      }
-    } else {
-      mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
-      if (distance < 122) { mob.state = 'fuse'; mob.stateClock = .72; AudioEngine.se('boss'); }
-    }
+    mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
+    if (distance < mob.r + 18) { spawnBomberFuse(mob); mob.hp = 0; return; }
   } else if (mob.archetype === 'gunner') {
     const desired = 275, direction = distance > desired + 35 ? 1 : distance < desired - 35 ? -1 : 0;
     mob.x += dx / distance * mob.speed * direction * dt * movementScale; mob.y += dy / distance * mob.speed * direction * dt * movementScale;
@@ -1104,7 +1245,6 @@ function updateMob(mob, dt) {
   } else {
     mob.x += dx / distance * mob.speed * dt * movementScale; mob.y += dy / distance * mob.speed * dt * movementScale;
   }
-  if (mob.archetype === 'bomber' && mob.state === 'fuse') return;
   if (mob.state === 'dash') mob.facing = mob.vx < 0 ? -1 : 1;
   if (distance < mob.r + 21) hurtPlayer(mob.damage);
 }
@@ -1147,12 +1287,14 @@ function fire() {
 
 function damageMob(mob, amount, kind = 'projectile', critical = false, alreadyScaled = false) {
   if (mob.dead || mob.hp <= 0) return 0;
+  if (mob.kind === 'boss' && mob.phaseInv > 0) return 0;
   const typeMult = kind === 'saber' ? S.saberMult : kind === 'orbit' ? S.orbitMult : S.projectileMult;
   const frozenBonus = mob.frozen > 0 ? 1.25 : 1;
   let affinity = 1;
   if (mob.kind === 'boss' && mob.modifier === 'armored') affinity = kind === 'saber' ? 1.65 : kind === 'projectile' ? .62 : .88;
   if (mob.archetype === 'warder' && mob.shield > 0) affinity = kind === 'saber' ? 2.4 : kind === 'projectile' ? .25 : .55;
-  const actual = (alreadyScaled ? amount : amount * S.damageMult * typeMult * frozenBonus) * affinity;
+  const actual = (alreadyScaled ? amount : amount * diminishingMultiplier(S.damageMult) * diminishingMultiplier(typeMult) * frozenBonus * endlessPowerScale()) * affinity;
+  const hpBefore = mob.hp;
   if (mob.shield > 0) {
     mob.shield -= actual;
     if (mob.shield <= 0) {
@@ -1160,6 +1302,14 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
       effect('ring', mob.x, mob.y, { life: .38, max: .38, radius: 72, color: '#64f5ff' }); burst(mob.x, mob.y, '#64f5ff', 10, 170);
     }
   } else mob.hp -= actual;
+  if (mob.kind === 'boss' && mob.hp > 0 && mob.phaseIndex < 3) {
+    const threshold = [.75, .5, .25][mob.phaseIndex];
+    if (hpBefore > mob.maxHp * threshold && mob.hp <= mob.maxHp * threshold) {
+      mob.hp = Math.max(mob.hp, mob.maxHp * threshold); mob.phaseIndex++; mob.phaseInv = .65; mob.forceFieldPattern = true;
+      effect('ring', mob.x, mob.y, { life: .7, max: .7, radius: mob.r + 68, color: '#ffd65a' });
+      burst(mob.x, mob.y, '#ffd65a', 16, 210); AudioEngine.se('wave');
+    }
+  }
   mob.hitFlash = .08;
   const executionLevel = relicLevel('execution');
   if (executionLevel && mob.kind === 'mob' && mob.hp > 0 && mob.hp / mob.maxHp < Math.min(.35, .12 + executionLevel * .04)) mob.hp = 0;
@@ -1230,6 +1380,19 @@ function orbitalPose(index) {
   return { angle, radius, x: homeX + (strikeX - homeX) * blend, y: homeY + (strikeY - homeY) * blend };
 }
 
+function tryOrbitIntercept(projectile) {
+  if (!projectile || projectile.life <= 0 || projectile.bossPattern || projectile.orbitGuardChecked || S.orbitGuard <= 0 || S.orbitals <= 0) return false;
+  for (let index = 0; index < S.orbitals; index++) {
+    const pose = orbitalPose(index), radius = 15 * S.orbitSize + projectile.r;
+    if (Math.hypot(projectile.x - pose.x, projectile.y - pose.y) > radius) continue;
+    projectile.orbitGuardChecked = true;
+    if (Math.random() >= Math.min(.3, S.orbitGuard)) return false;
+    projectile.life = 0; effect('ring', pose.x, pose.y, { life: .24, max: .24, radius: 34 * S.orbitSize, color: '#6fffff' });
+    burst(pose.x, pose.y, '#6fffff', 5, 110); AudioEngine.se('hit'); return true;
+  }
+  return false;
+}
+
 function updateOrbitals(dt) {
   if (!S.orbitals) return;
   for (let i = 0; i < S.orbitals; i++) {
@@ -1293,17 +1456,18 @@ function updateMasteries(dt) {
   }
 }
 
-function hurtPlayer(amount = 1, unavoidable = false) {
+function hurtPlayer(amount = 1, unavoidable = false, bypassGuard = false) {
   if ((S.inv > 0 && !unavoidable) || S.over) return;
-  const guardChance = clamp(S.guard + (S.saberActive > 0 ? S.saberGuard : 0), 0, .72);
-  if (!unavoidable && Math.random() < guardChance) {
+  const lateGuardCap = .58 - clamp((S.time - 600) / 600, 0, 1) * .13;
+  const guardChance = clamp(S.guard + (S.saberActive > 0 ? S.saberGuard : 0), 0, lateGuardCap);
+  if (!unavoidable && !bypassGuard && Math.random() < guardChance) {
     S.inv = .25; S.temporarySpeed = 1.3; S.temporarySpeedClock = 1.2; showToast('⬡ BLOCK'); effect('ring', S.x, S.y, { life: .35, max: .35, radius: 55, color: '#8afff5' }); return;
   }
   const phoenixLevel = relicLevel('phoenix'), phoenixUses = S.relicUses.phoenix || 0;
   if (S.hp - amount <= 0 && phoenixLevel && phoenixUses < phoenixLevel) {
     S.relicUses.phoenix = phoenixUses + 1; S.hp = S.maxHp * Math.min(.7, .35 + phoenixLevel * .05); S.inv = 2.5; effect('relic', S.x, S.y, { life: 1.4, max: 1.4, color: '#ff9f45' }); showWarning(`PHOENIX KERNEL // REBOOT ${S.relicUses.phoenix}/${phoenixLevel}`); return;
   }
-  S.hp -= amount; S.inv = .55; S.shake = Math.max(S.shake, 7); AudioEngine.se('hurt'); damageFlash(); burst(S.x, S.y, '#ff3978', 10, 180);
+  S.hp -= amount; S.inv = .48; S.recoveryLock = 2.4; S.shake = Math.max(S.shake, 7); AudioEngine.se('hurt'); damageFlash(); burst(S.x, S.y, '#ff3978', 10, 180);
   if (S.hp <= 0) { S.hp = 0; endGame(); }
 }
 
@@ -1331,12 +1495,12 @@ function relicDropChance(source, tier = 1, cycle = 0) {
 
 function handleDeath(mob, W, H) {
   if (mob.dead) return;
-  if (mob.kind === 'mob' && mob.archetype === 'bomber') detonateBomber(mob);
+  if (mob.kind === 'mob' && mob.archetype === 'bomber') spawnBomberFuse(mob);
   mob.dead = true; effect('death', mob.x, mob.y, { life: .55, max: .55, color: mob.kind === 'treasure' ? '#ffd34e' : '#f64eff' });
   burst(mob.x, mob.y, mob.kind === 'treasure' ? '#ffd34e' : '#e950ff', mob.kind === 'boss' ? 24 : 8, mob.kind === 'boss' ? 250 : 150); AudioEngine.se('kill');
   if (mob.kind === 'boss') {
-    S.kills += mob.tier * 15; S.bossesKilled++; S.bossActive = null; ui.bossHud.classList.add('hidden');
-    S.xp += S.nextXp * (1.15 + mob.tier * .38); S.hp = Math.min(S.maxHp, S.hp + 5 + mob.tier * 3);
+    S.kills += mob.tier * 15; S.bossesKilled++; S.bossActive = null; clearBossPatterns(mob.id); ui.bossHud.classList.add('hidden');
+    S.xp += S.nextXp * (1.15 + mob.tier * .38); healPlayer(5 + mob.tier * 3);
     if (Math.random() < relicDropChance('boss', mob.tier, mob.cycle)) {
       dropChest(mob.x, mob.y, 'boss', mob.tier, true); showToast(`BOSS #${mob.number} DOWN · RELIC DROP`);
     } else showToast(`BOSS #${mob.number} DOWN · NO RELIC`);
@@ -1358,30 +1522,33 @@ function handleDeath(mob, W, H) {
   }
 }
 
-function triggerWorldEvent() {
+function triggerBossFieldPattern(boss) {
+  if (!boss || boss.dead || boss.hp <= 0 || S.bossActive !== boss) return false;
   const unlocked = S.time < 150 ? ['crossfire', 'mines'] : ['crossfire', 'mines', 'laser'];
-  const type = unlocked[S.worldEventIndex % unlocked.length]; S.worldEventIndex++;
-  const damage = enemyDamageScale(), speed = 235 + Math.min(170, S.time * .08);
+  const type = unlocked[boss.eventIndex % unlocked.length]; boss.eventIndex++;
+  const damage = bossPatternDamage(boss.damage), speed = 275 + Math.min(220, S.time * .1);
   if (type === 'crossfire') {
     const count = 10 + Math.min(10, Math.floor(S.time / 120));
     for (let i = 0; i < count; i++) {
       const angle = i * TAU / count + S.time, x = S.x + Math.cos(angle) * 560, y = S.y + Math.sin(angle) * 560;
-      enemyBullet(x, y, angle + Math.PI, speed, 7, damage);
+      enemyBullet(x, y, angle + Math.PI, speed, 7, damage, boss.id);
     }
-    showWarning('RIFT PATTERN // CROSSFIRE');
+    showWarning('BOSS PATTERN // CROSSFIRE');
   } else if (type === 'mines') {
     const count = 4 + Math.min(6, Math.floor(S.time / 150));
-    for (let i = 0; i < count; i++) S.hazards.push({ x: S.x + random(-320, 320), y: S.y + random(-230, 230), r: 52, warmup: 1, life: 2.1, type: 'circle', damage: damage + 1 });
-    showWarning('RIFT PATTERN // MINEFALL');
+    for (let i = 0; i < count; i++) S.hazards.push({ x: S.x + random(-320, 320), y: S.y + random(-230, 230), r: 52, warmup: 1.05, life: 2.1, type: 'circle', damage: damage + 1, bossPattern: true, ownerBossId: boss.id });
+    showWarning('BOSS PATTERN // MINEFALL');
   } else {
     const angle = Math.random() * Math.PI;
     for (let i = -1; i <= 1; i++) {
       const offsetX = Math.cos(angle + Math.PI / 2) * i * 120, offsetY = Math.sin(angle + Math.PI / 2) * i * 120;
-      S.hazards.push({ x: S.x + offsetX - Math.cos(angle) * 650, y: S.y + offsetY - Math.sin(angle) * 650, tx: S.x + offsetX + Math.cos(angle) * 650, ty: S.y + offsetY + Math.sin(angle) * 650, r: 28, warmup: .9, life: 1.55, type: 'line', damage: damage + 1 });
+      S.hazards.push({ x: S.x + offsetX - Math.cos(angle) * 650, y: S.y + offsetY - Math.sin(angle) * 650, tx: S.x + offsetX + Math.cos(angle) * 650, ty: S.y + offsetY + Math.sin(angle) * 650, r: 28, warmup: 1.05, life: 1.72, type: 'line', damage: damage + 1, bossPattern: true, ownerBossId: boss.id });
     }
-    showWarning('RIFT PATTERN // LASER GRID');
+    showWarning('BOSS PATTERN // LASER GRID');
   }
-  AudioEngine.se('wave'); S.nextWorldEvent = S.time + random(Math.max(18, 32 - S.time / 90), Math.max(25, 44 - S.time / 110));
+  AudioEngine.se('wave'); boss.patternLock = type === 'laser' ? 1.25 : 1.05;
+  boss.eventClock = random(Math.max(6.2, 10.2 - boss.cycle * .3), Math.max(8.2, 13.4 - boss.cycle * .35));
+  return true;
 }
 
 function processLevelUps() {
@@ -1394,13 +1561,14 @@ function processLevelUps() {
 
 function update(dt, W, H) {
   S.time += dt; S.inv -= dt; S.shotClock -= dt; S.spawnClock = Math.max(-1, S.spawnClock - dt); S.saberClock -= dt; S.healClock += dt; S.saberActive -= dt;
+  S.recoveryLock = Math.max(0, S.recoveryLock - dt); S.healBudgetClock -= dt;
+  if (S.healBudgetClock <= 0) { S.healBudgetClock += 1; S.healBudget = Math.max(2, S.maxHp * .025); }
   S.temporarySpeedClock -= dt; if (S.temporarySpeedClock <= 0) S.temporarySpeed = 1;
   S.shake = Math.max(0, S.shake - dt * 25); AudioEngine.setIntensity(Math.min(5, Math.floor(S.time / 60)));
 
   if (!S.bossActive && !S.bossWarned && S.time >= S.nextBossAt - 3) { S.bossWarned = true; showWarning('BOSS ANOMALY DETECTED'); }
   if (!S.bossActive && S.time >= S.nextBossAt) spawnBoss(W, H);
   if (S.time >= S.nextTreasureAt) spawnTreasure(W, H);
-  if (S.time >= S.nextWorldEvent) triggerWorldEvent();
   if (S.bossActive?.hp > 0) {
     const remaining = S.bossActive.deadline - S.time;
     if (remaining <= 10 && !S.bossActive.deadlineWarned) { S.bossActive.deadlineWarned = true; showWarning('BOSS LIMIT · 10 SECONDS'); AudioEngine.se('boss'); }
@@ -1416,9 +1584,10 @@ function update(dt, W, H) {
   } else if (S.moving) {
     S.aimX = dx / length; S.aimY = dy / length; if (dx < -.05) S.facing = -1; else if (dx > .05) S.facing = 1;
   }
-  S.x += dx / length * S.speed * S.temporarySpeed * dt; S.y += dy / length * S.speed * S.temporarySpeed * dt;
+  const moveSpeed = Math.min(470, S.speed * S.temporarySpeed);
+  S.x += dx / length * moveSpeed * dt; S.y += dy / length * moveSpeed * dt;
 
-  if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; S.hp = Math.min(S.maxHp, S.hp + S.regen); }
+  if (S.regen > 0 && S.healClock >= 1) { S.healClock -= 1; healPlayer(S.regen); }
   if (S.spawnClock <= 0) {
     const regularCount = S.mobs.filter(mob => mob.kind === 'mob' && !mob.dead && mob.hp > 0).length;
     const densityTarget = Math.min(190, 36 + Math.floor(S.time * .24));
@@ -1448,17 +1617,29 @@ function update(dt, W, H) {
   }
   for (const projectile of S.enemyShots) {
     projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
-    if (Math.hypot(projectile.x - S.x, projectile.y - S.y) < projectile.r + 18) { hurtPlayer(projectile.damage); projectile.life = 0; if (S.over) return; }
+    if (tryOrbitIntercept(projectile)) continue;
+    if (Math.hypot(projectile.x - S.x, projectile.y - S.y) < projectile.r + 18) {
+      hurtPlayer(projectile.bossPattern ? bossPatternDamage(projectile.damage) : projectile.damage, false, projectile.bossPattern);
+      projectile.life = 0; if (S.over) return;
+    }
   }
   S.enemyShots = S.enemyShots.filter(projectile => projectile.life > 0 && Math.hypot(projectile.x - S.x, projectile.y - S.y) < 1700);
 
   for (const hazard of S.hazards) {
     hazard.warmup -= dt; hazard.life -= dt;
+    if (hazard.type === 'bombFuse') {
+      if (hazard.warmup <= 0 && !hazard.detonated) {
+        hazard.detonated = true; effect('ring', hazard.x, hazard.y, { life: .5, max: .5, radius: hazard.r, color: '#ff3d66' });
+        burst(hazard.x, hazard.y, '#ff4b62', 18, 240); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 7);
+        if (Math.hypot(hazard.x - S.x, hazard.y - S.y) < hazard.r + 16) { hurtPlayer(hazard.damage); hazard.hit = true; if (S.over) return; }
+      }
+      continue;
+    }
     if (hazard.warmup <= 0 && !hazard.hit) {
       const hit = hazard.type === 'circle'
         ? Math.hypot(hazard.x - S.x, hazard.y - S.y) < hazard.r + 16
         : pointSegmentDistance(S.x, S.y, hazard.x, hazard.y, hazard.tx, hazard.ty) < hazard.r + 15;
-      if (hit) { hurtPlayer(hazard.damage); hazard.hit = true; if (S.over) return; }
+      if (hit) { hurtPlayer(hazard.bossPattern ? bossPatternDamage(hazard.damage) : hazard.damage, false, hazard.bossPattern); hazard.hit = true; if (S.over) return; }
     }
   }
   S.hazards = S.hazards.filter(hazard => hazard.life > 0);
@@ -1499,6 +1680,19 @@ function sprite(image, column, row, columns, rows, dx, dy, dw, dh, alpha = 1, fl
 function drawHazards() {
   for (const hazard of S.hazards) {
     const ready = hazard.warmup <= 0; ctx.save();
+    if (hazard.type === 'bombFuse') {
+      const progress = clamp(1 - hazard.warmup / Math.max(.01, hazard.startWarmup), 0, 1);
+      const flash = hazard.detonated ? 0 : .35 + .65 * Math.max(0, Math.sin(progress * Math.PI * (5 + progress * 20)));
+      const bodyScale = Math.max(72, hazard.sourceRadius * 4);
+      sprite(images.enemy, Math.floor(performance.now() / 90 + hazard.phase) % 2, 1, 2, 2, hazard.x - bodyScale / 2, hazard.y - bodyScale * .58, bodyScale, bodyScale, flash, hazard.facing < 0);
+      ctx.globalAlpha = flash; ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 22 + progress * 26; ctx.shadowColor = '#ff254f';
+      ctx.fillStyle = '#ff193c'; ctx.strokeStyle = progress > .72 ? '#fff' : '#ff6b80'; ctx.lineWidth = 4 + progress * 3;
+      ctx.beginPath(); ctx.arc(hazard.x, hazard.y, 20 + progress * 7, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = .25 + flash * .6; ctx.setLineDash([8, 7]); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(hazard.x, hazard.y, hazard.r * (.72 + progress * .28), -Math.PI / 2, -Math.PI / 2 + TAU * progress); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = .12 + progress * .18; ctx.fillStyle = '#ff163d'; ctx.beginPath(); ctx.arc(hazard.x, hazard.y, hazard.r, 0, TAU); ctx.fill();
+      ctx.restore(); continue;
+    }
     ctx.strokeStyle = ready ? '#ff2e72' : '#ff92bd'; ctx.fillStyle = ready ? '#ff175522' : '#ffccdd0d';
     ctx.lineWidth = ready ? 6 : 2; ctx.setLineDash(ready ? [] : [8, 8]); ctx.shadowBlur = ready ? 16 : 6; ctx.shadowColor = '#ff2a70';
     if (hazard.type === 'circle') {
@@ -1548,8 +1742,15 @@ function drawMob(mob, t) {
     if (mob.archetype === 'warder' && mob.shield > 0) {
       ctx.save(); ctx.globalAlpha = .45 + Math.sin(t * .009 + mob.id) * .15; ctx.strokeStyle = '#7dffff'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 12, 0, TAU); ctx.stroke(); ctx.restore();
     }
-    if (mob.archetype === 'bomber' && mob.state === 'fuse') {
-      const pulse = clamp(mob.stateClock / .72, 0, 1); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = pulse < .3 ? '#fff' : '#ff456d'; ctx.fillStyle = '#ff264433'; ctx.lineWidth = 5 + (1 - pulse) * 6; ctx.beginPath(); ctx.arc(mob.x, mob.y, 36 + (1 - pulse) * 76, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
+    if (mob.archetype === 'bomber') {
+      ctx.save(); ctx.translate(mob.x, mob.y - 2); ctx.rotate(Math.sin(t * .004 + mob.id * 9) * .08);
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFx ? 0 : 20; ctx.shadowColor = '#ff244f';
+      ctx.fillStyle = '#300818'; ctx.strokeStyle = '#ff4166'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-mob.r - 13, 4); ctx.lineTo(-mob.r + 1, -13); ctx.lineTo(-mob.r + 4, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(mob.r + 13, 4); ctx.lineTo(mob.r - 1, -13); ctx.lineTo(mob.r - 4, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff244f'; ctx.beginPath(); ctx.arc(0, 1, 9 + Math.sin(t * .012) * 2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillRect(-5, -1, 10, 3); ctx.strokeStyle = '#ff6a81'; ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
+      ctx.rotate(t * .0018); ctx.beginPath(); ctx.arc(0, 1, mob.r + 13, 0, TAU); ctx.stroke(); ctx.restore();
     }
   }
   ctx.restore();
@@ -1768,4 +1969,4 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-loadLeaderboard(); requestAnimationFrame(loop);
+initializeLanguage(); loadLeaderboard(); requestAnimationFrame(loop);

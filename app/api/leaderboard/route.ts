@@ -21,7 +21,7 @@ type RunLoadout = {
 
 const ALLOWED_UPGRADES = new Set([
   "power", "haste", "multishot", "pierce", "critical", "blast", "chain", "size",
-  "orbit", "orbit_speed", "orbit_size", "orbit_range", "orbit_shock", "orbit_pulse",
+  "orbit", "orbit_speed", "orbit_size", "orbit_range", "orbit_shock", "orbit_guard", "orbit_pulse",
   "saber", "saber_reach", "saber_haste", "saber_echo", "saber_guard", "speed", "magnet",
   "vital", "regen", "guard", "fortune", "relic_slot", "limit_master_projectile",
   "limit_master_saber", "limit_master_orbit", "limit_power", "limit_vital", "limit_growth",

@@ -14,11 +14,14 @@ const outputDir = path.resolve(
 const outputFile = path.join(outputDir, 'NeonArcanaEndlessLocalTest.html');
 
 const htmlFile = path.join(publicDir, 'game.html');
+const i18nScriptFile = path.join(publicDir, 'game-i18n.js');
 const gameScriptFile = path.join(publicDir, 'game-v4.js');
 const legacyScriptPattern =
   /<script\b[^>]*\btype=["']text\/plain["'][^>]*\bid=["']legacy-game["'][^>]*>[\s\S]*?<\/script>\s*/i;
 const externalGameScriptPattern =
   /<script\b[^>]*\bsrc=["'](?:\.\/)?game-v4\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/i;
+const externalI18nScriptPattern =
+  /<script\b[^>]*\bsrc=["'](?:\.\/)?game-i18n\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/i;
 const pngAssetPattern = /assets\/([A-Za-z0-9._-]+\.png)\b/g;
 
 function assertSingleMatch(source, pattern, label) {
@@ -34,19 +37,22 @@ function assertSingleMatch(source, pattern, label) {
 }
 
 async function buildOfflineHtml() {
-  const [sourceHtml, sourceGameScript] = await Promise.all([
+  const [sourceHtml, sourceI18nScript, sourceGameScript] = await Promise.all([
     readFile(htmlFile, 'utf8'),
+    readFile(i18nScriptFile, 'utf8'),
     readFile(gameScriptFile, 'utf8'),
   ]);
 
   assertSingleMatch(sourceHtml, legacyScriptPattern, 'legacy-game 스크립트 블록');
+  assertSingleMatch(sourceHtml, externalI18nScriptPattern, 'game-i18n.js 스크립트 태그');
   assertSingleMatch(sourceHtml, externalGameScriptPattern, 'game-v4.js 스크립트 태그');
 
   let html = sourceHtml.replace(legacyScriptPattern, '');
+  let i18nScript = sourceI18nScript;
   let gameScript = sourceGameScript;
 
   const referencedAssets = new Set();
-  for (const source of [html, gameScript]) {
+  for (const source of [html, i18nScript, gameScript]) {
     for (const match of source.matchAll(pngAssetPattern)) {
       referencedAssets.add(match[1]);
     }
@@ -61,12 +67,18 @@ async function buildOfflineHtml() {
     const dataUrl = `data:image/png;base64,${(await readFile(assetPath)).toString('base64')}`;
     const publicReference = `assets/${assetName}`;
     html = html.split(publicReference).join(dataUrl);
+    i18nScript = i18nScript.split(publicReference).join(dataUrl);
     gameScript = gameScript.split(publicReference).join(dataUrl);
   }
 
   // A literal closing script tag inside JavaScript would terminate the inline
   // element early when the standalone file is parsed as HTML.
+  i18nScript = i18nScript.replace(/<\/script/gi, '<\\/script');
   gameScript = gameScript.replace(/<\/script/gi, '<\\/script');
+  html = html.replace(
+    externalI18nScriptPattern,
+    `<script>\n${i18nScript}\n</script>`,
+  );
   html = html.replace(
     externalGameScriptPattern,
     `<script>\n${gameScript}\n</script>`,
@@ -77,6 +89,9 @@ async function buildOfflineHtml() {
   }
   if (externalGameScriptPattern.test(html)) {
     throw new Error('game-v4.js 인라인 처리에 실패했습니다.');
+  }
+  if (externalI18nScriptPattern.test(html)) {
+    throw new Error('game-i18n.js 인라인 처리에 실패했습니다.');
   }
   if (/\bassets\/[A-Za-z0-9._-]+\.png\b/.test(html)) {
     throw new Error('일부 PNG 에셋 참조가 외부 경로로 남아 있습니다.');
