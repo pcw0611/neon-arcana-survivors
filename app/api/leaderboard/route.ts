@@ -30,7 +30,7 @@ const ALLOWED_RELICS = new Set([
   "arc_cell", "blood_cap", "magnet_prism", "hunter_lens", "split_core", "orbit_gear",
   "edge_lens", "nano_shunt", "execution", "echo_chamber", "gravity_halo", "soul_battery",
   "event_horizon", "zero_edge", "phoenix", "rift_crown", "singularity", "immortal",
-  "godspeed", "midas",
+  "godspeed", "midas", "chain_detonator",
 ]);
 
 function normalizeLoadout(value: unknown, bosses = 0): RunLoadout | null {

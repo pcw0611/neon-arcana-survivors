@@ -1,28 +1,15 @@
-import { notFound } from "next/navigation";
-import { configuredAdminEmail, isAdminEmail } from "../admin-auth";
-import { chatGPTSignOutPath, requireChatGPTUser } from "../chatgpt-auth";
+import { headers } from "next/headers";
+import { isAdminSession } from "../admin-auth";
 import AdminDashboard from "./AdminDashboard";
+import AdminLogin from "./AdminLogin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const user = await requireChatGPTUser("/admin");
-  const configured = configuredAdminEmail();
+  const requestHeaders = await headers();
+  const authed = isAdminSession(requestHeaders.get("cookie") ?? "");
 
-  if (!configured) {
-    return (
-      <main style={{ padding: 40, color: "white", background: "#03040d", minHeight: "100vh" }}>
-        관리자 설정을 적용하는 중입니다. 잠시 후 다시 시도해주세요.
-      </main>
-    );
-  }
-  if (!isAdminEmail(user.email)) notFound();
+  if (!authed) return <AdminLogin />;
 
-  return (
-    <AdminDashboard
-      displayName={user.displayName}
-      email={user.email}
-      signOutPath={chatGPTSignOutPath("/")}
-    />
-  );
+  return <AdminDashboard signOutPath="/api/admin/logout" />;
 }

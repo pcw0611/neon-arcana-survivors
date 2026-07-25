@@ -26,7 +26,7 @@ type Stats = {
 
 const emptyStats: Stats = { total: 0, victories: 0, averageScore: 0, bestScore: 0, latestAt: null };
 
-export default function AdminDashboard(props: { displayName: string; email: string; signOutPath: string }) {
+export default function AdminDashboard(props: { signOutPath: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [query, setQuery] = useState("");
@@ -97,6 +97,11 @@ export default function AdminDashboard(props: { displayName: string; email: stri
     } catch (cause) { setError((cause as Error).message); }
   };
 
+  const logout = async () => {
+    await fetch(props.signOutPath, { method: "POST" });
+    window.location.href = "/admin";
+  };
+
   const toggleAll = () => {
     setSelected((current) => current.size === rows.length
       ? new Set()
@@ -125,9 +130,8 @@ export default function AdminDashboard(props: { displayName: string; email: stri
             <p className={styles.subtitle}><span className={styles.liveDot} /> D1 데이터베이스 연결됨</p>
           </div>
           <div className={styles.headerActions}>
-            <div className={styles.userChip}><strong>{props.displayName}</strong><span>{props.email}</span></div>
             <Link className={styles.buttonGhost} href="/">게임으로</Link>
-            <a className={styles.buttonGhost} href={props.signOutPath}>로그아웃</a>
+            <button className={styles.buttonGhost} onClick={() => void logout()}>로그아웃</button>
           </div>
         </header>
 
