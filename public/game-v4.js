@@ -47,6 +47,7 @@ const images = {
   player: new Image(), enemy: new Image(), vfx: new Image(), bosses: new Image(),
   city: new Image(), treasure: new Image(), enemyMissile: new Image(), saberBlade: new Image(),
   archetypeIcons: new Image(), bomberDrone: new Image(), ultimateFx: new Image(), mechaOrbital: new Image(),
+  leviathan: new Image(), darkBlade: new Image(), thorHammer: new Image(), darkAura: new Image(),
 };
 images.player.src = 'assets/astra-sd.png';
 images.enemy.src = 'assets/shade-sd.png';
@@ -60,6 +61,10 @@ images.archetypeIcons.src = 'assets/archetype-icons.png';
 images.bomberDrone.src = 'assets/bomber-drone.png';
 images.ultimateFx.src = 'assets/ultimate-fx.png';
 images.mechaOrbital.src = 'assets/mecha-orbital.png';
+images.leviathan.src = 'assets/leviathan.png';
+images.darkBlade.src = 'assets/dark-blade.png';
+images.thorHammer.src = 'assets/thor-hammer.png';
+images.darkAura.src = 'assets/dark-aura.png';
 
 let S = null;
 let running = false;
@@ -479,9 +484,12 @@ function compact(array, keep) {
   array.length = write;
 }
 
+function classIconFor(id) { return classDefs.find(def => def.id === id)?.icon || ''; }
+function classNameFor(id) { const def = classDefs.find(entry => entry.id === id); return def ? classLabel(def) : tr('ranking.noClass', null, '미상'); }
+
 function renderRanks(target, rows, ownRank) {
   target.innerHTML = rows.length
-    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span><button class="rank-detail" data-rank-index="${index}">${tr('common.details', null, '상세')}</button></div>`).join('') + (ownRank ? `<div class="rank-status">${tr('ranking.ownRank', { rank: ownRank }, `이번 기록 순위: #${ownRank}`)}</div>` : '')
+    ? rows.map((row, index) => `<div class="rank-row ${row.victory ? 'win' : ''}"><span>${index + 1}</span><b>${classIconFor(row.loadout?.playerClass)} ${escapeHtml(row.player)}</b><em>${Number(row.score).toLocaleString()}</em><span>${formatTime(row.duration)}</span><button class="rank-detail" data-rank-index="${index}">${tr('common.details', null, '상세')}</button></div>`).join('') + (ownRank ? `<div class="rank-status">${tr('ranking.ownRank', { rank: ownRank }, `이번 기록 순위: #${ownRank}`)}</div>` : '')
     : `<div class="rank-status">${tr('common.none', null, '기록 없음')}</div>`;
   target.querySelectorAll('.rank-detail').forEach(button => button.onclick = () => openRankDetail(rows[Number(button.dataset.rankIndex)]));
 }
@@ -490,7 +498,7 @@ function openRankDetail(row) {
   if (!row) return;
   const loadout = row.loadout && typeof row.loadout === 'object' ? row.loadout : null;
   ui.rankDetailTitle.textContent = tr('ranking.loadoutTitle', { player: row.player || 'UNKNOWN' }, `${row.player || 'UNKNOWN'} · 종료 시 빌드`);
-  ui.rankDetailSummary.innerHTML = `<span>${tr('ranking.result', null, '결과')}<b>${row.victory ? tr('gameOver.riftSealed', null, '보스 격파') : tr('gameOver.title', null, '작전 종료')}</b></span><span>${tr('term.score', null, '점수')}<b>${Number(row.score || 0).toLocaleString()}</b></span><span>${tr('ranking.survival', null, '생존')}<b>${formatTime(row.duration || 0)}</b></span><span>${tr('ranking.levelKills', null, '레벨 / 킬')}<b>LV.${Number(row.level || 1)} · ${Number(row.kills || 0).toLocaleString()}</b></span><span>${tr('ranking.bossRecord', null, '보스')}<b>${tr('ranking.bosses', { wins: Number(loadout?.bosses || 0), fails: Number(loadout?.bossFailures || 0) }, `${Number(loadout?.bosses || 0)} 격파`)}</b></span>`;
+  ui.rankDetailSummary.innerHTML = `<span>${tr('ranking.result', null, '결과')}<b>${row.victory ? tr('gameOver.riftSealed', null, '보스 격파') : tr('gameOver.title', null, '작전 종료')}</b></span><span>${tr('term.score', null, '점수')}<b>${Number(row.score || 0).toLocaleString()}</b></span><span>${tr('ranking.survival', null, '생존')}<b>${formatTime(row.duration || 0)}</b></span><span>${tr('ranking.levelKills', null, '레벨 / 킬')}<b>LV.${Number(row.level || 1)} · ${Number(row.kills || 0).toLocaleString()}</b></span><span>${tr('ranking.bossRecord', null, '보스')}<b>${tr('ranking.bosses', { wins: Number(loadout?.bosses || 0), fails: Number(loadout?.bossFailures || 0) }, `${Number(loadout?.bosses || 0)} 격파`)}</b></span><span>${tr('ranking.class', null, '전직')}<b>${classIconFor(loadout?.playerClass)} ${classNameFor(loadout?.playerClass)}</b></span>`;
   const upgradeEntries = loadout?.upgrades && typeof loadout.upgrades === 'object' ? Object.entries(loadout.upgrades) : [];
   const relicEntries = Array.isArray(loadout?.relics) ? loadout.relics : [];
   ui.rankDetailBuilds.innerHTML = upgradeEntries.map(([id, rawRank]) => {
@@ -517,6 +525,7 @@ function runLoadoutSnapshot(run) {
     relics: run.relics.slice(0, 7).map(relic => ({ id: relic.id, level: Math.max(1, Math.floor(relic.level || 1)) })),
     bosses: run.bossesKilled,
     bossFailures: run.bossFailures,
+    playerClass: run.playerClass || null,
   };
 }
 
@@ -668,7 +677,7 @@ function openClassChoices() {
   classDefs.forEach((def, index) => {
     const button = document.createElement('button');
     button.className = 'choice mastery-ready';
-    button.innerHTML = `<span class="icon">${def.icon}</span><strong>${classLabel(def)}</strong><small>${classDesc(def)}</small><em style="color:#ffd65a">${classDifficultyStars(def)}</em><em>${tr('class.chooseTag', null, '전직')} · [${index + 1}]</em>`;
+    button.innerHTML = `<span class="icon">${def.icon}</span><strong>${classLabel(def)} <span style="color:#ffd65a;font-size:12px">${classDifficultyStars(def)}</span></strong><small>${classDesc(def)}</small><em>${tr('class.chooseTag', null, '전직')} · [${index + 1}]</em>`;
     button.onclick = () => chooseClass(index); ui.cards.appendChild(button);
   });
   S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); showPanel(ui.choices);
@@ -1913,6 +1922,7 @@ function updateMasteries(dt) {
         mob.stunned = Math.max(mob.stunned || 0, 3); mob.shocked = Math.max(mob.shocked || 0, 3);
       }
       effect('ring', target.x, target.y, { life: .6, max: .6, radius, color: '#fff35a' });
+      effect('thorHammer', target.x, target.y, { life: .55, max: .55, radius });
       burst(target.x, target.y, '#fff35a', 20, 240);
       S.shake = Math.max(S.shake, 9); AudioEngine.se('wave');
     }
@@ -2065,7 +2075,7 @@ function update(dt, W, H) {
       if (!hasLeviathan()) {
         let regularCount = 0;
         for (const mob of S.mobs) if (mob.kind === 'mob' && !mob.dead && mob.hp > 0) regularCount++;
-        if (regularCount > 200 && Math.random() < .16) spawnLeviathan(W, H);
+        if (regularCount > 150 && Math.random() < .16) spawnLeviathan(W, H);
       }
     }
   }
@@ -2250,7 +2260,7 @@ function drawMob(mob, t) {
   if (mob.kind === 'leviathan') {
     const scale = mob.r * 4.6, bob = Math.sin(t * .0026) * 8;
     ctx.shadowBlur = lowFx ? 0 : 36; ctx.shadowColor = '#39d9ff';
-    sprite(images.bosses, 1, 1, 2, 2, mob.x - scale / 2, mob.y - scale * .56 + bob, scale, scale, spriteAlpha, mob.facing < 0);
+    sprite(images.leviathan, 0, 0, 1, 1, mob.x - scale / 2, mob.y - scale / 2 + bob, scale, scale, spriteAlpha, mob.facing < 0);
     ctx.save(); ctx.globalAlpha = .5 + Math.sin(t * .005) * .15; ctx.strokeStyle = '#39d9ff'; ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
     ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 18, 0, TAU); ctx.stroke(); ctx.restore();
   } else if (mob.kind === 'boss') {
@@ -2396,6 +2406,12 @@ function drawEffects() {
       ctx.strokeStyle = '#e9d4ff'; ctx.lineWidth = 2.5; ctx.stroke();
       ctx.restore(); continue;
     }
+    if (item.type === 'thorHammer') {
+      const size = Math.max(160, item.radius * 1.3) * (1 - progress * .12), dropY = -220 * Math.max(0, .5 - progress) * 2;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = lowFxActive() ? 0 : 30; ctx.shadowColor = '#ffd65a';
+      sprite(images.thorHammer, 0, 0, 1, 1, item.x - size / 2, item.y - size / 2 + dropY, size, size);
+      ctx.restore(); continue;
+    }
     if (item.type === 'masterWhirl') {
       const flashAlpha = alpha * Math.max(0, 1 - progress * 2.2);
       if (flashAlpha > 0) {
@@ -2449,12 +2465,12 @@ function drawEffects() {
   }
 }
 
-function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1, useSprite = false) {
+function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1, useSprite = false, dark = false) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.globalAlpha = alpha;
   if (useSprite) {
     ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
     const h = length * .34;
-    sprite(images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
+    sprite(dark ? images.darkBlade : images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
   } else {
     ctx.strokeStyle = '#152333'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(0, 0); ctx.stroke();
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
@@ -2558,11 +2574,16 @@ function drawWorld(W, H, t) {
   const aimAngle = Math.atan2(S.aimY, S.aimX);
   if (S.saberLevel > 0 && S.playerClass === 'shadowmaster') {
     const spread = .5, len = Math.min(80, 42 + S.saberRange * .2);
-    drawEnergyBlade(S.x + Math.cos(aimAngle + spread) * 16, S.y + Math.sin(aimAngle + spread) * 16, aimAngle + spread, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true);
-    drawEnergyBlade(S.x + Math.cos(aimAngle - spread) * 16, S.y + Math.sin(aimAngle - spread) * 16, aimAngle - spread, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true);
+    drawEnergyBlade(S.x + Math.cos(aimAngle + spread) * 16, S.y + Math.sin(aimAngle + spread) * 16, aimAngle + spread, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true, true);
+    drawEnergyBlade(S.x + Math.cos(aimAngle - spread) * 16, S.y + Math.sin(aimAngle - spread) * 16, aimAngle - spread, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true, true);
   } else if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
   if (S.playerClass === 'shadowmaster' && S.shadowActive > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .8;
+    const auraSize = 130;
+    ctx.translate(S.x, S.y); ctx.rotate(t * .0009); ctx.translate(-S.x, -S.y);
+    sprite(images.darkAura, 0, 0, 1, 1, S.x - auraSize / 2, S.y - auraSize / 2, auraSize, auraSize);
+    ctx.restore();
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let ring = 0; ring < 2; ring++) {
       const spin = t * .0022 * (ring ? -1 : 1) + ring * 1.6;

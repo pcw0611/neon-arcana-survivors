@@ -135,6 +135,8 @@
       'ranking.survival': '생존',
       'ranking.levelKills': '레벨 / 격파',
       'ranking.bossRecord': '보스',
+      'ranking.class': '전직',
+      'ranking.noClass': '미상',
       'ranking.bosses': '{wins} 격파 · {fails} 실패',
       'ranking.techniqueEffects': '종료 시 술식·효과',
       'ranking.relics': '획득 유물',

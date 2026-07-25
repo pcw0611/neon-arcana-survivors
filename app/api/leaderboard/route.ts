@@ -17,6 +17,7 @@ type RunLoadout = {
   relics: Array<{ id: string; level: number }>;
   bosses: number;
   bossFailures: number;
+  playerClass: string | null;
 };
 
 const ALLOWED_UPGRADES = new Set([
@@ -30,8 +31,9 @@ const ALLOWED_RELICS = new Set([
   "arc_cell", "blood_cap", "magnet_prism", "hunter_lens", "split_core", "orbit_gear",
   "edge_lens", "nano_shunt", "execution", "echo_chamber", "gravity_halo", "soul_battery",
   "event_horizon", "zero_edge", "phoenix", "rift_crown", "singularity", "immortal",
-  "godspeed", "midas", "chain_detonator",
+  "godspeed", "midas", "chain_detonator", "tamer_core",
 ]);
+const ALLOWED_CLASSES = new Set(["silverbullet", "shadowmaster", "mechanic", "thor", "none"]);
 
 function normalizeLoadout(value: unknown, bosses = 0): RunLoadout | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -51,12 +53,14 @@ function normalizeLoadout(value: unknown, bosses = 0): RunLoadout | null {
       seenRelics.add(id); relics.push({ id, level: integer(entry.level, 1, 10000) });
     }
   }
+  const playerClass = typeof input.playerClass === "string" && ALLOWED_CLASSES.has(input.playerClass) ? input.playerClass : null;
   return {
     v: 1,
     upgrades,
     relics,
     bosses: integer(bosses || input.bosses, 0, 10000),
     bossFailures: integer(input.bossFailures, 0, 10000),
+    playerClass,
   };
 }
 
