@@ -17,7 +17,11 @@ function tr(key, variables, fallback = '') {
   return !value || value === key ? fallback || key : value;
 }
 function currentLanguage() { return I18n?.getLanguage?.() || 'ko'; }
-function upgradeName(upgrade) { return tr(`upgrade.${upgrade.id}.name`, null, upgrade.name); }
+function classTermSwap(text) {
+  if (S?.playerClass === 'silverbullet' && typeof text === 'string') return text.replace(/성좌탄/g, '은탄').replace(/성좌포/g, '은탄포');
+  return text;
+}
+function upgradeName(upgrade) { return classTermSwap(tr(`upgrade.${upgrade.id}.name`, null, upgrade.name)); }
 function relicName(relic) { return tr(`relic.${relic.id}.name`, null, relic.name); }
 function localizedBaseDescription(group, item, fallback) { return tr(`${group}.${item.id}.desc`, null, fallback); }
 
@@ -42,7 +46,7 @@ const ui = {
 const images = {
   player: new Image(), enemy: new Image(), vfx: new Image(), bosses: new Image(),
   city: new Image(), treasure: new Image(), enemyMissile: new Image(), saberBlade: new Image(),
-  archetypeIcons: new Image(), bomberDrone: new Image(), ultimateFx: new Image(),
+  archetypeIcons: new Image(), bomberDrone: new Image(), ultimateFx: new Image(), mechaOrbital: new Image(),
 };
 images.player.src = 'assets/astra-sd.png';
 images.enemy.src = 'assets/shade-sd.png';
@@ -55,6 +59,7 @@ images.saberBlade.src = 'assets/saber-blade.png';
 images.archetypeIcons.src = 'assets/archetype-icons.png';
 images.bomberDrone.src = 'assets/bomber-drone.png';
 images.ultimateFx.src = 'assets/ultimate-fx.png';
+images.mechaOrbital.src = 'assets/mecha-orbital.png';
 
 let S = null;
 let running = false;
@@ -283,12 +288,13 @@ const masterySpecs = {
 };
 const rarityKeys = ['common', 'rare', 'unique', 'legendary', 'mythic'];
 function rarityName(index) { return tr(`rarity.${rarityKeys[index]}`, null, rarities[index]?.name || ''); }
-function masteryLabel(build) { return tr(`mastery.${build}.name`, null, masterySpecs[build]?.label || build); }
-function masteryNote(build) { return tr(`mastery.${build}.desc`, null, masterySpecs[build]?.note || ''); }
+function masteryLabel(build) { return classTermSwap(tr(`mastery.${build}.name`, null, masterySpecs[build]?.label || build)); }
+function masteryNote(build) { return classTermSwap(tr(`mastery.${build}.desc`, null, masterySpecs[build]?.note || '')); }
 const hasRelic = (id) => Boolean(S?.relics.some(relic => relic.id === id));
 const relicLevel = (id) => S?.relics.find(relic => relic.id === id)?.level || 0;
 
-function upgradeDescription(upgrade, rank = 0) {
+function upgradeDescription(upgrade, rank = 0) { return classTermSwap(upgradeDescriptionRaw(upgrade, rank)); }
+function upgradeDescriptionRaw(upgrade, rank = 0) {
   if (currentLanguage() !== 'ko') return localizedBaseDescription('upgrade', upgrade, upgrade.desc);
   if (upgrade.id === 'orbit') return rank === 0 ? '공격 위성 +1 · 위성 빌드 개방' : '공격 위성 +1';
   if (upgrade.id === 'saber') return rank === 0 ? '초근접 광검 개방 · 아크 실드에 2.4배 피해' : '광검 피해 +25%';
@@ -397,7 +403,8 @@ function rescaleTreasureTimer(state, factor) {
 
 function fresh() {
   return {
-    x: 0, y: 0, hp: 50, maxHp: 50, speed: 250, facing: 1, aimX: 1, aimY: 0,
+    x: 0, y: 0, hp: 30, maxHp: 30, speed: 250, facing: 1, aimX: 1, aimY: 0,
+    playerClass: null, shadowClock: 9, shadowActive: 0, mechOverload: 0, orbitalRigs: [],
     damage: 2.4, damageMult: 1, projectileMult: 1, saberMult: 1, orbitMult: 1,
     rate: .54, multishot: 1, pierce: 0, crit: .07, critMult: 1.75,
     blast: 0, blastDamage: .35, chain: 0, chainDamage: .28, shotScale: 1,
@@ -618,7 +625,41 @@ function queueRelic(source = 'treasure', tier = 1) { enqueueReward({ type: 'reli
 function processRewards() {
   if (!S || S.paused || S.over || !S.rewardQueue.length) return;
   const reward = S.rewardQueue.shift(); S.activeReward = reward;
-  if (reward.type === 'level') openLevelChoices(); else openRelicReward(reward);
+  if (reward.type === 'level') openLevelChoices();
+  else if (reward.type === 'classChange') openClassChoices();
+  else openRelicReward(reward);
+}
+
+const classDefs = [
+  { id: 'silverbullet', icon: '🔫', name: '실버불렛', desc: '성좌탄이 은탄으로 변합니다. 부채꼴 대신 스트레이프로 발사, 공격속도 증가, 데미지·탄 크기 감소. 궁극기가 원형 난사로 변경됩니다.' },
+  { id: 'shadowmaster', icon: '🥷', name: '쉐도우마스터', desc: '주기적으로 그림자에 숨어 투명화되며 이동속도가 오릅니다. 보스 대상 최종 데미지 +30%.' },
+  { id: 'mechanic', icon: '🛰', name: '메카닉', desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 보스를 우선 공격합니다. 궁극기가 과부하 모드로 변경됩니다.' },
+  { id: 'none', icon: '⬛', name: '전직하지 않음', desc: 'MAX HP +5, 최종 데미지 +5% 증가.' },
+];
+
+function classLabel(def) { return tr(`class.${def.id}.name`, null, def.name); }
+function classDesc(def) { return tr(`class.${def.id}.desc`, null, def.desc); }
+
+function openClassChoices() {
+  chosen = classDefs; ui.cards.innerHTML = '';
+  classDefs.forEach((def, index) => {
+    const button = document.createElement('button');
+    button.className = 'choice mastery-ready';
+    button.innerHTML = `<span class="icon">${def.icon}</span><strong>${classLabel(def)}</strong><small>${classDesc(def)}</small><em>${tr('class.chooseTag', null, '전직')} · [${index + 1}]</em>`;
+    button.onclick = () => chooseClass(index); ui.cards.appendChild(button);
+  });
+  S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); showPanel(ui.choices);
+}
+
+function chooseClass(index) {
+  if (!S?.paused || S.activeReward?.type !== 'classChange') return;
+  const def = classDefs[index]; if (!def) return;
+  S.playerClass = def.id;
+  if (def.id === 'silverbullet') { S.rate *= .7; S.projectileMult *= .8; S.shotScale *= .78; }
+  else if (def.id === 'none') { S.maxHp += 5; S.hp += 5; S.damageMult *= 1.05; }
+  effect('level', S.x, S.y, { life: .85, max: .85 });
+  showWarning(`${classLabel(def)} · ${tr('class.unlocked', null, '전직 완료')}`);
+  finishReward(`${def.icon} ${classLabel(def)}`);
 }
 
 function openLevelChoices() {
@@ -1360,13 +1401,17 @@ function findTarget() {
 }
 
 function createVolley(baseAngle, damageScale = 1, extra = 0) {
-  const count = S.multishot + extra, spread = .15;
+  const count = S.multishot + extra, strafe = S.playerClass === 'silverbullet';
+  const spread = .15, laneGap = 16;
   for (let i = 0; i < count; i++) {
-    const angle = baseAngle + (i - (count - 1) / 2) * spread, critical = Math.random() < S.crit;
+    const offset = i - (count - 1) / 2, critical = Math.random() < S.crit;
+    const angle = strafe ? baseAngle : baseAngle + offset * spread;
+    const originX = strafe ? S.x + Math.cos(baseAngle + Math.PI / 2) * offset * laneGap : S.x;
+    const originY = strafe ? S.y + Math.sin(baseAngle + Math.PI / 2) * offset * laneGap : S.y;
     S.shots.push({
-      x: S.x, y: S.y, vx: Math.cos(angle) * 610, vy: Math.sin(angle) * 610, life: 1.55,
+      x: originX, y: originY, vx: Math.cos(angle) * 610, vy: Math.sin(angle) * 610, life: 1.55,
       damage: S.damage * damageScale * (critical ? S.critMult : 1), pierce: S.pierce,
-      critical, hit: new Set(), trailX: S.x, trailY: S.y,
+      critical, hit: new Set(), trailX: originX, trailY: originY,
     });
   }
 }
@@ -1391,7 +1436,8 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
   let affinity = 1;
   if (mob.kind === 'boss' && mob.modifier === 'armored') affinity = kind === 'saber' ? 1.65 : kind === 'projectile' ? .62 : .88;
   if (mob.archetype === 'warder' && mob.shield > 0) affinity = kind === 'saber' ? 2.4 : kind === 'projectile' ? .25 : .55;
-  const actual = (alreadyScaled ? amount : amount * diminishingMultiplier(S.damageMult) * diminishingMultiplier(typeMult) * frozenBonus * endlessPowerScale()) * affinity;
+  const shadowBossBonus = S.playerClass === 'shadowmaster' && mob.kind === 'boss' ? 1.3 : 1;
+  const actual = (alreadyScaled ? amount : amount * diminishingMultiplier(S.damageMult) * diminishingMultiplier(typeMult) * frozenBonus * endlessPowerScale()) * affinity * shadowBossBonus;
   const hpBefore = mob.hp;
   if (mob.shield > 0) {
     mob.shield -= actual;
@@ -1463,6 +1509,10 @@ function saberSlash() {
 }
 
 function orbitalPose(index) {
+  if (S.playerClass === 'mechanic') {
+    const rig = S.orbitalRigs[index];
+    if (rig) return { angle: 0, radius: 0, x: rig.x, y: rig.y };
+  }
   const lane = index % 2, radius = S.orbitRadius + lane * 17;
   const speed = S.orbitSpeed * (lane ? -.84 : 1);
   const angle = S.time * speed + index * TAU / Math.max(1, S.orbitals);
@@ -1489,8 +1539,37 @@ function tryOrbitIntercept(projectile) {
   return false;
 }
 
+function updateMechanicOrbitals(dt) {
+  while (S.orbitalRigs.length < S.orbitals) S.orbitalRigs.push({ x: S.x, y: S.y, laserClock: random(0, .6), laserFlash: 0, targetRef: null });
+  if (S.orbitalRigs.length > S.orbitals) S.orbitalRigs.length = S.orbitals;
+  const overloadMult = S.mechOverload > 0 ? 1.8 : 1;
+  const homingSpeed = Math.max(140, S.orbitSpeed * 90) * overloadMult;
+  const laserInterval = Math.max(.22, .85 / overloadMult);
+  const priorityTarget = S.bossActive && !S.bossActive.dead ? S.bossActive : null;
+  for (let i = 0; i < S.orbitals; i++) {
+    const rig = S.orbitalRigs[i];
+    let target = priorityTarget;
+    if (!target) {
+      let best = Infinity;
+      for (const mob of S.mobs) { if (mob.dead || mob.hp <= 0) continue; const d = (mob.x - rig.x) ** 2 + (mob.y - rig.y) ** 2; if (d < best) { best = d; target = mob; } }
+    }
+    const homeAngle = S.time * .6 + i * TAU / Math.max(1, S.orbitals);
+    const destX = target ? target.x + Math.cos(homeAngle) * 66 : S.x + Math.cos(homeAngle) * S.orbitRadius;
+    const destY = target ? target.y + Math.sin(homeAngle) * 66 : S.y + Math.sin(homeAngle) * S.orbitRadius;
+    const dx = destX - rig.x, dy = destY - rig.y, dist = Math.hypot(dx, dy);
+    if (dist > .01) { const step = Math.min(dist, homingSpeed * dt); rig.x += dx / dist * step; rig.y += dy / dist * step; }
+    rig.laserClock -= dt; rig.laserFlash = Math.max(0, rig.laserFlash - dt);
+    rig.targetRef = target;
+    if (target && rig.laserClock <= 0 && Math.hypot(target.x - rig.x, target.y - rig.y) < 340) {
+      rig.laserClock = laserInterval; rig.laserFlash = .14;
+      damageMob(target, S.damage * S.orbitDamage * 1.15 * overloadMult, 'orbit'); AudioEngine.se('hit');
+    }
+  }
+}
+
 function updateOrbitals(dt) {
   if (!S.orbitals) return;
+  if (S.playerClass === 'mechanic') { updateMechanicOrbitals(dt); return; }
   for (let i = 0; i < S.orbitals; i++) {
     const pose = orbitalPose(i), radius = 17 * S.orbitSize;
     for (const mob of nearbyMobs(pose.x, pose.y, radius + 90)) {
@@ -1525,7 +1604,14 @@ function updateMasteries(dt) {
   for (const build of Object.keys(S.masteryClocks)) if (isMastered(build)) S.masteryClocks[build] -= dt;
   if (isMastered('projectile') && S.masteryClocks.projectile <= 0) {
     const target = findTarget(), scale = masteryScale('projectile'); S.masteryClocks.projectile = target ? masterySpecs.projectile.interval * scale.interval : .4;
-    if (target) {
+    if (target && S.playerClass === 'silverbullet') {
+      const rays = 28;
+      for (let i = 0; i < rays; i++) {
+        const angle = i / rays * TAU;
+        S.shots.push({ x: S.x, y: S.y, vx: Math.cos(angle) * 640, vy: Math.sin(angle) * 640, life: 1.3, damage: S.damage * 2.6 * scale.damage, pierce: Math.max(1, S.pierce), critical: true, hit: new Set(), trailX: S.x, trailY: S.y });
+      }
+      effect('ring', S.x, S.y, { life: .4, max: .4, radius: 90, color: '#eef6ff' }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
+    } else if (target) {
       const angle = Math.atan2(target.y - S.y, target.x - S.x), length = 1250 * scale.range, width = 48 * scale.range;
       const tx = S.x + Math.cos(angle) * length, ty = S.y + Math.sin(angle) * length;
       for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + width) damageMob(mob, S.damage * 9 * scale.damage, 'projectile');
@@ -1537,9 +1623,15 @@ function updateMasteries(dt) {
     for (const mob of nearbyMobs(S.x, S.y, radius + 80)) if (!mob.dead && Math.hypot(mob.x - S.x, mob.y - S.y) < radius + mob.r) damageMob(mob, S.damage * S.saberDamage * 2.4 * scale.damage, 'saber');
     effect('masterWhirl', S.x, S.y, { radius, life: .72, max: .72 }); S.saberActive = .7; S.shake = Math.max(S.shake, 7); AudioEngine.se('saber');
   }
-  if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault) {
-    const target = findTarget(), scale = masteryScale('orbit'); S.masteryClocks.orbit = target ? masterySpecs.orbit.interval * scale.interval : .4;
-    if (target) S.orbitAssault = { target, start: S.time, exploded: false };
+  if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault && S.mechOverload <= 0) {
+    const scale = masteryScale('orbit');
+    if (S.playerClass === 'mechanic') {
+      S.masteryClocks.orbit = masterySpecs.orbit.interval * scale.interval; S.mechOverload = 5 * scale.range;
+      effect('ring', S.x, S.y, { life: .5, max: .5, radius: 130, color: '#8ff5ff' }); S.shake = Math.max(S.shake, 6); AudioEngine.se('wave'); showWarning('⚙ OVERLOAD');
+    } else {
+      const target = findTarget(); S.masteryClocks.orbit = target ? masterySpecs.orbit.interval * scale.interval : .4;
+      if (target) S.orbitAssault = { target, start: S.time, exploded: false };
+    }
   }
   if (S.orbitAssault) {
     const age = S.time - S.orbitAssault.start, target = S.orbitAssault.target;
@@ -1554,6 +1646,7 @@ function updateMasteries(dt) {
 
 function hurtPlayer(amount = 1, unavoidable = false, bypassGuard = false) {
   if ((S.inv > 0 && !unavoidable) || S.over) return;
+  if (S.shadowActive > 0 && !unavoidable) return;
   const lateGuardCap = .58 - clamp((S.time - 600) / 600, 0, 1) * .13;
   const guardChance = clamp(S.guard + (S.saberActive > 0 ? S.saberGuard : 0), 0, lateGuardCap);
   if (!unavoidable && !bypassGuard && Math.random() < guardChance) {
@@ -1643,7 +1736,8 @@ function triggerBossFieldPattern(boss) {
 function processLevelUps() {
   let safety = 0;
   while (S.xp >= S.nextXp && safety++ < 6) {
-    S.xp -= S.nextXp; S.level++; S.nextXp = Math.round(7 + 1.55 * S.level + .17 * S.level * S.level); S.rewardQueue.push({ type: 'level' });
+    S.xp -= S.nextXp; S.level++; S.nextXp = Math.round(7 + 1.55 * S.level + .17 * S.level * S.level);
+    S.rewardQueue.push(S.level === 30 && !S.playerClass ? { type: 'classChange' } : { type: 'level' });
   }
   processRewards();
 }
@@ -1655,6 +1749,17 @@ function update(dt, W, H) {
   if (S.healBudgetClock <= 0) { S.healBudgetClock += 1; S.healBudget = Math.max(2, S.maxHp * .025); }
   S.temporarySpeedClock -= dt; if (S.temporarySpeedClock <= 0) S.temporarySpeed = 1;
   S.shake = Math.max(0, S.shake - dt * 25); AudioEngine.setIntensity(Math.min(5, Math.floor(S.time / 60)));
+
+  if (S.playerClass === 'shadowmaster') {
+    if (S.shadowActive > 0) {
+      S.shadowActive -= dt;
+      if (Math.random() < dt * 8) S.particles.push({ x: S.x + random(-14, 14), y: S.y + random(-14, 14), vx: 0, vy: -30, size: random(4, 9), color: '#3a1a52', life: .5, max: .5 });
+    } else {
+      S.shadowClock -= dt;
+      if (S.shadowClock <= 0) { S.shadowActive = 2.5; S.shadowClock = 9; S.temporarySpeed = 1.35; S.temporarySpeedClock = 2.5; showToast('⬛ SHADOW STEP'); }
+    }
+  }
+  if (S.mechOverload > 0) S.mechOverload -= dt;
 
   if (!S.bossActive && !S.bossWarned && S.time >= S.nextBossAt - 3) { S.bossWarned = true; showWarning('BOSS ANOMALY DETECTED'); }
   if (!S.bossActive && S.time >= S.nextBossAt) spawnBoss(W, H);
@@ -1879,10 +1984,11 @@ function drawMob(mob, t) {
 function drawProjectiles() {
   for (const projectile of S.shots) {
     if (!visibleWorld(projectile.x, projectile.y, innerWidth, innerHeight, 90)) continue;
+    const silver = S.playerClass === 'silverbullet';
     const angle = Math.atan2(projectile.vy, projectile.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
+    ctx.strokeStyle = silver ? '#eef6ff' : projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 52 * S.shotScale, projectile.y - Math.sin(angle) * 52 * S.shotScale); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
-    ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = lowFxActive() ? 0 : 24; ctx.shadowColor = projectile.critical ? '#ff69f3' : '#55f8ff';
+    ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = lowFxActive() ? 0 : 24; ctx.shadowColor = silver ? '#dfefff' : projectile.critical ? '#ff69f3' : '#55f8ff';
     sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale); ctx.restore();
   }
   for (const projectile of S.enemyShots) {
@@ -1991,8 +2097,22 @@ function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1,
 }
 
 function drawOrbitals(t) {
+  const mechanic = S.playerClass === 'mechanic';
   for (let i = 0; i < S.orbitals; i++) {
     const pose = orbitalPose(i), size = 34 * S.orbitSize, type = i % 3;
+    if (mechanic) {
+      const rig = S.orbitalRigs[i];
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 16; ctx.shadowColor = '#8ff5ff';
+      sprite(images.mechaOrbital, 0, 0, 1, 1, pose.x - size * .8, pose.y - size * .8, size * 1.6, size * 1.6);
+      ctx.restore();
+      if (rig?.laserFlash > 0 && rig.targetRef && !rig.targetRef.dead) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = clamp(rig.laserFlash / .14, 0, 1);
+        ctx.strokeStyle = '#8ff5ff'; ctx.lineWidth = 3; ctx.shadowBlur = lowFxActive() ? 0 : 14; ctx.shadowColor = '#8ff5ff';
+        ctx.beginPath(); ctx.moveTo(pose.x, pose.y); ctx.lineTo(rig.targetRef.x, rig.targetRef.y); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+      }
+      continue;
+    }
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = i % 2 ? '#e958ff88' : '#5deaff88'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(pose.x, pose.y, size * .65 + Math.sin(t * .006 + i) * 3, 0, TAU); ctx.stroke(); ctx.restore();
     if (type === 0) sprite(images.vfx, 0, 0, 3, 2, pose.x - size / 2, pose.y - size / 2, size, size);
@@ -2066,7 +2186,8 @@ function drawWorld(W, H, t) {
   if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
   ctx.shadowBlur = 28; ctx.shadowColor = '#36eaff';
-  sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1, S.facing < 0);
+  const playerAlpha = S.shadowActive > 0 ? .42 : S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1;
+  sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, playerAlpha, S.facing < 0);
   ctx.shadowBlur = 0;
   drawPlayerHitbox();
   drawPlayerHpBar();
