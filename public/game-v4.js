@@ -48,6 +48,7 @@ const images = {
   city: new Image(), treasure: new Image(), enemyMissile: new Image(), saberBlade: new Image(),
   archetypeIcons: new Image(), bomberDrone: new Image(), ultimateFx: new Image(), mechaOrbital: new Image(),
   leviathan: new Image(), darkBlade: new Image(), thorHammer: new Image(), darkAura: new Image(),
+  silverBullet: new Image(), cowboyHat: new Image(),
 };
 images.player.src = 'assets/astra-sd.png';
 images.enemy.src = 'assets/shade-sd.png';
@@ -65,6 +66,8 @@ images.leviathan.src = 'assets/leviathan.png';
 images.darkBlade.src = 'assets/dark-blade.png';
 images.thorHammer.src = 'assets/thor-hammer.png';
 images.darkAura.src = 'assets/dark-aura.png';
+images.silverBullet.src = 'assets/silver-bullet.png';
+images.cowboyHat.src = 'assets/cowboy-hat.png';
 
 let S = null;
 let running = false;
@@ -2367,7 +2370,9 @@ function drawProjectiles() {
     ctx.strokeStyle = silver ? '#eef6ff' : projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 52 * S.shotScale, projectile.y - Math.sin(angle) * 52 * S.shotScale); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
     ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = lowFxActive() ? 0 : 24; ctx.shadowColor = silver ? '#dfefff' : projectile.critical ? '#ff69f3' : '#55f8ff';
-    sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale); ctx.restore();
+    if (silver) sprite(images.silverBullet, 0, 0, 1, 1, -22 * S.shotScale, -15 * S.shotScale, 44 * S.shotScale, 30 * S.shotScale);
+    else sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale);
+    ctx.restore();
   }
   for (const projectile of S.enemyShots) {
     if (!visibleWorld(projectile.x, projectile.y, innerWidth, innerHeight, 90)) continue;
@@ -2609,6 +2614,10 @@ function drawWorld(W, H, t) {
   const playerAlpha = S.shadowActive > 0 ? .42 : S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1;
   sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, playerAlpha, S.facing < 0);
   ctx.shadowBlur = 0;
+  if (S.playerClass === 'silverbullet') {
+    const hatW = 50, hatH = hatW * (325 / 320), hatBob = S.moving ? 0 : idleBob;
+    sprite(images.cowboyHat, 0, 0, 1, 1, S.x - hatW / 2, S.y - 74 + hatBob, hatW, hatH, playerAlpha, S.facing < 0);
+  }
   drawPlayerHitbox();
   drawPlayerHpBar();
   if (!S.moving && !settings.showHitbox) { ctx.strokeStyle = '#65efff66'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S.x, S.y + 18, 27 + Math.sin(t * .004) * 3, 0, TAU); ctx.stroke(); }
