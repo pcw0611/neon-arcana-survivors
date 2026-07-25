@@ -41,7 +41,7 @@ const ui = {
 
 const images = {
   player: new Image(), enemy: new Image(), vfx: new Image(), bosses: new Image(),
-  city: new Image(), treasure: new Image(), enemyMissile: new Image(),
+  city: new Image(), treasure: new Image(), enemyMissile: new Image(), saberBlade: new Image(),
 };
 images.player.src = 'assets/astra-sd.png';
 images.enemy.src = 'assets/shade-sd.png';
@@ -50,6 +50,7 @@ images.bosses.src = 'assets/bosses.png';
 images.city.src = 'assets/cyber-city.png';
 images.treasure.src = 'assets/jackpot-gremlin.png';
 images.enemyMissile.src = 'assets/enemy-missile.png';
+images.saberBlade.src = 'assets/saber-blade.png';
 
 let S = null;
 let running = false;
@@ -1960,12 +1961,19 @@ function drawEffects() {
   }
 }
 
-function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1) {
+function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1, useSprite = false) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.globalAlpha = alpha;
-  ctx.strokeStyle = '#152333'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(0, 0); ctx.stroke();
-  ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
-  ctx.strokeStyle = color; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke(); ctx.restore();
+  if (useSprite) {
+    ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
+    const h = length * .34;
+    sprite(images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
+  } else {
+    ctx.strokeStyle = '#152333'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(0, 0); ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
+    ctx.strokeStyle = color; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(length, 0); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawOrbitals(t) {
@@ -2041,7 +2049,7 @@ function drawWorld(W, H, t) {
   drawOrbitals(t);
 
   const aimAngle = Math.atan2(S.aimY, S.aimX);
-  if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88);
+  if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
   ctx.shadowBlur = 28; ctx.shadowColor = '#36eaff';
   sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1, S.facing < 0);
