@@ -274,6 +274,7 @@ const relics = [
   { id: 'phoenix', rarity: 3, icon: '♨', name: '불사조 커널', desc: '1회 치명상을 무시하고 체력 40% 부활', tags: ['survival'], equip: s => { s.maxHp += 10; }, unequip: s => { s.maxHp -= 10; s.hp = Math.min(s.hp, s.maxHp); } },
   { id: 'rift_crown', rarity: 3, icon: '♛', name: '균열 왕관', desc: '모든 피해 +22%, 경험치 +25%', tags: ['projectile', 'saber', 'orbit', 'growth'], equip: s => { s.damageMult *= 1.22; s.xpGain *= 1.25; }, unequip: s => { s.damageMult /= 1.22; s.xpGain /= 1.25; } },
   { id: 'chain_detonator', rarity: 3, icon: '☢', name: '연쇄 기폭 코어', desc: '자폭 적의 폭발이 주변 적에게 30% 피해', tags: ['area'], equip: () => {}, unequip: () => {} },
+  { id: 'tamer_core', rarity: 3, icon: '⛓', name: '조련의 코어', desc: '보스 처치 시 12%p 확률로 아군화 (레벨당 +12%p, 최대 65%)', tags: ['survival', 'area'], equip: s => { s.allyTameChance = (s.allyTameChance || 0) + .12; }, unequip: s => { s.allyTameChance -= .12; } },
   { id: 'singularity', rarity: 4, icon: '✺', name: '아르카나 특이점', desc: '모든 피해 +35%, 각 빌드 추가 피해 +15%', tags: ['projectile', 'saber', 'orbit'], equip: s => { s.damageMult *= 1.35; s.projectileMult *= 1.15; s.saberMult *= 1.15; s.orbitMult *= 1.15; }, unequip: s => { s.damageMult /= 1.35; s.projectileMult /= 1.15; s.saberMult /= 1.15; s.orbitMult /= 1.15; } },
   { id: 'immortal', rarity: 4, icon: '∞', name: '불멸 회로', desc: '최대 체력 +30, 재생 +1, 일반 적 8킬마다 2 회복', tags: ['survival'], equip: (s, first) => { s.maxHp += 30; if (first) s.hp += 30; s.regen += 1; }, unequip: s => { s.maxHp -= 30; s.hp = Math.min(s.hp, s.maxHp); s.regen -= 1; }, onKill: s => relicKillTick(s, 'immortal', 8, 2) },
   { id: 'godspeed', rarity: 4, icon: '»', name: '신속 연산기관', desc: '이동 +25%, 성좌탄·광검·위성 속도 대폭 증가', tags: ['mobility', 'projectile', 'saber', 'orbit'], equip: s => { s.speed *= 1.25; s.rate *= .8; s.saberRate *= .8; s.orbitSpeed *= 1.5; }, unequip: s => { s.speed /= 1.25; s.rate /= .8; s.saberRate /= .8; s.orbitSpeed /= 1.5; } },
@@ -390,6 +391,7 @@ function relicEffectText(relic, requestedLevel = relic?.level || 1) {
     immortal: () => `최대 체력 +${30 * level} · 재생 +${level} · ${killInterval(8, level)}킬마다 ${2 + healBonus} 회복`,
     godspeed: () => `이동 +${percentGain(1.25, level)}% · 공격 간격 ${Math.round((1 - Math.pow(.8, level)) * 100)}% 감소 · 위성 속도 +${percentGain(1.5, level)}%`,
     chain_detonator: () => `자폭 적 폭발 시 주변 적에게 폭발 피해의 ${Math.min(120, 30 + (level - 1) * 15)}%`,
+    tamer_core: () => `보스 처치 시 ${Math.min(65, 12 * level)}% 확률로 아군화`,
   };
   return effects[relic?.id]?.() || relic?.desc || '';
 }
@@ -439,7 +441,7 @@ function fresh() {
     rewardQueue: [], activeReward: null, relics: [], acquiredRelics: new Set(), relicSlots: 3, rarityBias: 0,
     relicRoulette: false, relicAwaitDismiss: false, relicResultMessage: '',
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
-    leviathanCheckClock: 1, interior: null, worldSnapshot: null,
+    leviathanCheckClock: 1, interior: null, worldSnapshot: null, allyTameChance: 0,
     nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false, bossFailures: 0,
     slotPity: 0,
     shake: 0, relicUses: {}, temporarySpeed: 1, temporarySpeedClock: 0,
@@ -650,22 +652,23 @@ function processRewards() {
 }
 
 const classDefs = [
-  { id: 'silverbullet', icon: '🔫', name: '실버불렛', desc: '성좌탄이 은탄으로 변합니다. 부채꼴 대신 스트레이프로 발사, 공격속도 증가, 데미지·탄 크기 감소. 궁극기가 밀집 지역에 원형 난사로 변경됩니다.' },
-  { id: 'shadowmaster', icon: '🥷', name: '쉐도우마스터', desc: '어둠의 쌍검을 사용합니다 (범위는 좁아지지만 피해 증가). 주기적으로 그림자에 숨어 투명화되며 이동속도가 오릅니다. 보스 대상 최종 데미지 +30%. 궁극기가 관통하는 거대한 어둠의 검기로 변경됩니다.' },
-  { id: 'mechanic', icon: '🛰', name: '메카닉', desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 보스를 우선 공격합니다. 궁극기가 과부하 모드(이동속도 증가·레이저 범위 확대)로 변경됩니다.' },
-  { id: 'thor', icon: '⚡', name: '토르', desc: '연쇄 낙뢰가 모든 공격(투사체·위성·광검)에 적용되며 레벨 7까지 강화됩니다. 번개가 노란색으로 더 화려해집니다. 맥스 레벨 시 토르의 망치 - 체력이 가장 높은 주변 적에게 거대한 번개를 내리쳐 기절·감전시키며, 쉴드를 무시하고 피해를 입힙니다.' },
-  { id: 'none', icon: '⬛', name: '전직하지 않음', desc: 'MAX HP +5, 최종 데미지 +5% 증가.' },
+  { id: 'silverbullet', icon: '🔫', name: '실버불렛', difficulty: 4, desc: '성좌탄이 은탄으로 변합니다. 쉬지 않고 쏟아붓는 연사 사격으로 변경 (탄 크기 축소, 공격속도 대폭 증가, 발당 피해 감소). 궁극기가 밀집 지역에 원형 난사로 변경됩니다.' },
+  { id: 'shadowmaster', icon: '🥷', name: '쉐도우마스터', difficulty: 4, desc: '어둠의 쌍검을 사용합니다 (범위는 좁아지지만 피해 증가). 주기적으로 그림자에 숨어 투명화되며 이동속도가 오르고 주변에 검은 기를 발산합니다. 보스 대상 최종 데미지 +30%. 궁극기가 전후방으로 퍼지는 거대한 어둠의 검기로 변경됩니다.' },
+  { id: 'mechanic', icon: '🛰', name: '메카닉', difficulty: 2, desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 화면 안의 보스를 우선 공격합니다. 궁극기가 과부하 모드(이동속도 증가·레이저 범위 확대)로 변경됩니다.' },
+  { id: 'thor', icon: '⚡', name: '토르', difficulty: 2, desc: '연쇄 낙뢰가 모든 공격(투사체·위성·광검)에 적용되며 레벨 7까지 강화됩니다. 번개가 노란색으로 더 화려해집니다. 맥스 레벨 시 토르의 망치 - 화면 안에서 체력이 가장 높은 적에게 거대한 번개를 내리쳐 기절·감전시키며, 쉴드를 무시하고 피해를 입힙니다.' },
+  { id: 'none', icon: '⬛', name: '방랑자', difficulty: 1, desc: 'MAX HP +5. 기존 빌드를 그대로 유지합니다.' },
 ];
 
 function classLabel(def) { return tr(`class.${def.id}.name`, null, def.name); }
 function classDesc(def) { return tr(`class.${def.id}.desc`, null, def.desc); }
+function classDifficultyStars(def) { const n = clamp(def.difficulty || 1, 1, 5); return '★'.repeat(n) + '☆'.repeat(5 - n); }
 
 function openClassChoices() {
   chosen = classDefs; ui.cards.innerHTML = '';
   classDefs.forEach((def, index) => {
     const button = document.createElement('button');
     button.className = 'choice mastery-ready';
-    button.innerHTML = `<span class="icon">${def.icon}</span><strong>${classLabel(def)}</strong><small>${classDesc(def)}</small><em>${tr('class.chooseTag', null, '전직')} · [${index + 1}]</em>`;
+    button.innerHTML = `<span class="icon">${def.icon}</span><strong>${classLabel(def)}</strong><small>${classDesc(def)}</small><em style="color:#ffd65a">${classDifficultyStars(def)}</em><em>${tr('class.chooseTag', null, '전직')} · [${index + 1}]</em>`;
     button.onclick = () => chooseClass(index); ui.cards.appendChild(button);
   });
   S.paused = true; AudioEngine.se('level'); AudioEngine.scene('choice'); showPanel(ui.choices);
@@ -675,9 +678,9 @@ function chooseClass(index) {
   if (!S?.paused || S.activeReward?.type !== 'classChange') return;
   const def = classDefs[index]; if (!def) return;
   S.playerClass = def.id;
-  if (def.id === 'silverbullet') { S.rate *= .7; S.projectileMult *= .8; S.shotScale *= .78; }
+  if (def.id === 'silverbullet') { S.rate *= .4; S.projectileMult *= .65; S.shotScale *= .55; }
   else if (def.id === 'thor') { S.chainDamage *= 1.4; }
-  else if (def.id === 'none') { S.maxHp += 5; S.hp += 5; S.damageMult *= 1.05; }
+  else if (def.id === 'none') { S.maxHp += 5; S.hp += 5; }
   effect('level', S.x, S.y, { life: .85, max: .85 });
   showWarning(`${classLabel(def)} · ${tr('class.unlocked', null, '전직 완료')}`);
   finishReward(`${def.icon} ${classLabel(def)}`);
@@ -962,7 +965,7 @@ function renderCodex(tab = 'builds') {
     ui.codexGrid.innerHTML = classDefs.map(def => {
       const active = Boolean(S?.playerClass) && S.playerClass === def.id;
       const status = active ? '현재 전직' : S?.playerClass ? '' : 'LV.30 전직 선택';
-      return `<article class="codex-entry${active ? ' mastered' : ''}"><header><span>${def.icon} ${classLabel(def)}</span>${status ? `<em>${status}</em>` : ''}</header><p>${classDesc(def)}</p></article>`;
+      return `<article class="codex-entry${active ? ' mastered' : ''}"><header><span>${def.icon} ${classLabel(def)}</span>${status ? `<em>${status}</em>` : ''}</header><p style="color:#ffd65a">난이도 ${classDifficultyStars(def)}</p><p>${classDesc(def)}</p></article>`;
     }).join('');
     return;
   }
@@ -1147,16 +1150,16 @@ function bossPatternDamage(flatDamage) {
 
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
-  const warder = time > 70 ? Math.min(S.saberLevel ? .13 : .08, (time - 70) / 850) : 0;
-  const bomber = time > 55 ? Math.min(.1, (time - 55) / 720) : 0;
-  const splitter = time > 190 ? Math.min(.11, (time - 190) / 1700) : 0;
-  const charger = time > 105 ? Math.min(.15, (time - 105) / 1150) : 0;
-  const gunner = time > 52 ? Math.min(.19, (time - 52) / 850) : 0;
-  if (roll < warder) return 'warder';
-  if (roll < warder + bomber) return 'bomber';
-  if (roll < warder + bomber + splitter) return 'splitter';
-  if (roll < warder + bomber + splitter + charger) return 'charger';
-  if (roll < warder + bomber + splitter + charger + gunner) return 'gunner';
+  const gunner = time > 45 ? Math.min(.2, (time - 45) / 500) : 0;
+  const charger = time > 150 ? Math.min(.16, (time - 150) / 550) : 0;
+  const warder = time > 270 ? Math.min(S.saberLevel ? .14 : .1, (time - 270) / 550) : 0;
+  const bomber = time > 390 ? Math.min(.11, (time - 390) / 550) : 0;
+  const splitter = time > 480 ? Math.min(.11, (time - 480) / 700) : 0;
+  if (roll < gunner) return 'gunner';
+  if (roll < gunner + charger) return 'charger';
+  if (roll < gunner + charger + warder) return 'warder';
+  if (roll < gunner + charger + warder + bomber) return 'bomber';
+  if (roll < gunner + charger + warder + bomber + splitter) return 'splitter';
   return 'stalker';
 }
 
@@ -1200,7 +1203,8 @@ function spawnTreasure(W, H) {
   AudioEngine.se('treasure'); showWarning('JACKPOT SIGNAL // 유물 운반체');
 }
 
-const ALLY_CAP = 3, ALLY_TAME_CHANCE = .3, ALLY_AGGRO_RANGE = 420;
+const ALLY_CAP = 3, ALLY_TAME_CHANCE_CAP = .65, ALLY_AGGRO_RANGE = 420;
+function allyTameChance() { return clamp(S.allyTameChance || 0, 0, ALLY_TAME_CHANCE_CAP); }
 function spawnAlly(bossMob) {
   const scale = difficultyScale(), maxHp = Math.max(24, Math.round(bossMob.maxHp * .11));
   S.allies.push({
@@ -1298,7 +1302,7 @@ function handleLeviathanDeath(mob) {
   S.kills += 60; S.xp += S.nextXp * 1.6; healPlayer(10);
   if (Math.random() < .82) { dropChest(mob.x, mob.y, 'boss', 3, true); showToast('LEVIATHAN DOWN · RELIC DROP'); }
   else showToast('LEVIATHAN DOWN · NO RELIC');
-  if (S.allies.length < ALLY_CAP && Math.random() < ALLY_TAME_CHANCE) spawnAlly({ bossType: 'dragon', tier: 3, maxHp: mob.maxHp, x: mob.x, y: mob.y });
+  if (S.allies.length < ALLY_CAP && Math.random() < allyTameChance()) spawnAlly({ bossType: 'dragon', tier: 3, maxHp: mob.maxHp, x: mob.x, y: mob.y });
 }
 
 function spawnInteriorHost() {
@@ -1611,10 +1615,12 @@ function findTarget() {
   return target;
 }
 
+function onScreen(x, y, padding = 0) { return visibleWorld(x, y, innerWidth, innerHeight, padding); }
+
 function findDenseArea() {
   let best = null, bestCount = -1;
   for (const mob of S.mobs) {
-    if (mob.dead || mob.hp <= 0) continue;
+    if (mob.dead || mob.hp <= 0 || !onScreen(mob.x, mob.y)) continue;
     const count = nearbyMobs(mob.x, mob.y, 160).length;
     if (count > bestCount) { bestCount = count; best = mob; }
   }
@@ -1622,17 +1628,15 @@ function findDenseArea() {
 }
 
 function createVolley(baseAngle, damageScale = 1, extra = 0) {
-  const count = S.multishot + extra, strafe = S.playerClass === 'silverbullet';
-  const spread = .15, laneGap = 16;
+  const count = S.multishot + extra;
+  const spread = .15;
   for (let i = 0; i < count; i++) {
     const offset = i - (count - 1) / 2, critical = Math.random() < S.crit;
-    const angle = strafe ? baseAngle : baseAngle + offset * spread;
-    const originX = strafe ? S.x + Math.cos(baseAngle + Math.PI / 2) * offset * laneGap : S.x;
-    const originY = strafe ? S.y + Math.sin(baseAngle + Math.PI / 2) * offset * laneGap : S.y;
+    const angle = baseAngle + offset * spread;
     S.shots.push({
-      x: originX, y: originY, vx: Math.cos(angle) * 610, vy: Math.sin(angle) * 610, life: 1.55,
+      x: S.x, y: S.y, vx: Math.cos(angle) * 610, vy: Math.sin(angle) * 610, life: 1.55,
       damage: S.damage * damageScale * (critical ? S.critMult : 1), pierce: S.pierce,
-      critical, hit: new Set(), trailX: originX, trailY: originY,
+      critical, hit: new Set(), trailX: S.x, trailY: S.y,
     });
   }
 }
@@ -1782,7 +1786,7 @@ function updateMechanicOrbitals(dt) {
   const homingSpeed = Math.max(140, S.orbitSpeed * 90) * (overloaded ? 1.6 : 1);
   const laserInterval = .85;
   const laserAoeRadius = overloaded ? 70 : 0;
-  const priorityTarget = S.bossActive && !S.bossActive.dead ? S.bossActive : null;
+  const priorityTarget = S.bossActive && !S.bossActive.dead && onScreen(S.bossActive.x, S.bossActive.y) ? S.bossActive : null;
   for (let i = 0; i < S.orbitals; i++) {
     const rig = S.orbitalRigs[i];
     let target = priorityTarget;
@@ -1900,7 +1904,7 @@ function updateMasteries(dt) {
   if (isMastered('thor') && S.masteryClocks.thor <= 0) {
     const scale = masteryScale('thor'); S.masteryClocks.thor = masterySpecs.thor.interval * scale.interval;
     let target = null, bestHp = -1;
-    for (const mob of nearbyMobs(S.x, S.y, 900)) { if (mob.dead || mob.hp <= 0) continue; if (mob.hp > bestHp) { bestHp = mob.hp; target = mob; } }
+    for (const mob of nearbyMobs(S.x, S.y, 900)) { if (mob.dead || mob.hp <= 0 || !onScreen(mob.x, mob.y)) continue; if (mob.hp > bestHp) { bestHp = mob.hp; target = mob; } }
     if (target) {
       const radius = 200 * scale.range;
       for (const mob of nearbyMobs(target.x, target.y, radius + 80)) {
@@ -1910,7 +1914,7 @@ function updateMasteries(dt) {
       }
       effect('ring', target.x, target.y, { life: .6, max: .6, radius, color: '#fff35a' });
       burst(target.x, target.y, '#fff35a', 20, 240);
-      S.shake = Math.max(S.shake, 9); AudioEngine.se('wave'); showWarning("⚡ THOR'S HAMMER");
+      S.shake = Math.max(S.shake, 9); AudioEngine.se('wave');
     }
   }
 }
@@ -1965,7 +1969,7 @@ function handleDeath(mob, W, H) {
     if (Math.random() < relicDropChance('boss', mob.tier, mob.cycle)) {
       dropChest(mob.x, mob.y, 'boss', mob.tier, true); showToast(`BOSS #${mob.number} DOWN · RELIC DROP`);
     } else showToast(`BOSS #${mob.number} DOWN · NO RELIC`);
-    if (S.allies.length < ALLY_CAP && Math.random() < ALLY_TAME_CHANCE) spawnAlly(mob);
+    if (S.allies.length < ALLY_CAP && Math.random() < allyTameChance()) spawnAlly(mob);
     if (mob.isInteriorHost) { beginInteriorExit(); }
     else { S.bossActive = null; ui.bossHud.classList.add('hidden'); S.nextBossAt = S.time + random(58, 72) + mob.tier * 4; S.bossWarned = false; }
     S.shake = 14;
@@ -1995,18 +1999,15 @@ function triggerBossFieldPattern(boss) {
   if (type === 'mines') {
     const count = 4 + Math.min(6, Math.floor(S.time / 150));
     for (let i = 0; i < count; i++) spawnBossAirstrike(boss, S.x + random(-320, 320), S.y + random(-230, 230), { r: 52, warmup: 1.05, life: 2.1, damage: damage + 1 });
-    showWarning('BOSS PATTERN // MINEFALL');
   } else if (type === 'laser') {
     const angle = Math.random() * Math.PI;
     for (let i = -1; i <= 1; i++) {
       const offsetX = Math.cos(angle + Math.PI / 2) * i * 120, offsetY = Math.sin(angle + Math.PI / 2) * i * 120;
       S.hazards.push({ x: S.x + offsetX - Math.cos(angle) * 650, y: S.y + offsetY - Math.sin(angle) * 650, tx: S.x + offsetX + Math.cos(angle) * 650, ty: S.y + offsetY + Math.sin(angle) * 650, r: 28, warmup: 1.05, life: 1.72, type: 'line', damage: damage + 1, bossPattern: true, ownerBossId: boss.id });
     }
-    showWarning('BOSS PATTERN // LASER GRID');
   } else {
     const arms = 3 + Math.min(2, Math.floor(boss.cycle / 2));
     for (let arm = 0; arm < arms; arm++) radial(boss, 9, 235 + arm * 16, S.time * .9 + arm * (TAU / arms));
-    showWarning('BOSS PATTERN // SPIRAL BLOOM');
   }
   AudioEngine.se('wave'); boss.patternLock = type === 'laser' ? 1.25 : type === 'spiral' ? 1.4 : 1.05;
   boss.eventClock = random(Math.max(6.2, 10.2 - boss.cycle * .3), Math.max(8.2, 13.4 - boss.cycle * .35));
@@ -2043,7 +2044,10 @@ function update(dt, W, H) {
   if (S.playerClass === 'shadowmaster') {
     if (S.shadowActive > 0) {
       S.shadowActive -= dt;
-      if (Math.random() < dt * 8) S.particles.push({ x: S.x + random(-14, 14), y: S.y + random(-14, 14), vx: 0, vy: -30, size: random(4, 9), color: '#3a1a52', life: .5, max: .5 });
+      if (Math.random() < dt * 26) {
+        const angle = Math.random() * TAU, radius = random(16, 36);
+        S.particles.push({ x: S.x + Math.cos(angle) * radius, y: S.y + Math.sin(angle) * radius, vx: -Math.sin(angle) * 42, vy: -Math.cos(angle) * 42 - 12, size: random(5, 11), color: '#5a1a8f', life: .6, max: .6 });
+      }
     } else {
       S.shadowClock -= dt;
       if (S.shadowClock <= 0) { S.shadowActive = 2.5; S.shadowClock = 9; S.temporarySpeed = 1.35; S.temporarySpeedClock = 2.5; showToast('⬛ SHADOW STEP'); }
@@ -2558,6 +2562,15 @@ function drawWorld(W, H, t) {
     drawEnergyBlade(S.x + Math.cos(aimAngle - spread) * 16, S.y + Math.sin(aimAngle - spread) * 16, aimAngle - spread, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true);
   } else if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
+  if (S.playerClass === 'shadowmaster' && S.shadowActive > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let ring = 0; ring < 2; ring++) {
+      const spin = t * .0022 * (ring ? -1 : 1) + ring * 1.6;
+      ctx.globalAlpha = .5 - ring * .15; ctx.strokeStyle = '#5a1a8f'; ctx.lineWidth = 6 - ring * 2; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = '#9c4dff';
+      ctx.beginPath(); ctx.arc(S.x, S.y, 34 + ring * 12 + Math.sin(t * .006 + ring) * 4, spin, spin + TAU * .72); ctx.stroke();
+    }
+    ctx.restore();
+  }
   ctx.shadowBlur = 28; ctx.shadowColor = '#36eaff';
   const playerAlpha = S.shadowActive > 0 ? .42 : S.inv > 0 && Math.floor(t / 70) % 2 ? .38 : 1;
   sprite(images.player, frame % 2, Math.floor(frame / 2), 2, 2, S.x - 56, S.y - 68 + (S.moving ? 0 : idleBob), 112, 112, playerAlpha, S.facing < 0);
