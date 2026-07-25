@@ -42,6 +42,7 @@ const ui = {
 const images = {
   player: new Image(), enemy: new Image(), vfx: new Image(), bosses: new Image(),
   city: new Image(), treasure: new Image(), enemyMissile: new Image(), saberBlade: new Image(),
+  archetypeIcons: new Image(), bomberDrone: new Image(), ultimateFx: new Image(),
 };
 images.player.src = 'assets/astra-sd.png';
 images.enemy.src = 'assets/shade-sd.png';
@@ -51,6 +52,9 @@ images.city.src = 'assets/cyber-city.png';
 images.treasure.src = 'assets/jackpot-gremlin.png';
 images.enemyMissile.src = 'assets/enemy-missile.png';
 images.saberBlade.src = 'assets/saber-blade.png';
+images.archetypeIcons.src = 'assets/archetype-icons.png';
+images.bomberDrone.src = 'assets/bomber-drone.png';
+images.ultimateFx.src = 'assets/ultimate-fx.png';
 
 let S = null;
 let running = false;
@@ -1844,12 +1848,9 @@ function drawMob(mob, t) {
     ctx.shadowBlur = lowFx ? 0 : 17; ctx.shadowColor = colors[mob.archetype] || '#e33cff';
     sprite(images.enemy, column, row, 2, 2, mob.x - scale / 2, mob.y - scale * .58, scale, scale, spriteAlpha, mob.facing < 0);
     if (mob.archetype !== 'stalker') {
-      ctx.fillStyle = colors[mob.archetype]; ctx.beginPath();
-      if (mob.archetype === 'gunner') { ctx.rect(mob.x - 5, mob.y - mob.r - 22, 10, 10); }
-      else if (mob.archetype === 'charger') { ctx.moveTo(mob.x, mob.y - mob.r - 25); ctx.lineTo(mob.x + 8, mob.y - mob.r - 12); ctx.lineTo(mob.x - 8, mob.y - mob.r - 12); ctx.closePath(); }
-      else if (mob.archetype === 'warder') { ctx.save(); ctx.translate(mob.x, mob.y - mob.r - 18); ctx.rotate(Math.PI / 4); ctx.rect(-6, -6, 12, 12); ctx.restore(); }
-      else { ctx.arc(mob.x, mob.y - mob.r - 17, 5, 0, TAU); }
-      ctx.fill();
+      const iconPose = { gunner: [0, 0], charger: [1, 0], warder: [0, 1] }[mob.archetype] || [1, 1];
+      const iconSize = 22;
+      sprite(images.archetypeIcons, iconPose[0], iconPose[1], 2, 2, mob.x - iconSize / 2, mob.y - mob.r - 17 - iconSize / 2, iconSize, iconSize);
     }
     if (mob.archetype === 'warder' && mob.shield > 0) {
       ctx.save(); ctx.globalAlpha = .45 + Math.sin(t * .009 + mob.id) * .15; ctx.strokeStyle = '#7dffff'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 12, 0, TAU); ctx.stroke(); ctx.restore();
@@ -1857,12 +1858,11 @@ function drawMob(mob, t) {
     if (mob.archetype === 'bomber') {
       ctx.save(); ctx.translate(mob.x, mob.y - 2); ctx.rotate(Math.sin(t * .004 + mob.id * 9) * .08);
       ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFx ? 0 : 20; ctx.shadowColor = '#ff244f';
-      ctx.fillStyle = '#300818'; ctx.strokeStyle = '#ff4166'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-mob.r - 13, 4); ctx.lineTo(-mob.r + 1, -13); ctx.lineTo(-mob.r + 4, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(mob.r + 13, 4); ctx.lineTo(mob.r - 1, -13); ctx.lineTo(mob.r - 4, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#ff244f'; ctx.beginPath(); ctx.arc(0, 1, 9 + Math.sin(t * .012) * 2, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.fillRect(-5, -1, 10, 3); ctx.strokeStyle = '#ff6a81'; ctx.setLineDash([]); ctx.lineWidth = 2;
-      ctx.rotate(t * .0018); ctx.beginPath(); ctx.arc(0, 1, mob.r + 13, 0, TAU); ctx.stroke(); ctx.restore();
+      const bw = (mob.r + 13) * 2.3, bh = bw * (110 / 234);
+      sprite(images.bomberDrone, 0, 0, 1, 1, -bw / 2, -bh / 2, bw, bh);
+      ctx.restore();
+      ctx.save(); ctx.translate(mob.x, mob.y - 2); ctx.rotate(t * .0018);
+      ctx.strokeStyle = '#ff6a81'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 1, mob.r + 13, 0, TAU); ctx.stroke(); ctx.restore();
     }
   }
   ctx.restore();
@@ -1913,11 +1913,25 @@ function drawEffects() {
     const progress = 1 - item.life / item.max, alpha = clamp(item.life / item.max * 2, 0, 1);
     if (item.type === 'masterLaser') {
       const widthScale = item.widthScale || 1;
+      const flashAlpha = alpha * Math.max(0, 1 - progress * 2.2);
+      if (flashAlpha > 0) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = flashAlpha; ctx.shadowBlur = lowFxActive() ? 0 : 30; ctx.shadowColor = '#ffd65a';
+        const fs = 60 * widthScale * (1 + progress);
+        sprite(images.ultimateFx, 0, 0, 1, 1, item.x - fs / 2, item.y - fs / 2, fs, fs);
+        ctx.restore();
+      }
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.lineCap = 'round'; ctx.shadowBlur = lowFxActive() ? 0 : 35; ctx.shadowColor = '#6cf7ff';
       ctx.strokeStyle = '#36dfff44'; ctx.lineWidth = 70 * widthScale * (1 - progress * .45); ctx.beginPath(); ctx.moveTo(item.x, item.y); ctx.lineTo(item.tx, item.ty); ctx.stroke();
       ctx.strokeStyle = '#8cfaff'; ctx.lineWidth = 28 * widthScale * (1 - progress * .4); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 6 * widthScale; ctx.stroke(); ctx.restore(); continue;
     }
     if (item.type === 'masterWhirl') {
+      const flashAlpha = alpha * Math.max(0, 1 - progress * 2.2);
+      if (flashAlpha > 0) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = flashAlpha; ctx.shadowBlur = lowFxActive() ? 0 : 30; ctx.shadowColor = '#ffd65a';
+        const fs = item.radius * 1.3;
+        sprite(images.ultimateFx, 0, 0, 1, 1, item.x - fs / 2, item.y - fs / 2, fs, fs);
+        ctx.restore();
+      }
       ctx.save(); ctx.translate(item.x, item.y); ctx.rotate(progress * TAU * 2.6); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = lowFxActive() ? 0 : 28; ctx.shadowColor = '#ffd85c';
       for (let blade = 0; blade < 4; blade++) { ctx.rotate(TAU / 4); ctx.strokeStyle = blade % 2 ? '#65f5ff' : '#ffd95c'; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(0, 0, item.radius * (.58 + blade * .08), -.65, .65); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); }
       ctx.restore(); continue;
