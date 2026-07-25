@@ -661,7 +661,7 @@ function processRewards() {
 }
 
 const classDefs = [
-  { id: 'silverbullet', icon: '🔫', name: '실버불렛', difficulty: 2, desc: '성좌탄이 은탄으로 변합니다. 쉬지 않고 쏟아붓는 연사 사격으로 변경 (탄 크기 축소, 공격속도 대폭 증가, 발당 피해 감소). 궁극기가 밀집 지역에 원형 난사로 변경됩니다.' },
+  { id: 'silverbullet', icon: '🔫', name: '실버불렛', difficulty: 2, desc: '성좌탄이 은탄으로 변합니다. 부채꼴 대신 가장 가까운 적 한 방향으로 계속 쏟아붓는 연사로 변경 (탄 크기 대폭 축소, 속도 2배, 날아갈수록 가속). 궁극기가 자신을 중심으로 사방에 무작위로 난사하는 형태로 변경되며, 한계돌파할수록 탄 수가 늘어납니다.' },
   { id: 'shadowmaster', icon: '🥷', name: '쉐도우마스터', difficulty: 2, desc: '어둠의 쌍검을 사용합니다 (범위는 좁아지지만 피해 증가). 주기적으로 그림자에 숨어 투명화되며 이동속도가 오르고 주변에 검은 기를 발산합니다. 보스 대상 최종 데미지 +30%. 궁극기가 전후방으로 퍼지는 거대한 어둠의 검기로 변경됩니다.' },
   { id: 'mechanic', icon: '🛰', name: '메카닉', difficulty: 4, desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 화면 안의 보스를 우선 공격합니다. 궁극기가 과부하 모드(이동속도 증가·레이저 범위 확대)로 변경됩니다.' },
   { id: 'thor', icon: '⚡', name: '토르', difficulty: 4, desc: '연쇄 낙뢰가 모든 공격(투사체·위성·광검)에 적용되며 레벨 7까지 강화됩니다. 번개가 노란색으로 더 화려해집니다. 맥스 레벨 시 토르의 망치 - 화면 안에서 체력이 가장 높은 적에게 거대한 번개를 내리쳐 기절·감전시키며, 쉴드를 무시하고 피해를 입힙니다.' },
@@ -687,7 +687,7 @@ function chooseClass(index) {
   if (!S?.paused || S.activeReward?.type !== 'classChange') return;
   const def = classDefs[index]; if (!def) return;
   S.playerClass = def.id;
-  if (def.id === 'silverbullet') { S.rate *= .4; S.projectileMult *= .65; S.shotScale *= .55; }
+  if (def.id === 'silverbullet') { S.rate *= .4; S.projectileMult *= .82; S.shotScale *= .45; }
   else if (def.id === 'thor') { S.chainDamage *= 1.4; }
   else if (def.id === 'none') { S.maxHp += 5; S.hp += 5; }
   effect('level', S.x, S.y, { life: .85, max: .85 });
@@ -1638,14 +1638,17 @@ function findDenseArea() {
 
 function createVolley(baseAngle, damageScale = 1, extra = 0) {
   const count = S.multishot + extra;
-  const spread = .15;
+  const silver = S.playerClass === 'silverbullet';
+  const spread = silver ? 0 : .15;
+  const speed = silver ? 1220 : 610;
   for (let i = 0; i < count; i++) {
     const offset = i - (count - 1) / 2, critical = Math.random() < S.crit;
     const angle = baseAngle + offset * spread;
     S.shots.push({
-      x: S.x, y: S.y, vx: Math.cos(angle) * 610, vy: Math.sin(angle) * 610, life: 1.55,
+      x: S.x, y: S.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1.55,
       damage: S.damage * damageScale * (critical ? S.critMult : 1), pierce: S.pierce,
       critical, hit: new Set(), trailX: S.x, trailY: S.y,
+      accel: silver ? 820 : 0,
     });
   }
 }
@@ -1861,19 +1864,24 @@ function updateOrbitals(dt) {
 function updateMasteries(dt) {
   for (const build of Object.keys(S.masteryClocks)) if (isMastered(build)) S.masteryClocks[build] -= dt;
   if (isMastered('projectile') && S.masteryClocks.projectile <= 0) {
-    const target = findDenseArea(), scale = masteryScale('projectile'); S.masteryClocks.projectile = target ? masterySpecs.projectile.interval * scale.interval : .4;
-    if (target && S.playerClass === 'silverbullet') {
-      const rays = 28;
+    const scale = masteryScale('projectile');
+    if (S.playerClass === 'silverbullet') {
+      S.masteryClocks.projectile = masterySpecs.projectile.interval * scale.interval;
+      const rays = 26 + limitBreakLevel('projectile') * 3;
       for (let i = 0; i < rays; i++) {
-        const angle = i / rays * TAU;
-        S.shots.push({ x: target.x, y: target.y, vx: Math.cos(angle) * 640, vy: Math.sin(angle) * 640, life: 1.3, damage: S.damage * 2.6 * scale.damage, pierce: Math.max(1, S.pierce), critical: true, hit: new Set(), trailX: target.x, trailY: target.y });
+        const angle = Math.random() * TAU, speed = 760;
+        S.shots.push({ x: S.x, y: S.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1.15, damage: S.damage * 2.4 * scale.damage, pierce: Math.max(1, S.pierce), critical: true, hit: new Set(), trailX: S.x, trailY: S.y, accel: 520 });
       }
-      effect('ring', target.x, target.y, { life: .4, max: .4, radius: 90, color: '#eef6ff' }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
-    } else if (target) {
-      const angle = Math.atan2(target.y - S.y, target.x - S.x), length = 1250 * scale.range, width = 48 * scale.range;
-      const tx = S.x + Math.cos(angle) * length, ty = S.y + Math.sin(angle) * length;
-      for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + width) damageMob(mob, S.damage * 9 * scale.damage, 'projectile');
-      effect('masterLaser', S.x, S.y, { tx, ty, widthScale: scale.range, life: .52, max: .52 }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
+      effect('ring', S.x, S.y, { life: .45, max: .45, radius: 100, color: '#eef6ff' }); burst(S.x, S.y, '#eef6ff', 22, 260);
+      S.shake = Math.max(S.shake, 9); AudioEngine.se('wave');
+    } else {
+      const target = findDenseArea(); S.masteryClocks.projectile = target ? masterySpecs.projectile.interval * scale.interval : .4;
+      if (target) {
+        const angle = Math.atan2(target.y - S.y, target.x - S.x), length = 1250 * scale.range, width = 48 * scale.range;
+        const tx = S.x + Math.cos(angle) * length, ty = S.y + Math.sin(angle) * length;
+        for (const mob of S.mobs) if (!mob.dead && pointSegmentDistance(mob.x, mob.y, S.x, S.y, tx, ty) < mob.r + width) damageMob(mob, S.damage * 9 * scale.damage, 'projectile');
+        effect('masterLaser', S.x, S.y, { tx, ty, widthScale: scale.range, life: .52, max: .52 }); S.shake = Math.max(S.shake, 8); AudioEngine.se('wave');
+      }
     }
   }
   if (isMastered('saber') && S.masteryClocks.saber <= 0) {
@@ -2130,7 +2138,12 @@ function update(dt, W, H) {
   for (const ally of S.allies) if (!ally.dead) updateAlly(ally, dt);
   compact(S.allies, ally => !ally.dead);
   for (const projectile of S.shots) {
-    projectile.trailX = projectile.x; projectile.trailY = projectile.y; projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
+    projectile.trailX = projectile.x; projectile.trailY = projectile.y;
+    if (projectile.accel) {
+      const speed = Math.hypot(projectile.vx, projectile.vy) || 1, nextSpeed = speed + projectile.accel * dt;
+      projectile.vx = projectile.vx / speed * nextSpeed; projectile.vy = projectile.vy / speed * nextSpeed;
+    }
+    projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
     for (const mob of nearbyMobs(projectile.x, projectile.y, 105 + 12 * S.shotScale)) if (projectile.life > 0 && !mob.dead && (projectile.x - mob.x) ** 2 + (projectile.y - mob.y) ** 2 < (mob.r + 8 * S.shotScale) ** 2) hitMob(mob, projectile);
   }
   for (const projectile of S.enemyShots) {
