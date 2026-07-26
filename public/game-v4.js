@@ -300,7 +300,7 @@ const rarityKeys = ['common', 'rare', 'unique', 'legendary', 'mythic'];
 function rarityName(index) { return tr(`rarity.${rarityKeys[index]}`, null, rarities[index]?.name || ''); }
 const classMasteryOverrides = {
   silverbullet: { projectile: { label: '은탄포', note: '주기적으로 주변 밀집 지역에 은탄을 원형으로 화려하게 난사합니다.' } },
-  mechanic: { orbit: { label: '위성 과부하', note: '주기적으로 위성이 과부하 상태가 되어 이동속도가 오르고 레이저 범위가 넓어집니다.' } },
+  mechanic: { orbit: { label: '위성 융합포', note: '주기적으로 모든 위성이 표적 주위로 집결한 뒤 융합 레이저를 동시에 발사해 폭발시킵니다.' } },
   shadowmaster: { saber: { label: '쌍검 검기', note: '주기적으로 쌍검에서 관통하는 거대한 어둠의 검기를 발사합니다.' } },
 };
 function masteryLabel(build) {
@@ -432,7 +432,8 @@ function healPlayer(amount, state = S) {
 function fresh() {
   return {
     x: 0, y: 0, hp: 30, maxHp: 30, speed: 250, facing: 1, aimX: 1, aimY: 0,
-    playerClass: null, shadowClock: 9, shadowActive: 0, mechOverload: 0, orbitalRigs: [],
+    playerClass: null, shadowClock: 9, shadowActive: 0, orbitalRigs: [],
+    orbitBurstClock: 0, orbitBurstFired: false, orbitBurstTarget: null, orbitBurstScale: 1,
     damage: 2.4, damageMult: 1, projectileMult: 1, saberMult: 1, orbitMult: 1,
     rate: .54, multishot: 1, pierce: 0, crit: .07, critMult: 1.75,
     blast: 0, blastDamage: .35, chain: 0, chainDamage: .28, shotScale: 1,
@@ -667,7 +668,7 @@ function processRewards() {
 const classDefs = [
   { id: 'silverbullet', icon: '🔫', name: '실버불렛', difficulty: 2, desc: '성좌탄이 은탄으로 변합니다. 부채꼴 대신 가장 가까운 적 한 방향으로 계속 쏟아붓는 연사로 변경 (탄 크기 대폭 축소, 속도 2배, 날아갈수록 가속). 궁극기가 자신을 중심으로 사방에 무작위로 난사하는 형태로 변경되며, 한계돌파할수록 탄 수가 늘어납니다.' },
   { id: 'shadowmaster', icon: '🥷', name: '쉐도우마스터', difficulty: 2, desc: '어둠의 쌍검을 사용합니다 (범위는 좁아지지만 피해 증가). 주기적으로 그림자에 숨어 투명화되며 이동속도가 오르고 주변에 검은 기를 발산합니다. 보스 대상 최종 데미지 +30%. 궁극기가 전후방으로 퍼지는 거대한 어둠의 검기로 변경됩니다.' },
-  { id: 'mechanic', icon: '🛰', name: '메카닉', difficulty: 4, desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 화면 안의 보스를 우선 공격합니다. 궁극기가 과부하 모드(이동속도 증가·레이저 범위 확대)로 변경됩니다.' },
+  { id: 'mechanic', icon: '🛰', name: '메카닉', difficulty: 4, desc: '위성이 충돌 대신 적을 추적하며 레이저를 쏩니다. 화면 안의 보스를 우선 공격합니다. 궁극기가 위성 융합포로 변경됩니다 — 모든 위성이 표적에 집결해 융합 레이저를 동시 발사하는 강력한 폭발을 일으킵니다.' },
   { id: 'thor', icon: '⚡', name: '토르', difficulty: 4, desc: '연쇄 낙뢰가 모든 공격(투사체·위성·광검)에 적용되며 레벨 7까지 강화됩니다. 번개가 노란색으로 더 화려해집니다. 맥스 레벨 시 토르의 망치 - 화면 안에서 체력이 가장 높은 적에게 거대한 번개를 내리쳐 기절·감전시키며, 쉴드를 무시하고 피해를 입힙니다.' },
   { id: 'none', icon: '⬛', name: '방랑자', difficulty: 5, desc: 'MAX HP +5. 기존 빌드를 그대로 유지합니다.' },
 ];
@@ -1781,19 +1782,20 @@ function saberSlash() {
   const directedAim = hasMouseAim() || S.moving;
   const base = directedAim ? Math.atan2(S.aimY, S.aimX) : target ? Math.atan2(target.y - S.y, target.x - S.x) : Math.atan2(S.aimY, S.aimX);
   const dual = S.playerClass === 'shadowmaster';
+  const dualSpread = .5; // matches the held-blade idle pose so the slash visibly comes from each blade
   const sweeps = (dual ? 2 : 1) + S.saberEcho;
   const arcWidth = dual ? S.saberArc * .72 : S.saberArc;
   const sweepGap = dual ? .34 : .48;
   const damageMult = dual ? 1.35 : 1;
   for (let sweep = 0; sweep < sweeps; sweep++) {
     let angle;
-    if (dual && sweep === 0) angle = base;
-    else if (dual && sweep === 1) angle = base + Math.PI;
+    if (dual && sweep === 0) angle = base + dualSpread;
+    else if (dual && sweep === 1) angle = base - dualSpread;
     else if (dual) {
       const echoIndex = sweep - 2, cluster = Math.floor(echoIndex / 2);
-      const side = echoIndex % 2 === 0 ? base : base + Math.PI;
+      const side = echoIndex % 2 === 0 ? base + dualSpread : base - dualSpread;
       const dir = cluster % 2 === 0 ? 1 : -1;
-      const maxClusterHalf = .85; // caps combined front+back coverage at ~195 deg, never a full circle
+      const maxClusterHalf = .85; // caps how far echo slashes can fan out from each blade
       const maxOffset = Math.max(0, maxClusterHalf - arcWidth / 2);
       angle = side + dir * Math.min((cluster + 1) * sweepGap, maxOffset);
     }
@@ -1846,10 +1848,34 @@ function tryOrbitIntercept(projectile) {
 function updateMechanicOrbitals(dt) {
   while (S.orbitalRigs.length < S.orbitals) S.orbitalRigs.push({ x: S.x, y: S.y, laserClock: random(0, .6), laserFlash: 0, targetRef: null });
   if (S.orbitalRigs.length > S.orbitals) S.orbitalRigs.length = S.orbitals;
-  const overloaded = S.mechOverload > 0;
-  const homingSpeed = Math.max(140, S.orbitSpeed * 90) * (overloaded ? 1.6 : 1);
+  const bursting = S.orbitBurstClock > 0;
+  if (bursting) {
+    S.orbitBurstClock -= dt;
+    const target = S.orbitBurstTarget, chargeDone = S.orbitBurstClock <= .22;
+    for (let i = 0; i < S.orbitals; i++) {
+      const rig = S.orbitalRigs[i], ringAngle = S.time * 3.4 + i * TAU / Math.max(1, S.orbitals);
+      const destX = target.x + Math.cos(ringAngle) * 54, destY = target.y + Math.sin(ringAngle) * 54;
+      const dx = destX - rig.x, dy = destY - rig.y, dist = Math.hypot(dx, dy);
+      const step = Math.min(dist, Math.max(520, S.orbitSpeed * 340) * dt);
+      if (dist > .01) { rig.x += dx / dist * step; rig.y += dy / dist * step; }
+      rig.targetRef = null; rig.laserFlash = chargeDone ? .2 : 0;
+    }
+    if (chargeDone && !S.orbitBurstFired) {
+      S.orbitBurstFired = true;
+      const origins = S.orbitalRigs.map(r => ({ x: r.x, y: r.y }));
+      const burstRadius = 96, dealtBase = S.damage * S.orbitDamage * 4.2 * S.orbitBurstScale;
+      for (const mob of nearbyMobs(target.x, target.y, burstRadius + 80)) {
+        if (mob.dead || mob.hp <= 0 || Math.hypot(mob.x - target.x, mob.y - target.y) >= burstRadius + mob.r) continue;
+        damageMob(mob, dealtBase, 'orbit', false, true);
+      }
+      effect('orbitFusion', target.x, target.y, { life: .45, max: .45, radius: burstRadius, origins });
+      S.shake = Math.max(S.shake, 11); AudioEngine.se('wave'); showWarning('⚙ 위성 융합포 발사');
+    }
+    if (S.orbitBurstClock <= 0) S.orbitBurstFired = false;
+    return;
+  }
+  const homingSpeed = Math.max(140, S.orbitSpeed * 90);
   const laserInterval = .85;
-  const laserAoeRadius = overloaded ? 70 : 0;
   const priorityTarget = S.bossActive && !S.bossActive.dead && onScreen(S.bossActive.x, S.bossActive.y) ? S.bossActive : null;
   for (let i = 0; i < S.orbitals; i++) {
     const rig = S.orbitalRigs[i];
@@ -1867,14 +1893,7 @@ function updateMechanicOrbitals(dt) {
     rig.targetRef = target;
     if (target && rig.laserClock <= 0 && Math.hypot(target.x - rig.x, target.y - rig.y) < 340) {
       rig.laserClock = laserInterval; rig.laserFlash = .14;
-      const dealt = damageMob(target, S.damage * S.orbitDamage * 1.15, 'orbit'); AudioEngine.se('hit');
-      if (laserAoeRadius > 0) {
-        effect('ring', target.x, target.y, { life: .22, max: .22, radius: laserAoeRadius, color: '#8ff5ff' });
-        for (const near of nearbyMobs(target.x, target.y, laserAoeRadius + 40)) {
-          if (near === target || near.dead || near.hp <= 0) continue;
-          if (Math.hypot(near.x - target.x, near.y - target.y) < laserAoeRadius) damageMob(near, dealt * .6, 'orbit', false, true);
-        }
-      }
+      damageMob(target, S.damage * S.orbitDamage * 1.15, 'orbit'); AudioEngine.se('hit');
     }
   }
 }
@@ -1951,11 +1970,23 @@ function updateMasteries(dt) {
       effect('masterWhirl', S.x, S.y, { radius, life: .72, max: .72 }); S.saberActive = .7; S.shake = Math.max(S.shake, 7); AudioEngine.se('saber');
     }
   }
-  if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault && S.mechOverload <= 0) {
+  if (isMastered('orbit') && S.masteryClocks.orbit <= 0 && !S.orbitAssault && S.orbitBurstClock <= 0) {
     const scale = masteryScale('orbit');
     if (S.playerClass === 'mechanic') {
-      S.masteryClocks.orbit = masterySpecs.orbit.interval * scale.interval; S.mechOverload = 5 * scale.range;
-      effect('ring', S.x, S.y, { life: .5, max: .5, radius: 130, color: '#8ff5ff' }); S.shake = Math.max(S.shake, 6); AudioEngine.se('wave'); showWarning('⚙ OVERLOAD');
+      S.masteryClocks.orbit = masterySpecs.orbit.interval * scale.interval;
+      const priority = S.bossActive && !S.bossActive.dead && onScreen(S.bossActive.x, S.bossActive.y) ? S.bossActive : null;
+      let tx = priority?.x, ty = priority?.y;
+      if (tx === undefined) {
+        let bestCount = -1;
+        for (const mob of nearbyMobs(S.x, S.y, 420)) {
+          if (mob.dead || mob.hp <= 0) continue;
+          const count = nearbyMobs(mob.x, mob.y, 90).length;
+          if (count > bestCount) { bestCount = count; tx = mob.x; ty = mob.y; }
+        }
+      }
+      if (tx === undefined) { tx = S.x + S.aimX * 200; ty = S.y + S.aimY * 200; }
+      S.orbitBurstClock = .55; S.orbitBurstFired = false; S.orbitBurstTarget = { x: tx, y: ty }; S.orbitBurstScale = scale.range;
+      S.shake = Math.max(S.shake, 4); AudioEngine.se('wave'); showWarning('⚙ 위성 융합포 조준');
     } else {
       const target = findTarget(); S.masteryClocks.orbit = target ? masterySpecs.orbit.interval * scale.interval : .4;
       if (target) S.orbitAssault = { target, start: S.time, exploded: false };
@@ -2125,8 +2156,6 @@ function update(dt, W, H) {
       if (S.shadowClock <= 0) { S.shadowActive = 2.5; S.shadowClock = 9; S.temporarySpeed = 1.35; S.temporarySpeedClock = 2.5; showToast('⬛ SHADOW STEP'); }
     }
   }
-  if (S.mechOverload > 0) S.mechOverload -= dt;
-
   if (!inInterior) {
     if (!S.bossActive && !S.bossWarned && S.time >= S.nextBossAt - 3) { S.bossWarned = true; showWarning('BOSS ANOMALY DETECTED'); }
     if (!S.bossActive && S.time >= S.nextBossAt) spawnBoss(W, H);
@@ -2326,9 +2355,8 @@ function drawHazards(W, H) {
 }
 
 function drawMob(mob, t) {
-  const lowFx = lowFxActive(), spriteAlpha = mob.hitFlash > 0 ? .72 : 1;
+  const lowFx = lowFxActive(), spriteAlpha = 1;
   ctx.save();
-  if (mob.hitFlash > 0) ctx.globalCompositeOperation = 'lighter';
   if (mob.kind === 'leviathan') {
     const scale = mob.r * 4.6, bob = Math.sin(t * .0026) * 8;
     ctx.shadowBlur = lowFx ? 0 : 36; ctx.shadowColor = '#39d9ff';
@@ -2381,6 +2409,10 @@ function drawMob(mob, t) {
       ctx.strokeStyle = '#ff6a81'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 1, mob.r + 13, 0, TAU); ctx.stroke(); ctx.restore();
     }
   }
+  if (mob.hitFlash > 0) {
+    ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = Math.min(1, mob.hitFlash / .08) * .75; ctx.fillStyle = '#ffffff';
+    const flashSpan = (mob.r + 140) * 2; ctx.fillRect(mob.x - flashSpan / 2, mob.y - flashSpan / 2, flashSpan, flashSpan);
+  }
   ctx.restore();
 
   const barHalf = mob.kind === 'leviathan' ? 110 : mob.kind === 'treasure' ? 62 : mob.kind === 'boss' ? Math.max(54, mob.r) : mob.r;
@@ -2402,13 +2434,16 @@ function drawMob(mob, t) {
 }
 
 function drawAlly(ally, t) {
-  const lowFx = lowFxActive(), spriteAlpha = ally.hitFlash > 0 ? .72 : 1;
+  const lowFx = lowFxActive(), spriteAlpha = 1;
   const index = ({ oni: 0, seraph: 1, witch: 2, dragon: 3 })[ally.bossType] ?? 0;
   const scale = (ally.tier === 3 ? 245 : 178) * .62, bob = Math.sin(t * .004 + ally.id * 7) * 5;
   ctx.save();
-  if (ally.hitFlash > 0) ctx.globalCompositeOperation = 'lighter';
   ctx.shadowBlur = lowFx ? 0 : 24; ctx.shadowColor = '#7dffb0';
   sprite(images.bosses, index % 2, Math.floor(index / 2), 2, 2, ally.x - scale / 2, ally.y - scale * .56 + bob, scale, scale, spriteAlpha, ally.facing < 0);
+  if (ally.hitFlash > 0) {
+    ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = Math.min(1, ally.hitFlash / .4) * .75; ctx.fillStyle = '#ffffff';
+    const flashSpan = (ally.r + 140) * 2; ctx.fillRect(ally.x - flashSpan / 2, ally.y - flashSpan / 2, flashSpan, flashSpan);
+  }
   ctx.restore();
   ctx.save(); ctx.globalAlpha = .55 + Math.sin(t * .006) * .12; ctx.strokeStyle = '#7dffb0'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
   ctx.beginPath(); ctx.arc(ally.x, ally.y, ally.r + 10, 0, TAU); ctx.stroke(); ctx.restore();
@@ -2437,7 +2472,7 @@ function drawProjectiles() {
   }
   for (const projectile of S.enemyShots) {
     if (!visibleWorld(projectile.x, projectile.y, innerWidth, innerHeight, 90)) continue;
-    const boss = Boolean(projectile.bossPattern), trailColor = boss ? '#ff9a2e' : '#ff2794', glowColor = boss ? '#ffb03f' : '#ff168c';
+    const boss = Boolean(projectile.bossPattern), trailColor = boss ? '#ff1a2e' : '#ff2794', glowColor = boss ? '#ff3344' : '#ff168c';
     const angle = Math.atan2(projectile.vy, projectile.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = trailColor; ctx.lineWidth = projectile.r * (boss ? 1.4 : 1.15); ctx.globalAlpha = .34;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * (boss ? 38 : 28), projectile.y - Math.sin(angle) * (boss ? 38 : 28)); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
@@ -2483,6 +2518,18 @@ function drawEffects() {
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(len * .5, -width, len, 0); ctx.quadraticCurveTo(len * .5, width, 0, 0); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#a35bff'; ctx.lineWidth = 7; ctx.stroke();
       ctx.strokeStyle = '#e9d4ff'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.restore(); continue;
+    }
+    if (item.type === 'orbitFusion') {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha; ctx.shadowBlur = lowFxActive() ? 0 : 22; ctx.shadowColor = '#8ff5ff';
+      for (const origin of item.origins || []) {
+        ctx.strokeStyle = '#8ff5ff'; ctx.lineWidth = 6 * (1 - progress * .6);
+        ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(item.x, item.y); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      }
+      const burstSize = item.radius * (.5 + progress * .9);
+      sprite(images.ultimateFx, 0, 0, 1, 1, item.x - burstSize / 2, item.y - burstSize / 2, burstSize, burstSize);
+      ctx.strokeStyle = '#bff3ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(item.x, item.y, item.radius * progress, 0, TAU); ctx.stroke();
       ctx.restore(); continue;
     }
     if (item.type === 'thorHammer') {
@@ -2590,6 +2637,8 @@ function drawOrbitals(t) {
     const pose = orbitalPose(i), size = 34 * S.orbitSize, type = i % 3;
     if (mechanic) {
       const rig = S.orbitalRigs[i];
+      ctx.save(); ctx.globalAlpha = .32; ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.ellipse(pose.x, pose.y + size * .62, size * .55, size * .2, 0, 0, TAU); ctx.fill(); ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 16; ctx.shadowColor = '#8ff5ff';
       sprite(images.mechaOrbital, 0, 0, 1, 1, pose.x - size * .8, pose.y - size * .8, size * 1.6, size * 1.6);
       ctx.restore();
@@ -2759,9 +2808,9 @@ function updateHud() {
   if (S.playerClass) {
     const def = classDefs.find(entry => entry.id === S.playerClass);
     ui.classBadge.classList.remove('hidden');
-    const overloaded = S.playerClass === 'mechanic' && S.mechOverload > 0;
+    const overloaded = S.playerClass === 'mechanic' && S.orbitBurstClock > 0;
     const shadowed = S.playerClass === 'shadowmaster' && S.shadowActive > 0;
-    ui.classBadge.textContent = overloaded ? '⚙ 과부하' : shadowed ? '⬛ 은신' : `${def?.icon || ''} ${classLabel(def || { id: S.playerClass, name: S.playerClass })}`;
+    ui.classBadge.textContent = overloaded ? '⚙ 융합포' : shadowed ? '⬛ 은신' : `${def?.icon || ''} ${classLabel(def || { id: S.playerClass, name: S.playerClass })}`;
     ui.classBadge.classList.toggle('active-state', overloaded || shadowed);
   } else ui.classBadge.classList.add('hidden');
   if (S.interior?.active && S.bossActive) {
