@@ -1162,11 +1162,11 @@ function bossPatternDamage(flatDamage) {
 
 function chooseArchetype() {
   const roll = Math.random(), time = S.time;
-  const gunner = time > 45 ? Math.min(.2, (time - 45) / 500) : 0;
-  const charger = time > 150 ? Math.min(.16, (time - 150) / 550) : 0;
-  const warder = time > 270 ? Math.min(S.saberLevel ? .14 : .1, (time - 270) / 550) : 0;
-  const bomber = time > 390 ? Math.min(.11, (time - 390) / 550) : 0;
-  const splitter = time > 480 ? Math.min(.11, (time - 480) / 700) : 0;
+  const gunner = time > 45 ? Math.min(.13, (time - 45) / 400) : 0;
+  const charger = time > 110 ? Math.min(.12, (time - 110) / 400) : 0;
+  const warder = time > 230 ? Math.min(S.saberLevel ? .11 : .08, (time - 230) / 400) : 0;
+  const bomber = time > 340 ? Math.min(.09, (time - 340) / 400) : 0;
+  const splitter = time > 440 ? Math.min(.08, (time - 440) / 500) : 0;
   if (roll < gunner) return 'gunner';
   if (roll < gunner + charger) return 'charger';
   if (roll < gunner + charger + warder) return 'warder';
