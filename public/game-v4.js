@@ -451,6 +451,7 @@ function fresh() {
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
     leviathanCheckClock: 1, interior: null, worldSnapshot: null, allyTameChance: 0,
     nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false, bossFailures: 0,
+    secondBossActive: null, secondBossCheckClock: 20,
     slotPity: 0,
     shake: 0, relicUses: {}, temporarySpeed: 1, temporarySpeedClock: 0,
     masteryClocks: { projectile: 8, saber: 6, orbit: 9, thor: 8 }, orbitAssault: null,
@@ -1320,11 +1321,12 @@ function handleLeviathanDeath(mob) {
 function spawnInteriorHost() {
   const scale = difficultyScale(), hp = Math.round(1400 * scale * (1 + S.time / 1400));
   const boss = {
-    kind: 'boss', bossType: 'dragon', tier: 3, number: 0, cycle: 0, modifier: 'armored', affixes: ['hunter'],
+    kind: 'boss', bossType: 'dragon', tier: 3, number: 0, cycle: 0,
+    options: [bossOptionPool.find(o => o.id === 'armored'), bossOptionPool.find(o => o.id === 'hunter')],
     x: 0, y: -260, r: 62, hp, maxHp: hp,
     speed: 66, damage: Math.max(3, enemyDamageScale() * .9), elite: true, slow: 0, frozen: 0, phase: 0,
     id: Math.random(), age: 0, timeLimit: 999, deadline: S.time + 999, deadlineWarned: true,
-    patternClock: 1.4, specialClock: 4, affixClock: 5, eventClock: 7, eventIndex: 0, phaseIndex: 0, phaseInv: 0,
+    patternClock: 1.4, specialClock: 4, affixClock: 5, eventClock: 7, eventIndex: 0, phaseIndex: 0, phaseInv: 0, shockAuraClock: 3.2,
     forceFieldPattern: false, state: 'move', stateClock: 0, vx: 0, vy: 0, facing: 1, hitFlash: 0, isInteriorHost: true,
   };
   S.mobs.push(boss); return boss;
@@ -1380,33 +1382,55 @@ function exitInterior() {
   effect('ring', S.x, S.y, { life: .8, max: .8, radius: 200, color: '#39d97a' });
 }
 
-function bossAffixes(number) {
-  const all = ['overclock', 'minefield', 'echo', 'hunter'];
-  if (number <= 4) return [all[number - 1]];
-  return [...all].sort(() => Math.random() - .5).slice(0, number >= 7 ? 2 : 1);
+const bossOptionPool = [
+  { id: 'swift', name: '신속', rarity: 0 },
+  { id: 'unstable', name: '불안정', rarity: 0 },
+  { id: 'hunter', name: '추적자', rarity: 1 },
+  { id: 'echo', name: '메아리', rarity: 1 },
+  { id: 'armored', name: '중장갑', rarity: 2 },
+  { id: 'overclock', name: '과부하', rarity: 2 },
+  { id: 'minefield', name: '지뢰밭', rarity: 3 },
+  { id: 'regen', name: '재생', rarity: 4 },
+  { id: 'shock_aura', name: '감전 오라', rarity: 4 },
+];
+function bossOptionCount(time) { return clamp(1 + Math.floor(time / 180), 1, 5); }
+function hasBossOption(boss, id) { return Boolean(boss.options?.some(option => option.id === id)); }
+function rollBossOptions(time) {
+  const count = bossOptionCount(time), lateBias = clamp(time / 900, 0, 1);
+  const pool = bossOptionPool.slice(), chosen = [];
+  for (let i = 0; i < count && pool.length; i++) {
+    const weights = pool.map(option => 1 + option.rarity * 1.8 * lateBias);
+    const total = weights.reduce((sum, w) => sum + w, 0);
+    let roll = Math.random() * total, index = 0;
+    while (index < weights.length - 1 && roll >= weights[index]) { roll -= weights[index]; index++; }
+    chosen.push(pool[index]); pool.splice(index, 1);
+  }
+  return chosen;
 }
 
-function spawnBoss(W, H) {
+function spawnBoss(W, H, secondary = false) {
   const number = S.bossIndex + 1, tier = (S.bossIndex % 3) + 1, cycle = Math.floor(S.bossIndex / 3);
   const types = tier === 3 ? ['witch', 'dragon'] : ['oni', 'seraph'];
   const type = types[Math.floor(Math.random() * types.length)], angle = Math.random() * TAU, distance = edgeSpawnDistance(W, H, angle, 145);
-  const modifier = ['swift', 'armored', 'unstable'][Math.random() * 3 | 0];
+  const options = rollBossOptions(S.time);
   const base = [0, 170, 440, 1050][tier];
   const lateBoss = S.time <= 600 ? 1 : Math.pow(1 + (S.time - 600) / 600, .9);
-  const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * lateBoss * (modifier === 'armored' ? 1.25 : 1));
+  const hp = Math.round(base * Math.pow(1.42, cycle) * (1 + S.time / 900) * lateBoss * (options.some(o => o.id === 'armored') ? 1.25 : 1));
   const timeLimit = Math.max(30, [0, 45, 52, 60][tier] - cycle * 2);
   const boss = {
-    kind: 'boss', bossType: type, tier, number, cycle, modifier, affixes: bossAffixes(number),
+    kind: 'boss', bossType: type, tier, number, cycle, options, isSecondary: secondary,
     x: S.x + Math.cos(angle) * distance, y: S.y + Math.sin(angle) * distance,
     r: tier === 3 ? 62 : 46, hp, maxHp: hp,
-    speed: (tier === 3 ? 51 : 58) * (modifier === 'swift' ? 1.18 : 1) * Math.min(1.35, 1 + cycle * .05),
+    speed: (tier === 3 ? 51 : 58) * (options.some(o => o.id === 'swift') ? 1.18 : 1) * Math.min(1.35, 1 + cycle * .05),
     damage: Math.max(2 + Math.floor(number / 2), enemyDamageScale() * .75), elite: true, slow: 0, frozen: 0, phase: 0,
-    id: Math.random(), age: 0, timeLimit, deadline: S.time + timeLimit, deadlineWarned: false, patternClock: 1.15, specialClock: 3.8, affixClock: 4.5,
+    id: Math.random(), age: 0, timeLimit, deadline: S.time + timeLimit, deadlineWarned: false, patternClock: 1.15, specialClock: 3.8, affixClock: 4.5, shockAuraClock: 3.2,
     eventClock: Math.max(6.5, 10.5 - cycle * .35), eventIndex: Math.floor(Math.random() * 2), phaseIndex: 0, phaseInv: 0, forceFieldPattern: false,
     state: 'move', stateClock: 0, vx: 0, vy: 0, facing: 1, hitFlash: 0,
   };
-  S.mobs.push(boss); S.bossActive = boss; S.bossIndex++; S.bossWarned = false; S.nextBossAt = Infinity;
-  AudioEngine.se('boss'); showWarning(tier === 3 ? `RIFT LORD #${number}` : `ANOMALY BOSS #${number}`); ui.bossHud.classList.remove('hidden');
+  S.mobs.push(boss); S.bossIndex++;
+  if (secondary) { S.secondBossActive = boss; showWarning(`추가 이상 현상 감지 · #${number}`); }
+  else { S.bossActive = boss; S.bossWarned = false; S.nextBossAt = Infinity; ui.bossHud.classList.remove('hidden'); }
+  AudioEngine.se('boss'); showWarning(tier === 3 ? `RIFT LORD #${number}` : `ANOMALY BOSS #${number}`);
 }
 
 function handleBossTimeout(W, H) {
@@ -1487,16 +1511,22 @@ function nearestMobs(x, y, radius, limit, excluded) {
 function angleDelta(a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b)); }
 
 function updateBoss(mob, dt) {
-  mob.age += dt; mob.patternClock -= dt; mob.specialClock -= dt; mob.affixClock -= dt; mob.stateClock -= dt;
+  mob.age += dt; mob.patternClock -= dt; mob.specialClock -= dt; mob.affixClock -= dt; mob.stateClock -= dt; mob.shockAuraClock -= dt;
   mob.eventClock -= dt; mob.phaseInv -= dt; mob.patternLock = Math.max(0, (mob.patternLock || 0) - dt);
   mob.hitFlash -= dt; mob.frozen -= dt; mob.slow -= dt;
   mob.stunned = (mob.stunned || 0) - dt; mob.shocked = (mob.shocked || 0) - dt;
   if (mob.shocked > 0 && Math.random() < dt * 2) damageMob(mob, S.damage * .15, 'projectile', false, true, false);
+  if (hasBossOption(mob, 'regen')) mob.hp = Math.min(mob.maxHp, mob.hp + mob.maxHp * .015 * dt);
   const dx = S.x - mob.x, dy = S.y - mob.y, distance = Math.hypot(dx, dy) || 1, angle = Math.atan2(dy, dx);
   mob.facing = dx < 0 ? -1 : 1;
   const rageThreshold = Math.min(.75, .5 + mob.number * .025), rage = mob.hp < mob.maxHp * rageThreshold;
-  const cadence = Math.max(.48, Math.pow(.965, mob.number - 1)) * (mob.affixes.includes('overclock') ? .78 : 1) * (mob.modifier === 'unstable' ? .85 : 1);
+  const cadence = Math.max(.48, Math.pow(.965, mob.number - 1)) * (hasBossOption(mob, 'overclock') ? .78 : 1) * (hasBossOption(mob, 'unstable') ? .85 : 1);
   const movementScale = mob.stunned > 0 ? 0 : mob.frozen > 0 ? .25 : mob.slow > 0 ? .72 : 1;
+  if (hasBossOption(mob, 'shock_aura') && mob.shockAuraClock <= 0) {
+    mob.shockAuraClock = 3.2 * cadence;
+    if (distance < 150) { hurtPlayer(bossPatternDamage(mob.damage * .8)); }
+    effect('ring', mob.x, mob.y, { life: .4, max: .4, radius: 150, color: '#fff35a' }); AudioEngine.se('hit');
+  }
 
   if (mob.phaseInv > 0) return;
   if (mob.forceFieldPattern || (mob.eventClock <= 0 && mob.patternLock <= 0)) {
@@ -1545,9 +1575,9 @@ function updateBoss(mob, dt) {
   }
 
   if (mob.affixClock <= 0 && mob.patternLock <= 0) {
-    if (mob.affixes.includes('minefield')) for (let i = 0; i < 3 + Math.min(3, mob.cycle); i++) spawnBossAirstrike(mob, S.x + random(-230, 230), S.y + random(-170, 170), { r: 52, warmup: .92, life: 1.9, damage: bossPatternDamage(mob.damage) });
-    if (mob.affixes.includes('echo')) radial(mob, 10 + Math.min(8, mob.cycle * 2), 245, S.time * .8 + .17);
-    if (mob.affixes.includes('hunter')) for (let i = -1; i <= 1; i++) enemyBullet(mob.x, mob.y, angle + i * .16, 440, 8, mob.damage, mob.id);
+    if (hasBossOption(mob, 'minefield')) for (let i = 0; i < 3 + Math.min(3, mob.cycle); i++) spawnBossAirstrike(mob, S.x + random(-230, 230), S.y + random(-170, 170), { r: 52, warmup: .92, life: 1.9, damage: bossPatternDamage(mob.damage) });
+    if (hasBossOption(mob, 'echo')) radial(mob, 10 + Math.min(8, mob.cycle * 2), 245, S.time * .8 + .17);
+    if (hasBossOption(mob, 'hunter')) for (let i = -1; i <= 1; i++) enemyBullet(mob.x, mob.y, angle + i * .16, 440, 8, mob.damage, mob.id);
     mob.affixClock = Math.max(3.4, 6.2 - mob.cycle * .25);
   }
   if (mob.state === 'dash') mob.facing = mob.vx < 0 ? -1 : 1;
@@ -1674,7 +1704,7 @@ function damageMob(mob, amount, kind = 'projectile', critical = false, alreadySc
   const typeMult = kind === 'saber' ? S.saberMult : kind === 'orbit' ? S.orbitMult : S.projectileMult;
   const frozenBonus = mob.frozen > 0 ? 1.25 : 1;
   let affinity = 1;
-  if (mob.kind === 'boss' && mob.modifier === 'armored') affinity = kind === 'saber' ? 1.65 : kind === 'projectile' ? .62 : .88;
+  if (mob.kind === 'boss' && hasBossOption(mob, 'armored')) affinity = kind === 'saber' ? 1.65 : kind === 'projectile' ? .62 : .88;
   if (mob.archetype === 'warder' && mob.shield > 0 && !ignoreShield) affinity = kind === 'saber' ? 2.4 : kind === 'projectile' ? .25 : .55;
   const shadowBossBonus = S.playerClass === 'shadowmaster' && mob.kind === 'boss' ? 1.3 : 1;
   const actual = (alreadyScaled ? amount : amount * diminishingMultiplier(S.damageMult) * diminishingMultiplier(typeMult) * frozenBonus * endlessPowerScale()) * affinity * shadowBossBonus;
@@ -1992,6 +2022,7 @@ function handleDeath(mob, W, H) {
     } else showToast(`BOSS #${mob.number} DOWN · NO RELIC`);
     if (S.allies.length < ALLY_CAP && Math.random() < allyTameChance()) spawnAlly(mob);
     if (mob.isInteriorHost) { beginInteriorExit(); }
+    else if (mob.isSecondary) { S.secondBossActive = null; }
     else { S.bossActive = null; ui.bossHud.classList.add('hidden'); S.nextBossAt = S.time + random(58, 72) + mob.tier * 4; S.bossWarned = false; }
     S.shake = 14;
   } else if (mob.kind === 'treasure') {
@@ -2013,7 +2044,7 @@ function handleDeath(mob, W, H) {
 }
 
 function triggerBossFieldPattern(boss) {
-  if (!boss || boss.dead || boss.hp <= 0 || S.bossActive !== boss) return false;
+  if (!boss || boss.dead || boss.hp <= 0 || (S.bossActive !== boss && !boss.isSecondary)) return false;
   const unlocked = S.time < 150 ? ['mines'] : S.time < 600 ? ['mines', 'laser'] : ['mines', 'laser', 'spiral'];
   const type = unlocked[boss.eventIndex % unlocked.length]; boss.eventIndex++;
   const damage = bossPatternDamage(boss.damage);
@@ -2080,6 +2111,11 @@ function update(dt, W, H) {
     if (!S.bossActive && !S.bossWarned && S.time >= S.nextBossAt - 3) { S.bossWarned = true; showWarning('BOSS ANOMALY DETECTED'); }
     if (!S.bossActive && S.time >= S.nextBossAt) spawnBoss(W, H);
     if (S.time >= S.nextTreasureAt) spawnTreasure(W, H);
+    S.secondBossCheckClock -= dt;
+    if (S.secondBossCheckClock <= 0) {
+      S.secondBossCheckClock = 20;
+      if (S.time > 900 && S.bossActive && !S.secondBossActive && Math.random() < .25) spawnBoss(W, H, true);
+    }
     S.leviathanCheckClock -= dt;
     if (S.leviathanCheckClock <= 0) {
       S.leviathanCheckClock = 1.2;
@@ -2681,8 +2717,9 @@ function updateHud() {
     ui.bossBar.style.width = `${Math.max(0, S.bossActive.hp / S.bossActive.maxHp * 100)}%`; ui.bossHud.classList.remove('hidden');
   } else if (S.bossActive && !S.bossActive.dead) {
     const names = { oni: 'NEON ONI / 집행자', seraph: 'SERAPH EYE / 관측자', witch: 'RIFT EMPRESS / 균열 마녀', dragon: 'CYBER WYRM / 코어 드래곤' };
-    const affixNames = { overclock: 'OVERCLOCK', minefield: 'MINEFIELD', echo: 'ECHO', hunter: 'HUNTER' };
-    ui.bossName.textContent = `#${S.bossActive.number} ${names[S.bossActive.bossType]} · ${S.bossActive.affixes.map(id => affixNames[id]).join('+')}`;
+    const optionsHtml = (S.bossActive.options || []).map(option => `<span style="color:${rarities[option.rarity].color}">${option.name}</span>`).join(' · ');
+    const secondTag = S.secondBossActive && !S.secondBossActive.dead ? ` · <span style="color:#ff6a9a">2체 감지</span>` : '';
+    ui.bossName.innerHTML = `#${S.bossActive.number} ${names[S.bossActive.bossType]}${optionsHtml ? ` · ${optionsHtml}` : ''}${secondTag}`;
     const remaining = Math.max(0, Math.ceil(S.bossActive.deadline - S.time)); ui.bossTimer.textContent = `LIMIT ${formatTime(remaining)}`; ui.bossTimer.classList.toggle('danger', remaining <= 10);
     ui.bossBar.style.width = `${Math.max(0, S.bossActive.hp / S.bossActive.maxHp * 100)}%`; ui.bossHud.classList.remove('hidden');
   } else ui.bossHud.classList.add('hidden');
