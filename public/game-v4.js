@@ -27,7 +27,7 @@ function localizedBaseDescription(group, item, fallback) { return tr(`${group}.$
 
 const ui = {
   hud: $('#hud'), xp: $('#xpbar'), lv: $('#lv'), hp: $('#hp'), kills: $('#kills'),
-  clock: $('#clock'), build: $('#build'), radar: $('#radarLabel'), menuButton: $('#menuButton'),
+  clock: $('#clock'), build: $('#build'), menuButton: $('#menuButton'),
   start: $('#start'), choices: $('#choices'), cards: $('#cards'), over: $('#over'),
   bossHud: $('#bossHud'), bossName: $('#bossName'), bossTimer: $('#bossTimer'), bossBar: $('#bossBar'),
   warning: $('#warning'), startRanks: $('#startRanks'), finalRanks: $('#finalRanks'),
@@ -560,7 +560,7 @@ async function begin() {
   S = fresh(); running = true; chosen = [];
   mouseAim = { inside: false, valid: false, moved: false, x: 1, y: 0 };
   hidePanel(ui.start, true); hidePanel(ui.over, true); hidePanel(ui.choices, true); hidePanel(ui.relicScreen, true); hidePanel(ui.codexScreen, true); hidePanel(ui.rankDetailScreen, true); hidePanel(ui.gameMenu, true);
-  ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.radar.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
+  ui.hud.classList.remove('hidden'); ui.build.classList.remove('hidden'); ui.relicTray.classList.remove('hidden');
   ui.bossHud.classList.add('hidden'); updateBuild(); updateRelicTray();
   S.spawnClock = 0;
 }
@@ -580,7 +580,7 @@ function endGame(reason = 'defeat') {
 function returnToMain() {
   running = false; keys.clear(); joy = { on: false, id: -1, sx: 0, sy: 0, x: 0, y: 0 }; S = null;
   hidePanel(ui.over, true); hidePanel(ui.choices, true); hidePanel(ui.relicScreen, true); hidePanel(ui.codexScreen, true); hidePanel(ui.rankDetailScreen, true); hidePanel(ui.gameMenu, true);
-  ui.hud.classList.add('hidden'); ui.build.classList.add('hidden'); ui.radar.classList.add('hidden'); ui.relicTray.classList.add('hidden'); ui.bossHud.classList.add('hidden'); ui.warning.classList.add('hidden');
+  ui.hud.classList.add('hidden'); ui.build.classList.add('hidden'); ui.relicTray.classList.add('hidden'); ui.bossHud.classList.add('hidden'); ui.warning.classList.add('hidden');
   showPanel(ui.start); AudioEngine.scene('menu'); loadLeaderboard();
 }
 
@@ -2579,7 +2579,7 @@ function drawPlayerHpBar() {
   ctx.fillStyle = ratio > .55 ? '#51f0a4' : ratio > .25 ? '#ffd159' : '#ff426f'; ctx.fillRect(x, y, width * ratio, height);
   ctx.strokeStyle = '#d9fbffcc'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
   const hpLabel = `${Math.ceil(S.hp)} / ${Math.ceil(S.maxHp)}`;
-  ctx.font = '900 9px monospace'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#000000cc';
+  ctx.font = '900 10px monospace'; ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.lineWidth = 1.4; ctx.strokeStyle = '#000000cc';
   ctx.strokeText(hpLabel, S.x, y + 7); ctx.fillStyle = '#fff'; ctx.fillText(hpLabel, S.x, y + 7); ctx.restore();
 }
 
