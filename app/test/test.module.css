@@ -1,0 +1,18 @@
+.wrap{position:fixed;inset:0;display:flex;background:#03040d;color:#effcff;font-family:Arial,"Malgun Gothic",sans-serif}
+.gameArea{position:relative;flex:1;min-width:0}
+.gameArea iframe{display:block;width:100%;height:100%;border:0}
+.panel{flex-shrink:0;width:360px;overflow-y:auto;padding:16px;border-left:1px solid #35698c;background:#071126e8}
+.panel h1{margin:0 0 2px;color:#73eeff;font-size:16px}
+.eyebrow{margin:0 0 10px;color:#73eeff;font-size:10px;font-weight:800;letter-spacing:.2em}
+.panel h2{margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #1d354b;color:#8798bb;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.row input,.row select{min-width:0;flex:1;padding:7px 8px;border:1px solid #355974;background:#050b19;color:#effcff;font-size:12px}
+.row button{flex-shrink:0;padding:7px 10px;border:1px solid #416b8c;background:#0a1630;color:#effcff;font-size:11px;white-space:nowrap;cursor:pointer}
+.row button:hover{border-color:#73eeff;color:#73eeff}
+.stateBox{margin-bottom:10px;padding:8px;border:1px solid #1d354b;background:#050b19;color:#9fc4e0;font-size:11px;line-height:1.6;white-space:pre-wrap;word-break:break-all}
+.note{margin:4px 0 8px;color:#8798bb;font-size:10px}
+.warn{margin:4px 0 8px;color:#ffb3c9;font-size:10px}
+.jsBox textarea{box-sizing:border-box;width:100%;min-height:60px;padding:6px;border:1px solid #355974;background:#050b19;color:#effcff;font:12px monospace}
+.result{margin-top:6px;padding:8px;border:1px solid #1d354b;background:#050b19;color:#8ce0a0;font-size:11px;white-space:pre-wrap;word-break:break-all}
+.resultErr{margin-top:6px;padding:8px;border:1px solid #1d354b;background:#050b19;color:#ffb3c9;font-size:11px;white-space:pre-wrap;word-break:break-all}
+@media(max-width:900px){.wrap{flex-direction:column}.panel{width:auto;height:46vh;border-left:0;border-top:1px solid #35698c}}

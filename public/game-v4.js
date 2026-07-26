@@ -1787,7 +1787,14 @@ function saberSlash() {
     let angle;
     if (dual && sweep === 0) angle = base;
     else if (dual && sweep === 1) angle = base + Math.PI;
-    else if (dual) angle = base + (sweep - 1) * sweepGap;
+    else if (dual) {
+      const echoIndex = sweep - 2, cluster = Math.floor(echoIndex / 2);
+      const side = echoIndex % 2 === 0 ? base : base + Math.PI;
+      const dir = cluster % 2 === 0 ? 1 : -1;
+      const maxClusterHalf = .85; // caps combined front+back coverage at ~195 deg, never a full circle
+      const maxOffset = Math.max(0, maxClusterHalf - arcWidth / 2);
+      angle = side + dir * Math.min((cluster + 1) * sweepGap, maxOffset);
+    }
     else angle = base + (sweep - (sweeps - 1) / 2) * sweepGap;
     for (const mob of candidates) {
       const dx = mob.x - S.x, dy = mob.y - S.y, distance = Math.hypot(dx, dy);
@@ -1981,6 +1988,7 @@ function updateMasteries(dt) {
 }
 
 function hurtPlayer(amount = 1, unavoidable = false, bypassGuard = false) {
+  if (S.cheatGod) return;
   if ((S.inv > 0 && !unavoidable) || S.over) return;
   if (S.shadowActive > 0 && !unavoidable) return;
   const lateGuardCap = .58 - clamp((S.time - 600) / 600, 0, 1) * .13;
@@ -2532,7 +2540,7 @@ function drawEffects() {
 function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1, useSprite = false, dark = false) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.globalAlpha = alpha;
   if (useSprite) {
-    ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
+    ctx.globalCompositeOperation = dark ? 'source-over' : 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
     const h = length * .34;
     sprite(dark ? images.darkBlade : images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
   } else {
@@ -2639,9 +2647,9 @@ function drawWorld(W, H, t) {
 
   const aimAngle = Math.atan2(S.aimY, S.aimX);
   if (S.saberLevel > 0 && S.playerClass === 'shadowmaster') {
-    const spread = .5, len = Math.min(80, 42 + S.saberRange * .2);
-    drawEnergyBlade(S.x + Math.cos(aimAngle + spread) * 16, S.y + Math.sin(aimAngle + spread) * 16, aimAngle + spread, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true, true);
-    drawEnergyBlade(S.x + Math.cos(aimAngle - spread) * 16, S.y + Math.sin(aimAngle - spread) * 16, aimAngle - spread, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true, true);
+    const backAngle = aimAngle + Math.PI, len = Math.min(80, 42 + S.saberRange * .2);
+    drawEnergyBlade(S.x + Math.cos(aimAngle) * 16, S.y + Math.sin(aimAngle) * 16, aimAngle, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true, true);
+    drawEnergyBlade(S.x + Math.cos(backAngle) * 16, S.y + Math.sin(backAngle) * 16, backAngle, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true, true);
   } else if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
   if (S.playerClass === 'shadowmaster' && S.shadowActive > 0) {
@@ -2749,3 +2757,78 @@ function loop(now) {
 }
 
 initializeLanguage(); loadLeaderboard(); requestAnimationFrame(loop);
+
+window.NeonCheats = {
+  isRunning: () => Boolean(S && running),
+  getState() {
+    if (!S) return null;
+    return {
+      level: S.level, xp: S.xp, nextXp: S.nextXp, time: S.time, hp: S.hp, maxHp: S.maxHp,
+      kills: S.kills, playerClass: S.playerClass, bossesKilled: S.bossesKilled,
+      god: Boolean(S.cheatGod), mobCount: S.mobs.filter(m => !m.dead).length,
+      ranks: { ...S.ranks }, relics: S.relics.map(r => ({ id: r.id, level: r.level || 1 })),
+    };
+  },
+  listClasses: () => classDefs.map(d => ({ id: d.id, name: classLabel(d) })),
+  listUpgrades: () => upgrades.map(u => ({ id: u.id, name: upgradeName(u), max: upgradeMaxFor(u), tags: u.tags || [] })),
+  listRelics: () => relics.map(r => ({ id: r.id, name: relicName(r), rarity: r.rarity })),
+  listArchetypes: () => ['stalker', 'gunner', 'charger', 'warder', 'bomber', 'splitter'],
+
+  setLevel(target) {
+    if (!S) return false;
+    S.level = Math.max(1, Math.floor(Number(target) || 1));
+    S.xp = 0; S.nextXp = Math.round(7 + 1.55 * S.level + .17 * S.level * S.level);
+    return true;
+  },
+  setTime(seconds) { if (!S) return false; S.time = Math.max(0, Number(seconds) || 0); return true; },
+  addTime(seconds) { if (!S) return false; S.time = Math.max(0, S.time + (Number(seconds) || 0)); return true; },
+  setHp(amount) { if (!S) return false; S.hp = Math.max(0, Math.min(S.maxHp, Number(amount))); return true; },
+  heal(amount) { if (!S) return false; S.hp = amount == null ? S.maxHp : Math.min(S.maxHp, S.hp + Number(amount)); return true; },
+  godMode(on = true) { if (!S) return false; S.cheatGod = Boolean(on); return true; },
+
+  spawnMob(archetype, count = 1, opts = {}) {
+    if (!S) return false;
+    for (let i = 0; i < Math.max(1, Math.floor(count)); i++) spawnEnemy(innerWidth, innerHeight, { archetype, ignoreCap: true, ...opts });
+    return true;
+  },
+  spawnBossNow() { if (!S) return false; spawnBoss(innerWidth, innerHeight); return true; },
+  killBoss() { if (!S || !S.bossActive) return false; S.bossActive.hp = 0; return true; },
+  clearMobs() { if (!S) return false; for (const mob of S.mobs) mob.dead = true; return true; },
+
+  setClass(id) {
+    if (!S) return { ok: false, reason: 'no-run' };
+    if (S.playerClass) return { ok: false, reason: 'already-classed' };
+    const index = classDefs.findIndex(d => d.id === id);
+    if (index === -1) return { ok: false, reason: 'unknown-class' };
+    S.paused = true; S.activeReward = { type: 'classChange' };
+    chooseClass(index);
+    return { ok: true };
+  },
+  grantUpgrade(id, ranks = 1) {
+    if (!S) return false;
+    const upgrade = upgrades.find(u => u.id === id); if (!upgrade) return false;
+    for (let i = 0; i < Math.max(1, Math.floor(ranks)); i++) {
+      if ((S.ranks[id] || 0) >= upgradeMaxFor(upgrade, S)) break;
+      upgrade.apply(S); S.ranks[id] = (S.ranks[id] || 0) + 1;
+    }
+    return true;
+  },
+  addRelic(id, level = 1) {
+    if (!S) return false;
+    const template = relics.find(r => r.id === id); if (!template) return false;
+    let existing = S.relics.find(r => r.id === id);
+    if (!existing) {
+      const first = !S.acquiredRelics.has(id);
+      S.acquiredRelics.add(id); S.relics.push({ ...template, level: 1 }); existing = S.relics[S.relics.length - 1];
+      existing.equip(S, first);
+    }
+    while ((existing.level || 1) < level) { existing.level = (existing.level || 1) + 1; existing.equip(S, false); }
+    updateRelicTray();
+    return true;
+  },
+
+  run(code) {
+    try { return { ok: true, result: Function('S', 'return (' + code + ')')(S) }; }
+    catch (error) { return { ok: false, error: String(error) }; }
+  },
+};
