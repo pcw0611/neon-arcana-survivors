@@ -449,7 +449,7 @@ function fresh() {
     rewardQueue: [], activeReward: null, relics: [], acquiredRelics: new Set(), relicSlots: 3, rarityBias: 0,
     relicRoulette: false, relicAwaitDismiss: false, relicResultMessage: '',
     treasureRateMult: 1, nextTreasureAt: random(34, 48), treasureNumber: 0,
-    leviathanCheckClock: 1, interior: null, worldSnapshot: null, allyTameChance: 0,
+    leviathanCheckClock: 1, nextLeviathanAt: 0, interior: null, worldSnapshot: null, allyTameChance: 0,
     nextBossAt: random(44, 52), bossIndex: 0, bossActive: null, bossWarned: false, bossFailures: 0,
     secondBossActive: null, secondBossCheckClock: 20,
     slotPity: 0,
@@ -1223,8 +1223,8 @@ function spawnAlly(bossMob) {
   S.allies.push({
     kind: 'ally', bossType: bossMob.bossType, tier: bossMob.tier, id: Math.random(),
     x: bossMob.x, y: bossMob.y, r: bossMob.tier === 3 ? 40 : 32,
-    hp: maxHp, maxHp, speed: 148 + scale * 4, damage: Math.max(2.4, enemyDamageScale() * 1.6),
-    facing: 1, hitFlash: 0, attackClock: 0, inv: 0, age: 0, dead: false,
+    hp: maxHp, maxHp, speed: 148 + scale * 4, damage: Math.max(6, enemyDamageScale() * 4),
+    facing: 1, hitFlash: 0, attackClock: 0, skillClock: random(4, 6), inv: 0, age: 0, dead: false,
   });
   showToast('👑 보스를 길들였습니다!'); effect('ring', bossMob.x, bossMob.y, { life: .7, max: .7, radius: 80, color: '#7dffb0' }); burst(bossMob.x, bossMob.y, '#7dffb0', 16, 200);
 }
@@ -1239,7 +1239,7 @@ function hurtAlly(ally, amount) {
 }
 
 function updateAlly(ally, dt) {
-  ally.age += dt; ally.hitFlash -= dt; ally.attackClock -= dt; ally.inv -= dt;
+  ally.age += dt; ally.hitFlash -= dt; ally.attackClock -= dt; ally.inv -= dt; ally.skillClock -= dt;
   let target = null, bestDistSq = ALLY_AGGRO_RANGE * ALLY_AGGRO_RANGE;
   for (const mob of nearbyMobs(ally.x, ally.y, ALLY_AGGRO_RANGE)) {
     if (mob.dead || mob.hp <= 0 || mob.kind !== 'mob') continue;
@@ -1254,6 +1254,16 @@ function updateAlly(ally, dt) {
       damageMob(target, ally.damage, 'projectile', false, true);
       effect('hit', target.x, target.y, { life: .2, max: .2, kind: 'projectile' });
       ally.attackClock = .55;
+    }
+    if (ally.skillClock <= 0) {
+      ally.skillClock = random(5, 6.5);
+      const radius = 140;
+      for (const mob of nearbyMobs(ally.x, ally.y, radius + 60)) {
+        if (mob.dead || mob.hp <= 0 || mob.kind !== 'mob' || Math.hypot(mob.x - ally.x, mob.y - ally.y) >= radius + mob.r) continue;
+        damageMob(mob, ally.damage * 3.2, 'projectile', false, true);
+      }
+      effect('ring', ally.x, ally.y, { life: .5, max: .5, radius, color: '#7dffb0' });
+      burst(ally.x, ally.y, '#7dffb0', 18, 220); AudioEngine.se('wave'); S.shake = Math.max(S.shake, 4);
     }
   } else {
     const dx = S.x - ally.x, dy = S.y - ally.y, distance = Math.hypot(dx, dy) || 1;
@@ -1310,7 +1320,7 @@ function updateLeviathan(mob, dt) {
 }
 
 function handleLeviathanDeath(mob) {
-  mob.dead = true; effect('death', mob.x, mob.y, { life: .7, max: .7, color: '#39d97a' });
+  mob.dead = true; S.nextLeviathanAt = S.time + 120; effect('death', mob.x, mob.y, { life: .7, max: .7, color: '#39d97a' });
   burst(mob.x, mob.y, '#39d97a', 30, 280); AudioEngine.se('kill'); S.shake = Math.max(S.shake, 14);
   S.kills += 60; S.xp += S.nextXp * 1.6; healPlayer(10);
   if (Math.random() < .82) { dropChest(mob.x, mob.y, 'boss', 3, true); showToast('LEVIATHAN DOWN · RELIC DROP'); }
@@ -1959,13 +1969,13 @@ function updateMasteries(dt) {
       const radius = 200 * scale.range;
       for (const mob of nearbyMobs(target.x, target.y, radius + 80)) {
         if (mob.dead || mob.hp <= 0 || Math.hypot(mob.x - target.x, mob.y - target.y) >= radius + mob.r) continue;
-        damageMob(mob, S.damage * 7 * scale.damage, 'projectile', false, false, true, true);
+        damageMob(mob, S.damage * 15 * scale.damage, 'projectile', false, false, true, true);
         mob.stunned = Math.max(mob.stunned || 0, 3); mob.shocked = Math.max(mob.shocked || 0, 3);
       }
-      effect('ring', target.x, target.y, { life: .6, max: .6, radius, color: '#fff35a' });
-      effect('thorHammer', target.x, target.y, { life: .55, max: .55, radius });
-      burst(target.x, target.y, '#fff35a', 20, 240);
-      S.shake = Math.max(S.shake, 9); AudioEngine.se('wave');
+      effect('ring', target.x, target.y, { life: .7, max: .7, radius: radius * 1.15, color: '#fff35a' });
+      effect('thorHammer', target.x, target.y, { life: .65, max: .65, radius: radius * 1.3 });
+      burst(target.x, target.y, '#fff35a', 42, 340);
+      S.shake = Math.max(S.shake, 16); AudioEngine.se('wave');
     }
   }
 }
@@ -2119,7 +2129,7 @@ function update(dt, W, H) {
     S.leviathanCheckClock -= dt;
     if (S.leviathanCheckClock <= 0) {
       S.leviathanCheckClock = 1.2;
-      if (!hasLeviathan()) {
+      if (!hasLeviathan() && S.time >= S.nextLeviathanAt) {
         let regularCount = 0;
         for (const mob of S.mobs) if (mob.kind === 'mob' && !mob.dead && mob.hp > 0) regularCount++;
         if (regularCount > 150 && Math.random() < .16) spawnLeviathan(W, H);
@@ -2654,7 +2664,8 @@ function drawWorld(W, H, t) {
   ctx.shadowBlur = 0;
   if (S.playerClass === 'silverbullet') {
     const hatW = 50, hatH = hatW * (325 / 320), hatBob = S.moving ? 0 : idleBob;
-    sprite(images.cowboyHat, 0, 0, 1, 1, S.x - hatW / 2, S.y - 74 + hatBob, hatW, hatH, playerAlpha, S.facing < 0);
+    const hatCenterOffset = S.facing < 0 ? -0.1 : 1.75;
+    sprite(images.cowboyHat, 0, 0, 1, 1, S.x + hatCenterOffset - hatW / 2, S.y - 74 + hatBob, hatW, hatH, playerAlpha, S.facing < 0);
   }
   drawPlayerHitbox();
   drawPlayerHpBar();
