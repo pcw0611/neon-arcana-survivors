@@ -1866,7 +1866,7 @@ function updateMechanicOrbitals(dt) {
       const burstRadius = 96, dealtBase = S.damage * S.orbitDamage * 4.2 * S.orbitBurstScale;
       for (const mob of nearbyMobs(target.x, target.y, burstRadius + 80)) {
         if (mob.dead || mob.hp <= 0 || Math.hypot(mob.x - target.x, mob.y - target.y) >= burstRadius + mob.r) continue;
-        damageMob(mob, dealtBase, 'orbit', false, true);
+        damageMob(mob, dealtBase, 'orbit', false, true, false);
       }
       effect('orbitFusion', target.x, target.y, { life: .45, max: .45, radius: burstRadius, origins });
       S.shake = Math.max(S.shake, 11); AudioEngine.se('wave'); showWarning('⚙ 위성 융합포 발사');
@@ -2355,12 +2355,13 @@ function drawHazards(W, H) {
 }
 
 function drawMob(mob, t) {
-  const lowFx = lowFxActive(), spriteAlpha = 1;
+  const lowFx = lowFxActive(), spriteAlpha = 1, flashAlpha = mob.hitFlash > 0 ? Math.min(1, mob.hitFlash / .08) * .85 : 0;
   ctx.save();
   if (mob.kind === 'leviathan') {
     const scale = mob.r * 4.6, bob = Math.sin(t * .0026) * 8;
     ctx.shadowBlur = lowFx ? 0 : 36; ctx.shadowColor = '#39d9ff';
     sprite(images.leviathan, 0, 0, 1, 1, mob.x - scale / 2, mob.y - scale / 2 + bob, scale, scale, spriteAlpha, mob.facing < 0);
+    drawHitFlash(images.leviathan, 0, 0, 1, 1, mob.x - scale / 2, mob.y - scale / 2 + bob, scale, scale, flashAlpha, mob.facing < 0);
     ctx.save(); ctx.globalAlpha = .5 + Math.sin(t * .005) * .15; ctx.strokeStyle = '#39d9ff'; ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
     ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 18, 0, TAU); ctx.stroke(); ctx.restore();
   } else if (mob.kind === 'boss') {
@@ -2370,6 +2371,7 @@ function drawMob(mob, t) {
     const auraColor = intensityTier >= 4 ? '#fff4d0' : intensityTier >= 2 ? '#ff8f3b' : '#f03bff';
     ctx.shadowBlur = lowFx ? 0 : 24 + intensityTier * 4; ctx.shadowColor = auraColor;
     sprite(images.bosses, index % 2, Math.floor(index / 2), 2, 2, mob.x - scale / 2, mob.y - scale * .56 + bob, scale, scale, spriteAlpha, mob.facing < 0);
+    drawHitFlash(images.bosses, index % 2, Math.floor(index / 2), 2, 2, mob.x - scale / 2, mob.y - scale * .56 + bob, scale, scale, flashAlpha, mob.facing < 0);
     if (!lowFx && intensityTier >= 2) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const ringCount = Math.min(3, intensityTier - 1);
@@ -2384,6 +2386,7 @@ function drawMob(mob, t) {
     const runningFrame = Math.floor(t / 135 + mob.phase) % 2, scale = 142, bob = Math.sin(t * .008 + mob.id * 9) * 5;
     ctx.shadowBlur = lowFx ? 0 : 30; ctx.shadowColor = '#ffd642';
     sprite(images.treasure, runningFrame, 1, 2, 2, mob.x - scale / 2, mob.y - scale * .58 + bob, scale, scale, spriteAlpha, mob.facing < 0);
+    drawHitFlash(images.treasure, runningFrame, 1, 2, 2, mob.x - scale / 2, mob.y - scale * .58 + bob, scale, scale, flashAlpha, mob.facing < 0);
     ctx.strokeStyle = '#ffd34e'; ctx.lineWidth = 3; ctx.setLineDash([8, 5]); ctx.beginPath(); ctx.arc(mob.x, mob.y, mob.r + 11 + Math.sin(t * .008) * 3, 0, TAU); ctx.stroke();
   } else {
     const close = Math.hypot(mob.x - S.x, mob.y - S.y) < 170, row = close ? 1 : 0;
@@ -2391,6 +2394,7 @@ function drawMob(mob, t) {
     const colors = { gunner: '#45dfff', charger: '#ffb442', splitter: '#9a72ff', bomber: '#ff456d', warder: '#63f6ff', stalker: '#e33cff' };
     ctx.shadowBlur = lowFx ? 0 : 17; ctx.shadowColor = colors[mob.archetype] || '#e33cff';
     sprite(images.enemy, column, row, 2, 2, mob.x - scale / 2, mob.y - scale * .58, scale, scale, spriteAlpha, mob.facing < 0);
+    drawHitFlash(images.enemy, column, row, 2, 2, mob.x - scale / 2, mob.y - scale * .58, scale, scale, flashAlpha, mob.facing < 0);
     if (mob.archetype !== 'stalker') {
       const iconPose = { gunner: [0, 0], charger: [1, 0], warder: [0, 1] }[mob.archetype] || [1, 1];
       const iconSize = 22;
@@ -2408,10 +2412,6 @@ function drawMob(mob, t) {
       ctx.save(); ctx.translate(mob.x, mob.y - 2); ctx.rotate(t * .0018);
       ctx.strokeStyle = '#ff6a81'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 1, mob.r + 13, 0, TAU); ctx.stroke(); ctx.restore();
     }
-  }
-  if (mob.hitFlash > 0) {
-    ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = Math.min(1, mob.hitFlash / .08) * .75; ctx.fillStyle = '#ffffff';
-    const flashSpan = (mob.r + 140) * 2; ctx.fillRect(mob.x - flashSpan / 2, mob.y - flashSpan / 2, flashSpan, flashSpan);
   }
   ctx.restore();
 
@@ -2440,10 +2440,8 @@ function drawAlly(ally, t) {
   ctx.save();
   ctx.shadowBlur = lowFx ? 0 : 24; ctx.shadowColor = '#7dffb0';
   sprite(images.bosses, index % 2, Math.floor(index / 2), 2, 2, ally.x - scale / 2, ally.y - scale * .56 + bob, scale, scale, spriteAlpha, ally.facing < 0);
-  if (ally.hitFlash > 0) {
-    ctx.globalCompositeOperation = 'source-atop'; ctx.globalAlpha = Math.min(1, ally.hitFlash / .4) * .75; ctx.fillStyle = '#ffffff';
-    const flashSpan = (ally.r + 140) * 2; ctx.fillRect(ally.x - flashSpan / 2, ally.y - flashSpan / 2, flashSpan, flashSpan);
-  }
+  const allyFlashAlpha = ally.hitFlash > 0 ? Math.min(1, ally.hitFlash / .4) * .85 : 0;
+  drawHitFlash(images.bosses, index % 2, Math.floor(index / 2), 2, 2, ally.x - scale / 2, ally.y - scale * .56 + bob, scale, scale, allyFlashAlpha, ally.facing < 0);
   ctx.restore();
   ctx.save(); ctx.globalAlpha = .55 + Math.sin(t * .006) * .12; ctx.strokeStyle = '#7dffb0'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
   ctx.beginPath(); ctx.arc(ally.x, ally.y, ally.r + 10, 0, TAU); ctx.stroke(); ctx.restore();
@@ -2589,6 +2587,29 @@ function drawEffects() {
       ctx.beginPath(); ctx.arc(item.x, item.y, 30 + progress * 105, 0, TAU); ctx.stroke(); ctx.translate(item.x, item.y); ctx.rotate(progress); ctx.strokeRect(-45 - progress * 30, -45 - progress * 30, 90 + progress * 60, 90 + progress * 60); ctx.restore();
     }
   }
+}
+
+function whiteSilhouetteFrame(image, column, row, columns, rows) {
+  if (!image.complete || !image.width) return null;
+  const cacheKey = `__whiteFrame_${column}_${row}_${columns}_${rows}`;
+  if (image[cacheKey]) return image[cacheKey];
+  const sw = image.width / columns, sh = image.height / rows;
+  const off = document.createElement('canvas'); off.width = sw; off.height = sh;
+  const octx = off.getContext('2d');
+  octx.drawImage(image, column * sw, row * sh, sw, sh, 0, 0, sw, sh);
+  octx.globalCompositeOperation = 'source-in'; octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, sw, sh);
+  image[cacheKey] = off;
+  return off;
+}
+
+function drawHitFlash(image, column, row, columns, rows, dx, dy, dw, dh, alphaValue, flip) {
+  if (alphaValue <= 0) return;
+  const white = whiteSilhouetteFrame(image, column, row, columns, rows);
+  if (!white) return;
+  ctx.save(); ctx.globalAlpha = alphaValue;
+  if (flip) { ctx.translate(dx + dw, dy); ctx.scale(-1, 1); ctx.drawImage(white, 0, 0, dw, dh); }
+  else ctx.drawImage(white, dx, dy, dw, dh);
+  ctx.restore();
 }
 
 function glowSilhouette(image, color) {
