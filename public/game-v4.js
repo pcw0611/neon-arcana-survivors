@@ -2406,7 +2406,7 @@ function drawProjectiles() {
     ctx.strokeStyle = silver ? '#eef6ff' : projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 52 * S.shotScale, projectile.y - Math.sin(angle) * 52 * S.shotScale); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
     ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = lowFxActive() ? 0 : 24; ctx.shadowColor = silver ? '#dfefff' : projectile.critical ? '#ff69f3' : '#55f8ff';
-    if (silver) sprite(images.silverBullet, 0, 0, 1, 1, -22 * S.shotScale, -15 * S.shotScale, 44 * S.shotScale, 30 * S.shotScale);
+    if (silver) { ctx.globalCompositeOperation = 'source-over'; sprite(images.silverBullet, 0, 0, 1, 1, -31 * S.shotScale, -21 * S.shotScale, 62 * S.shotScale, 42 * S.shotScale); }
     else sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale);
     ctx.restore();
   }
@@ -2568,7 +2568,9 @@ function drawPlayerHpBar() {
   ctx.save(); ctx.fillStyle = '#030712dd'; ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
   ctx.fillStyle = ratio > .55 ? '#51f0a4' : ratio > .25 ? '#ffd159' : '#ff426f'; ctx.fillRect(x, y, width * ratio, height);
   ctx.strokeStyle = '#d9fbffcc'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
-  ctx.fillStyle = '#fff'; ctx.font = '900 8px monospace'; ctx.textAlign = 'center'; ctx.fillText(`${Math.ceil(S.hp)} / ${Math.ceil(S.maxHp)}`, S.x, y + 7); ctx.restore();
+  const hpLabel = `${Math.ceil(S.hp)} / ${Math.ceil(S.maxHp)}`;
+  ctx.font = '900 9px monospace'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#000000cc';
+  ctx.strokeText(hpLabel, S.x, y + 7); ctx.fillStyle = '#fff'; ctx.fillText(hpLabel, S.x, y + 7); ctx.restore();
 }
 
 function drawPlayerHitbox() {
