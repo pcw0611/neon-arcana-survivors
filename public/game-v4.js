@@ -691,7 +691,7 @@ function chooseClass(index) {
   if (!S?.paused || S.activeReward?.type !== 'classChange') return;
   const def = classDefs[index]; if (!def) return;
   S.playerClass = def.id;
-  if (def.id === 'silverbullet') { S.rate *= .4; S.projectileMult *= .82; S.shotScale *= .45; }
+  if (def.id === 'silverbullet') { S.rate *= .4; S.projectileMult *= .82; S.shotScale *= .22; }
   else if (def.id === 'thor') { S.chainDamage *= 1.4; }
   else if (def.id === 'none') { S.maxHp += 5; S.hp += 5; }
   effect('level', S.x, S.y, { life: .85, max: .85 });
@@ -1094,6 +1094,8 @@ addEventListener('keydown', event => {
   }
 });
 addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
+addEventListener('blur', () => keys.clear());
+document.addEventListener('visibilitychange', () => { if (document.hidden) keys.clear(); });
 ui.relicScreen.addEventListener('pointerdown', event => {
   AudioEngine.resume();
   if (S?.relicAwaitDismiss) { event.preventDefault(); dismissRelicResult(); }
@@ -2424,7 +2426,12 @@ function drawProjectiles() {
     ctx.strokeStyle = silver ? '#eef6ff' : projectile.critical ? '#ff67e8' : '#4feeff'; ctx.lineWidth = 8 * S.shotScale; ctx.globalAlpha = .28;
     ctx.beginPath(); ctx.moveTo(projectile.x - Math.cos(angle) * 52 * S.shotScale, projectile.y - Math.sin(angle) * 52 * S.shotScale); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
     ctx.globalAlpha = 1; ctx.translate(projectile.x, projectile.y); ctx.rotate(angle); ctx.shadowBlur = lowFxActive() ? 0 : 24; ctx.shadowColor = silver ? '#dfefff' : projectile.critical ? '#ff69f3' : '#55f8ff';
-    if (silver) { ctx.globalCompositeOperation = 'source-over'; sprite(images.silverBullet, 0, 0, 1, 1, -31 * S.shotScale, -21 * S.shotScale, 62 * S.shotScale, 42 * S.shotScale); }
+    if (silver) {
+      ctx.globalCompositeOperation = 'source-over'; sprite(images.silverBullet, 0, 0, 1, 1, -31 * S.shotScale, -21 * S.shotScale, 62 * S.shotScale, 42 * S.shotScale);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .9; ctx.strokeStyle = '#ffffff'; ctx.lineCap = 'round'; ctx.lineWidth = 1.6 * S.shotScale;
+      ctx.beginPath(); ctx.moveTo(-17 * S.shotScale, 0); ctx.lineTo(13 * S.shotScale, 0); ctx.stroke();
+      ctx.globalAlpha = .8; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(14 * S.shotScale, 0, 2.2 * S.shotScale, 0, TAU); ctx.fill();
+    }
     else sprite(images.vfx, 1, 0, 3, 2, -35 * S.shotScale, -17 * S.shotScale, 70 * S.shotScale, 34 * S.shotScale);
     ctx.restore();
   }
@@ -2537,12 +2544,37 @@ function drawEffects() {
   }
 }
 
+function glowSilhouette(image, color) {
+  if (!image.complete || !image.width) return null;
+  const cacheKey = '__glow_' + color;
+  if (image[cacheKey]) return image[cacheKey];
+  const off = document.createElement('canvas');
+  off.width = image.width; off.height = image.height;
+  const octx = off.getContext('2d');
+  octx.drawImage(image, 0, 0);
+  octx.globalCompositeOperation = 'source-in'; octx.fillStyle = color; octx.fillRect(0, 0, off.width, off.height);
+  image[cacheKey] = off;
+  return off;
+}
+
 function drawEnergyBlade(x, y, angle, length = 58, color = '#66efff', alpha = 1, useSprite = false, dark = false) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.globalAlpha = alpha;
   if (useSprite) {
-    ctx.globalCompositeOperation = dark ? 'source-over' : 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
     const h = length * .34;
-    sprite(dark ? images.darkBlade : images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
+    if (dark) {
+      const glow = glowSilhouette(images.darkBlade, '#c896ff');
+      if (glow) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 26; ctx.shadowColor = '#c896ff';
+        const gh = h * 1.6, gw = length + gh * .2;
+        ctx.drawImage(glow, -gh * .2, -gh / 2, gw, gh);
+        ctx.restore();
+      }
+      ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = lowFxActive() ? 0 : 14; ctx.shadowColor = color;
+      sprite(images.darkBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
+    } else {
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
+      sprite(images.saberBlade, 0, 0, 1, 1, -h * .2, -h / 2, length + h * .2, h);
+    }
   } else {
     ctx.strokeStyle = '#152333'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(0, 0); ctx.stroke();
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.shadowBlur = lowFxActive() ? 0 : 20; ctx.shadowColor = color;
@@ -2647,9 +2679,9 @@ function drawWorld(W, H, t) {
 
   const aimAngle = Math.atan2(S.aimY, S.aimX);
   if (S.saberLevel > 0 && S.playerClass === 'shadowmaster') {
-    const backAngle = aimAngle + Math.PI, len = Math.min(80, 42 + S.saberRange * .2);
-    drawEnergyBlade(S.x + Math.cos(aimAngle) * 16, S.y + Math.sin(aimAngle) * 16, aimAngle, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true, true);
-    drawEnergyBlade(S.x + Math.cos(backAngle) * 16, S.y + Math.sin(backAngle) * 16, backAngle, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true, true);
+    const spread = .5, len = Math.min(80, 42 + S.saberRange * .2);
+    drawEnergyBlade(S.x + Math.cos(aimAngle + spread) * 16, S.y + Math.sin(aimAngle + spread) * 16, aimAngle + spread, len + Math.sin(t * .012) * 3, '#9c4dff', .88, true, true);
+    drawEnergyBlade(S.x + Math.cos(aimAngle - spread) * 16, S.y + Math.sin(aimAngle - spread) * 16, aimAngle - spread, len + Math.sin(t * .012 + 1) * 3, '#9c4dff', .88, true, true);
   } else if (S.saberLevel > 0) drawEnergyBlade(S.x + Math.cos(aimAngle) * 18, S.y + Math.sin(aimAngle) * 18, aimAngle, Math.min(92, 48 + S.saberRange * .24) + Math.sin(t * .012) * 3, '#64f5ff', .88, true);
   const runFrame = Math.floor(t / 115) % 2, idleBob = Math.sin(t * .0032) * 2.2, frame = S.moving ? 2 + runFrame : 0;
   if (S.playerClass === 'shadowmaster' && S.shadowActive > 0) {
@@ -2672,7 +2704,8 @@ function drawWorld(W, H, t) {
   ctx.shadowBlur = 0;
   if (S.playerClass === 'silverbullet') {
     const hatW = 50, hatH = hatW * (325 / 320), hatBob = S.moving ? 0 : idleBob;
-    const hatCenterOffset = S.facing < 0 ? -0.1 : 1.75;
+    const hatFrameOffset = { 0: 4.6, 2: 10.5, 3: 2.4 }[frame] ?? 4.6;
+    const hatCenterOffset = S.facing < 0 ? -hatFrameOffset : hatFrameOffset;
     sprite(images.cowboyHat, 0, 0, 1, 1, S.x + hatCenterOffset - hatW / 2, S.y - 74 + hatBob, hatW, hatH, playerAlpha, S.facing < 0);
   }
   drawPlayerHitbox();
