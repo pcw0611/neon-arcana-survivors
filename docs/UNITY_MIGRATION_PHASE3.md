@@ -609,3 +609,26 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167312379
 자동 검사는 경고가 실제로 한 번 표시됐는지와 미니맵 보스 표식이 존재하는지를 함께
 확인한다. 보물·리바이어던·내부 던전 입구 같은 특수 대상과 보스별 공격 예고는 아직
 잔여 작업이다.
+
+## 18. P0 강화 선택 규칙 복구
+
+웹판의 `eligibleUpgrades()`, `affinityScores()`, `upgradeWeight()`,
+`openLevelChoices()`를 Unity 선택 로직과 함수 단위로 대조했다.
+
+- 술식·유물의 projectile/saber/orbit/area/survival/growth 등 태그 이식
+- 보유 랭크와 유물 희귀도·레벨 기반 빌드 친화도 계산
+- 앞 두 장 태그 가중 추첨, 세 번째 장 균등 추첨
+- 유물 슬롯 확장의 2회 천장과 레벨 8/15/22/29 문턱
+- 성좌포·광검·위성·토르의 정확한 마스터 한계돌파 조건
+- 토르 전직 중 연쇄 낙뢰 최대 RANK 7
+- 첫 획득 설명, `MAX LV · MASTERY`, 한계돌파 레벨 표시
+
+![Unity 강화 선택 규칙 복구](images/unity-phase3-upgrade-rules.png)
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... upgradeRules=affinity=tagWeighted mastery=exact slotPity=2
+NEON_ARCANA_WINDOWS_BUILD_OK size=167321611
+```
+
+후보 선정 규칙은 기술 검증을 통과했다. 위성 방전·요격·충격파 및 마스터 특수기의
+실제 전투 효과는 다음 P0/P1 전투 대조에서 계속 구현한다.

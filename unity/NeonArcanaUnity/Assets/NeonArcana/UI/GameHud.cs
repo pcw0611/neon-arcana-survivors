@@ -465,8 +465,12 @@ namespace NeonArcana
                 var choice = choices[i];
                 button.transform.Find("Icon").GetComponent<Text>().text = choice.Icon;
                 button.transform.Find("Name").GetComponent<Text>().text = choice.Name;
-                button.transform.Find("Description").GetComponent<Text>().text = choice.Description;
-                button.transform.Find("Rank").GetComponent<Text>().text = $"RANK {choice.Rank} → {choice.Rank + 1} · [{i + 1}]";
+                button.transform.Find("Description").GetComponent<Text>().text =
+                    GameManager.Instance != null ? GameManager.Instance.UpgradeChoiceDescription(choice) : choice.Description;
+                button.transform.Find("Rank").GetComponent<Text>().text =
+                    GameManager.Instance != null
+                        ? GameManager.Instance.UpgradeChoiceRank(choice, i + 1)
+                        : $"RANK {choice.Rank} → {choice.Rank + 1} · [{i + 1}]";
                 button.onClick.AddListener(() => selected(choice));
             }
         }

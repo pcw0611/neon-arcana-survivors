@@ -134,6 +134,7 @@ namespace NeonArcana.Editor
                 if (manager.Player.Class != ArcanaClass.Thor) throw new InvalidOperationException("Class change did not apply.");
                 if (!manager.HasRelic("rift_crown")) throw new InvalidOperationException("Relic effect did not apply.");
                 if (manager.Player.Orbitals <= 0 || manager.Player.SaberLevel <= 0) throw new InvalidOperationException("Orbit or saber build did not activate.");
+                var upgradeRules = manager.ValidateUpgradeParityRules();
                 if (manager.ActiveBoss == null) throw new InvalidOperationException("Boss runtime did not activate.");
                 if (!GameHud.Instance.BossWarningWasShown || !GameHud.Instance.HasBossMinimapMarker)
                     throw new InvalidOperationException("Boss warning or minimap boss marker is missing.");
@@ -177,7 +178,7 @@ namespace NeonArcana.Editor
                     || GameHud.Instance.ActiveChoicePanelCount != 1 || Time.timeScale != 0f)
                     throw new InvalidOperationException($"Reward queue overlap: active={manager.ActiveRewardType}, pending={manager.PendingRewardCount}, panels={GameHud.Instance.ActiveChoicePanelCount}, timeScale={Time.timeScale}.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails+bossWarning rewardQueue=1+2");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails+bossWarning upgradeRules={upgradeRules} rewardQueue=1+2");
                 manager.AbandonRun();
                 if (!manager.IsGameOver || !GameHud.Instance.IsGameOverVisible || Time.timeScale != 0f)
                     throw new InvalidOperationException("Abandon run did not enter the result state.");

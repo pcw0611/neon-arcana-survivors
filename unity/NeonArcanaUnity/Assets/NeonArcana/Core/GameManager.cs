@@ -43,6 +43,7 @@ namespace NeonArcana
         private readonly Queue<RewardType> rewardQueue = new();
         private readonly System.Random random = new(61061);
         private bool phoenixUsed;
+        private int slotPity;
         private RewardType? activeReward;
 
         private void Awake()
@@ -178,36 +179,208 @@ namespace NeonArcana
 
             var available = new List<UpgradeDefinition>();
             foreach (var upgrade in upgradePool)
-                if (upgrade.Rank < upgrade.MaxRank && IsUpgradeEligible(upgrade)) available.Add(upgrade);
+                if (upgrade.Rank < EffectiveMaxRank(upgrade) && IsUpgradeEligible(upgrade)) available.Add(upgrade);
 
             var choices = new List<UpgradeDefinition>();
-            while (choices.Count < count && available.Count > 0)
+            var affinity = BuildAffinityScores();
+            while (choices.Count < Mathf.Min(2, count) && available.Count > 0)
             {
                 var total = 0f;
-                foreach (var upgrade in available) total += upgrade.Weight;
+                foreach (var upgrade in available) total += UpgradeWeight(upgrade, affinity);
                 var roll = (float)random.NextDouble() * total;
                 for (var i = 0; i < available.Count; i++)
                 {
-                    roll -= available[i].Weight;
+                    roll -= UpgradeWeight(available[i], affinity);
                     if (roll > 0f) continue;
                     choices.Add(available[i]);
                     available.RemoveAt(i);
                     break;
                 }
             }
+
+            if (choices.Count < count && available.Count > 0)
+            {
+                var uniform = random.Next(available.Count);
+                choices.Add(available[uniform]);
+                available.RemoveAt(uniform);
+            }
+
+            var slot = upgradePool.Find(item => item.Id == "relic_slot");
+            var slotEligible = slot != null && slot.Rank < EffectiveMaxRank(slot) && IsUpgradeEligible(slot);
+            if (slotEligible && !choices.Contains(slot))
+            {
+                slotPity++;
+                if (slotPity >= 2 && choices.Count > 0)
+                {
+                    choices[choices.Count - 1] = slot;
+                    slotPity = 0;
+                }
+            }
+            else if (slot != null && choices.Contains(slot))
+            {
+                slotPity = 0;
+            }
             return choices;
         }
 
         private bool IsUpgradeEligible(UpgradeDefinition definition)
         {
-            if (Level < definition.UnlockLevel) return false;
-            return definition.Prerequisite switch
+            if (!definition.Id.StartsWith("limit_master_", StringComparison.Ordinal)
+                && Level < definition.UnlockLevel) return false;
+            return definition.Id switch
             {
-                "orbit" => Player.Orbitals > 0,
-                "saber" => Player.SaberLevel > 0,
-                "projectile" => upgradeRanks.GetValueOrDefault("power") >= 10 && upgradeRanks.GetValueOrDefault("multishot") >= 7,
-                _ => definition.Id != "relic_slot" || Player.RelicSlots < 7 && relics.Count >= Player.RelicSlots
+                "relic_slot" => Player.RelicSlots < 7
+                    && relics.Count >= Player.RelicSlots
+                    && Level >= RelicSlotUnlockLevel(definition.Rank),
+                "limit_master_projectile" or "limit_master_saber" or "limit_master_orbit" or "limit_master_thor"
+                    => MasteryRequirementSatisfied(definition.Id, upgradeRanks, Player.Class),
+                _ => definition.Prerequisite switch
+                {
+                    "orbit" => Player.Orbitals > 0,
+                    "saber" => Player.SaberLevel > 0,
+                    _ => true
+                }
             };
+        }
+
+        private static int RelicSlotUnlockLevel(int rank) => 8 + rank * 7;
+
+        private static bool MasteryRequirementSatisfied(
+            string limitId,
+            IReadOnlyDictionary<string, int> ranks,
+            ArcanaClass playerClass)
+        {
+            return limitId switch
+            {
+                "limit_master_projectile" => ranks.GetValueOrDefault("multishot") >= 7,
+                "limit_master_saber" => ranks.GetValueOrDefault("saber") >= 7,
+                "limit_master_orbit" => ranks.GetValueOrDefault("orbit") >= 7,
+                "limit_master_thor" => playerClass == ArcanaClass.Thor && ranks.GetValueOrDefault("chain") >= 7,
+                _ => false
+            };
+        }
+
+        public int EffectiveMaxRank(UpgradeDefinition definition)
+        {
+            return definition.Id == "chain" && Player != null && Player.Class == ArcanaClass.Thor
+                ? 7
+                : definition.MaxRank;
+        }
+
+        private Dictionary<string, float> BuildAffinityScores()
+        {
+            var result = new Dictionary<string, float>();
+            foreach (var upgrade in upgradePool)
+            {
+                if (upgrade.Rank <= 0) continue;
+                foreach (var tag in upgrade.Tags)
+                    result[tag] = result.GetValueOrDefault(tag) + upgrade.Rank;
+            }
+            foreach (var relic in relics)
+            {
+                var score = (1.5f + relic.Definition.rarity * 0.5f) * relic.Level;
+                foreach (var tag in relic.Tags)
+                    result[tag] = result.GetValueOrDefault(tag) + score;
+            }
+            return result;
+        }
+
+        private static float UpgradeWeight(UpgradeDefinition upgrade, IReadOnlyDictionary<string, float> affinity)
+        {
+            var highest = 0f;
+            var secondary = 0f;
+            foreach (var tag in upgrade.Tags)
+            {
+                var value = affinity.GetValueOrDefault(tag);
+                if (value > highest)
+                {
+                    secondary += highest;
+                    highest = value;
+                }
+                else
+                {
+                    secondary += value;
+                }
+            }
+            highest = Mathf.Min(8f, highest);
+            secondary = Mathf.Min(3f, secondary);
+            var owned = upgrade.Rank > 0 ? 1.28f : 1f;
+            return Mathf.Max(0.001f, upgrade.Weight * owned * (1f + highest * 0.24f + secondary * 0.08f));
+        }
+
+        public string ValidateUpgradeParityRules()
+        {
+            var ranks = new Dictionary<string, int>
+            {
+                ["multishot"] = 7,
+                ["saber"] = 7,
+                ["orbit"] = 7,
+                ["chain"] = 7
+            };
+            if (!MasteryRequirementSatisfied("limit_master_projectile", ranks, ArcanaClass.None)
+                || !MasteryRequirementSatisfied("limit_master_saber", ranks, ArcanaClass.None)
+                || !MasteryRequirementSatisfied("limit_master_orbit", ranks, ArcanaClass.None)
+                || MasteryRequirementSatisfied("limit_master_thor", ranks, ArcanaClass.None)
+                || !MasteryRequirementSatisfied("limit_master_thor", ranks, ArcanaClass.Thor))
+                throw new InvalidOperationException("Mastery prerequisite parity failed.");
+            if (RelicSlotUnlockLevel(0) != 8 || RelicSlotUnlockLevel(1) != 15
+                || RelicSlotUnlockLevel(2) != 22 || RelicSlotUnlockLevel(3) != 29)
+                throw new InvalidOperationException("Relic slot level gates changed.");
+
+            var power = upgradePool.Find(item => item.Id == "power");
+            var critical = upgradePool.Find(item => item.Id == "critical");
+            var slot = upgradePool.Find(item => item.Id == "relic_slot");
+            if (power == null || critical == null || slot == null
+                || power.Tags.Count != 3 || critical.Tags.Count != 2 || Mathf.Abs(slot.Weight - 2.4f) > 0.001f)
+                throw new InvalidOperationException("Upgrade tag or base weight parity failed.");
+            var affinity = new Dictionary<string, float>
+            {
+                ["projectile"] = 8f,
+                ["saber"] = 3f,
+                ["orbit"] = 2f
+            };
+            if (UpgradeWeight(power, affinity) <= power.Weight)
+                throw new InvalidOperationException("Build affinity did not increase the weighted choice score.");
+            return "affinity=tagWeighted mastery=exact slotPity=2";
+        }
+
+        public string UpgradeChoiceDescription(UpgradeDefinition upgrade)
+        {
+            var rank = upgrade.Rank;
+            if (upgrade.Id == "orbit")
+                return rank == 0 ? "공격 위성 +1 · 위성 빌드 개방" : "공격 위성 +1";
+            if (upgrade.Id == "saber")
+                return rank == 0 ? "초근접 광검 개방 · 아크 실드에 2.4배 피해" : "광검 피해 +25%";
+            if (upgrade.Id == "multishot")
+                return rank == 0 ? "성좌탄 +1 · 투사체 집중 빌드 개방" : "동시에 발사하는 성좌탄 +1";
+            if (upgrade.Id == "orbit_pulse" && rank > 0)
+            {
+                var current = Mathf.Max(1.8f, 5.3f - rank * 0.8f);
+                var next = Mathf.Max(1.8f, 5.3f - (rank + 1) * 0.8f);
+                return $"충격파 발동 간격 0.8초 감소 · {current:0.0}초 → {next:0.0}초";
+            }
+            if (upgrade.Id == "chain" && Player != null && Player.Class == ArcanaClass.Thor)
+                return "모든 공격 명중 시 240 이내 낙뢰 대상 +1/LV (최대 7) · 쉴드 대상 추가 피해";
+            if (upgrade.Id.StartsWith("limit_master_", StringComparison.Ordinal))
+                return $"마스터 특수기 피해 +4%p (무한) · 범위 +2%p / 공격 주기 -1%p (각 LV.20까지) · 현재 LV.{rank}";
+            if (upgrade.Id == "limit_power")
+            {
+                var current = Mathf.Min(20, rank) * 2f + Mathf.Max(0, rank - 20) * 0.5f;
+                return $"모든 공격 피해 +{(rank < 20 ? 2f : 0.5f):0.#}%p · 현재 +{current:0.#}%";
+            }
+            return upgrade.Description;
+        }
+
+        public string UpgradeChoiceRank(UpgradeDefinition upgrade, int shortcut)
+        {
+            var next = upgrade.Rank + 1;
+            if (upgrade.Id.StartsWith("limit_", StringComparison.Ordinal))
+                return $"한계돌파 LV.{upgrade.Rank} → LV.{next} · [{shortcut}]";
+            var mastery = upgrade.Id == "multishot" || upgrade.Id == "saber" || upgrade.Id == "orbit"
+                || upgrade.Id == "chain" && Player != null && Player.Class == ArcanaClass.Thor;
+            return mastery && next >= EffectiveMaxRank(upgrade)
+                ? $"MAX LV · MASTERY · [{shortcut}]"
+                : $"RANK {upgrade.Rank} → {next} · [{shortcut}]";
         }
 
         private void ApplyUpgrade(UpgradeDefinition upgrade)
@@ -216,6 +389,10 @@ namespace NeonArcana
             upgradeRanks[upgrade.Id] = upgrade.Rank;
             ApplyUpgradeEffect(upgrade.Id);
             CompleteReward();
+            if ((upgrade.Id == "multishot" || upgrade.Id == "saber" || upgrade.Id == "orbit"
+                 || upgrade.Id == "chain" && Player.Class == ArcanaClass.Thor)
+                && upgrade.Rank >= EffectiveMaxRank(upgrade))
+                hud.ShowToast($"{upgrade.Name} · MAX MASTERY");
         }
 
         private void ApplyUpgradeEffect(string id)
@@ -454,6 +631,7 @@ namespace NeonArcana
             relics.Clear();
             relicKillCounters.Clear();
             phoenixUsed = false;
+            slotPity = 0;
             foreach (var upgrade in upgradePool) upgrade.ResetRank();
             Player.ResetForRun();
             hud.HideAllChoices();
@@ -533,7 +711,7 @@ namespace NeonArcana
         private void ApplyShowcaseUpgrade(string id)
         {
             var definition = upgradePool.Find(item => item.Id == id);
-            if (definition == null || definition.Rank >= definition.MaxRank) return;
+            if (definition == null || definition.Rank >= EffectiveMaxRank(definition)) return;
             definition.IncreaseRank();
             upgradeRanks[id] = definition.Rank;
             ApplyUpgradeEffect(id);
@@ -551,6 +729,7 @@ namespace NeonArcana
         public string Prerequisite { get; }
         public int UnlockLevel { get; }
         public int Rank { get; private set; }
+        public IReadOnlyList<string> Tags { get; }
 
         public UpgradeDefinition(UpgradeContent content)
         {
@@ -562,16 +741,69 @@ namespace NeonArcana
             Weight = content.weight;
             Prerequisite = content.prerequisite;
             UnlockLevel = content.unlockLevel;
+            Tags = UpgradeTags(content.id);
         }
 
         public void IncreaseRank() => Rank++;
         public void ResetRank() => Rank = 0;
+
+        private static string[] UpgradeTags(string id)
+        {
+            return id switch
+            {
+                "power" => new[] { "projectile", "saber", "orbit" },
+                "critical" => new[] { "projectile", "saber" },
+                "haste" or "multishot" or "pierce" or "size" => new[] { "projectile" },
+                "blast" or "chain" => new[] { "projectile", "area" },
+                "orbit" or "orbit_speed" or "orbit_size" or "orbit_range" => new[] { "orbit" },
+                "orbit_shock" or "orbit_pulse" => new[] { "orbit", "area" },
+                "orbit_guard" => new[] { "orbit", "survival" },
+                "saber" or "saber_reach" or "saber_haste" or "saber_echo" => new[] { "saber" },
+                "saber_guard" => new[] { "saber", "survival" },
+                "speed" => new[] { "mobility" },
+                "magnet" or "fortune" or "limit_growth" => new[] { "growth" },
+                "vital" or "regen" or "guard" or "limit_vital" => new[] { "survival" },
+                "relic_slot" => new[] { "utility" },
+                "limit_master_projectile" => new[] { "projectile" },
+                "limit_master_saber" => new[] { "saber" },
+                "limit_master_orbit" => new[] { "orbit" },
+                "limit_master_thor" => new[] { "projectile", "area" },
+                "limit_power" => new[] { "projectile", "saber", "orbit" },
+                _ => Array.Empty<string>()
+            };
+        }
     }
 
     public sealed class RelicInstance
     {
         public RelicContent Definition { get; }
         public int Level { get; set; } = 1;
-        public RelicInstance(RelicContent definition) => Definition = definition;
+        public IReadOnlyList<string> Tags { get; }
+        public RelicInstance(RelicContent definition)
+        {
+            Definition = definition;
+            Tags = RelicTags(definition.id);
+        }
+
+        private static string[] RelicTags(string id)
+        {
+            return id switch
+            {
+                "arc_cell" or "singularity" => new[] { "projectile", "saber", "orbit" },
+                "rift_crown" => new[] { "projectile", "saber", "orbit", "growth" },
+                "blood_cap" or "nano_shunt" or "phoenix" or "immortal" => new[] { "survival" },
+                "magnet_prism" => new[] { "growth" },
+                "hunter_lens" or "execution" => new[] { "projectile", "saber" },
+                "split_core" or "echo_chamber" => new[] { "projectile" },
+                "orbit_gear" => new[] { "orbit" },
+                "edge_lens" or "zero_edge" => new[] { "saber" },
+                "gravity_halo" or "tamer_core" => new[] { "area", "survival" },
+                "soul_battery" => new[] { "survival", "projectile", "saber", "orbit" },
+                "event_horizon" => new[] { "orbit", "area" },
+                "chain_detonator" => new[] { "area" },
+                "godspeed" => new[] { "mobility", "projectile", "saber", "orbit" },
+                _ => Array.Empty<string>()
+            };
+        }
     }
 }

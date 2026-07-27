@@ -21,6 +21,8 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 3개 탭과 전체 카드, 작전 메뉴의 정지·음소거·히트박스·포기, 통합 보상 큐와
 빌드 결과·재출격·메인 복귀 흐름을 구현했습니다. HUD에는 현재 술식 랭크와
 접이식 유물 상세 트레이, 보스 출현 중앙 경고와 미니맵의 노란 보스 표식을 추가했습니다.
+강화 선택은 웹판의 빌드·유물 태그 친화도, 앞 두 장 가중 추첨과 세 번째 장 균등 추첨,
+유물 슬롯 2회 천장, 정확한 마스터 선행 조건을 복구했습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
@@ -46,6 +48,8 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 ![Unity HUD 빌드와 유물 상세](docs/images/unity-phase3-hud.png)
 
 ![Unity 보스 출현 경고와 미니맵 표식](docs/images/unity-phase3-warning.png)
+
+![Unity 강화 선택 규칙 복구](docs/images/unity-phase3-upgrade-rules.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
