@@ -632,3 +632,19 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167321611
 
 후보 선정 규칙은 기술 검증을 통과했다. 위성 방전·요격·충격파 및 마스터 특수기의
 실제 전투 효과는 다음 P0/P1 전투 대조에서 계속 구현한다.
+
+## 19. P0 화면 터치 드래그 이동
+
+웹판의 포인터 입력처럼 전투 화면의 빈 영역을 터치한 위치를 원점으로 삼아 드래그 이동을
+받는다. 64픽셀에서 최고 속도에 도달하고 손가락을 놓으면 즉시 정지한다.
+
+투명 입력 표면은 HUD의 첫 번째 자식으로 두어 버튼·도감·메뉴·선택 카드보다 뒤에서만
+레이캐스트를 받는다. 마우스 포인터는 거부하므로 광검 조준과 충돌하지 않는다.
+이동 값은 기존 단일 `VirtualJoystick`으로 전달해 두 번째 공격 패드가 다시 생기지 않게 했다.
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... touchPads=1 touchDrag=fullScreen targeting=NearestEnemyAutomatic
+NEON_ARCANA_WINDOWS_BUILD_OK size=167324907
+```
+
+Android 실기기 감도 검수는 현재 보류하고 인게임 P0·P1 구현을 계속한다.

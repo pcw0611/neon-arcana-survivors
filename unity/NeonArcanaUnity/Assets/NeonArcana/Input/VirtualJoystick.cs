@@ -95,5 +95,20 @@ namespace NeonArcana
             Value = Vector2.ClampMagnitude(local / radius, 1f);
             if (handle != null) handle.anchoredPosition = Value * radius;
         }
+
+        public void SetExternalValue(Vector2 value)
+        {
+            IsHeld = value.sqrMagnitude > 0.0001f;
+            Value = Vector2.ClampMagnitude(value, 1f);
+            if (handle != null) handle.anchoredPosition = Value * radius;
+        }
+
+        public void ReleaseExternal()
+        {
+            IsHeld = false;
+            Value = Vector2.zero;
+            if (handle != null) handle.anchoredPosition = Vector2.zero;
+        }
     }
+
 }

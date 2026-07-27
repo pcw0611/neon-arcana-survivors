@@ -140,6 +140,8 @@ namespace NeonArcana.Editor
                     throw new InvalidOperationException("Boss warning or minimap boss marker is missing.");
                 if (GameHud.Instance.GetComponentsInChildren<VirtualJoystick>(true).Length != 1)
                     throw new InvalidOperationException("The runtime HUD contains an unauthorized second touch pad.");
+                if (!GameHud.Instance.TouchDragIsConfigured || !GameHud.Instance.VerifyTouchDragRouteForTest())
+                    throw new InvalidOperationException("Full-screen touch drag did not route through the single move pad.");
                 var codex = GameHud.Instance.GetComponentInChildren<CodexView>(true);
                 if (codex == null) throw new InvalidOperationException("Runtime HUD has no CodexView.");
                 GameHud.Instance.ShowCodexForCapture();
@@ -155,7 +157,7 @@ namespace NeonArcana.Editor
                 codex.Hide();
                 GameHud.Instance.ShowGameMenuForTest();
                 if (!GameHud.Instance.IsGameMenuOpen || Time.timeScale != 0f)
-                    throw new InvalidOperationException("Operation menu did not pause the active run.");
+                    throw new InvalidOperationException($"Operation menu did not pause the active run: open={GameHud.Instance.IsGameMenuOpen}, timeScale={Time.timeScale}, awaiting={manager.IsAwaitingStart}, gameOver={manager.IsGameOver}.");
                 GameHud.Instance.HideGameMenuForTest();
                 if (manager.Player.LastProjectileDirection.sqrMagnitude < 0.9f)
                     throw new InvalidOperationException("Automatic constellation targeting did not produce a valid direction.");
@@ -178,7 +180,7 @@ namespace NeonArcana.Editor
                     || GameHud.Instance.ActiveChoicePanelCount != 1 || Time.timeScale != 0f)
                     throw new InvalidOperationException($"Reward queue overlap: active={manager.ActiveRewardType}, pending={manager.PendingRewardCount}, panels={GameHud.Instance.ActiveChoicePanelCount}, timeScale={Time.timeScale}.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails+bossWarning upgradeRules={upgradeRules} rewardQueue=1+2");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 touchDrag=fullScreen targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails+bossWarning upgradeRules={upgradeRules} rewardQueue=1+2");
                 manager.AbandonRun();
                 if (!manager.IsGameOver || !GameHud.Instance.IsGameOverVisible || Time.timeScale != 0f)
                     throw new InvalidOperationException("Abandon run did not enter the result state.");

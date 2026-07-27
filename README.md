@@ -23,6 +23,8 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 접이식 유물 상세 트레이, 보스 출현 중앙 경고와 미니맵의 노란 보스 표식을 추가했습니다.
 강화 선택은 웹판의 빌드·유물 태그 친화도, 앞 두 장 가중 추첨과 세 번째 장 균등 추첨,
 유물 슬롯 2회 천장, 정확한 마스터 선행 조건을 복구했습니다.
+모바일 이동은 고정 패드뿐 아니라 화면의 빈 영역을 누른 위치에서 시작하는 64픽셀
+터치 드래그를 지원하며, 마우스 광검 조준과 입력 경로를 분리했습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)

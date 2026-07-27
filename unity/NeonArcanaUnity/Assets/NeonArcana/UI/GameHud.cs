@@ -46,6 +46,7 @@ namespace NeonArcana
         [SerializeField] private Button restartButton;
         [SerializeField] private Button mainMenuButton;
         [SerializeField] private VirtualJoystick moveJoystick;
+        [SerializeField] private TouchDragMoveInput touchDragInput;
         [SerializeField] private MiniMapGraphic miniMap;
         private float toastClock;
         private float bossWarningClock;
@@ -105,6 +106,11 @@ namespace NeonArcana
                 {
                     var forceTouch = Array.Exists(Environment.GetCommandLineArgs(), item => item == "--show-touch");
                     moveJoystick.gameObject.SetActive(Application.isMobilePlatform || forceTouch);
+                    if (touchDragInput != null)
+                    {
+                        touchDragInput.Bind(moveJoystick);
+                        touchDragInput.gameObject.SetActive(Application.isMobilePlatform || forceTouch);
+                    }
                 }
             }
 
@@ -163,6 +169,10 @@ namespace NeonArcana
 
         private void Build(Transform root)
         {
+            var touchSurface = CreateImage(root, "Touch Drag Surface", Color.clear, Vector2.zero, Vector2.one);
+            touchDragInput = touchSurface.gameObject.AddComponent<TouchDragMoveInput>();
+            touchSurface.transform.SetAsFirstSibling();
+
             xpFill = CreateBar(root, "XP", new Color(0.12f, 0.86f, 1f), new Vector2(0.045f, 0.985f), new Vector2(0.955f, 0.985f), Vector2.zero, new Vector2(0f, 6f));
             hpFill = CreateBar(root, "HP", new Color(0.25f, 1f, 0.65f), new Vector2(0.047f, 0.906f), new Vector2(0.22f, 0.906f), Vector2.zero, new Vector2(0f, 10f));
 
@@ -184,6 +194,8 @@ namespace NeonArcana
 
             moveJoystick = VirtualJoystick.Create(root, "Move Stick", new Vector2(0.12f, 0.18f), new Color(0.2f, 0.9f, 1f));
             moveJoystick.gameObject.SetActive(false);
+            touchDragInput.Bind(moveJoystick);
+            touchDragInput.gameObject.SetActive(false);
 
             var minimapFrame = CreateImage(root, "Minimap Frame", new Color(0.01f, 0.04f, 0.09f, 0.72f), new Vector2(0.86f, 0.75f), new Vector2(0.97f, 0.93f));
             minimapFrame.raycastTarget = false;
@@ -575,6 +587,8 @@ namespace NeonArcana
         public bool IsBossWarningVisible => bossWarningText != null && bossWarningText.gameObject.activeSelf;
         public bool BossWarningWasShown => bossWarningWasShown;
         public bool HasBossMinimapMarker => miniMap != null && miniMap.HasBossMarker;
+        public bool TouchDragIsConfigured => touchDragInput != null && touchDragInput.IsConfigured;
+        public bool VerifyTouchDragRouteForTest() => touchDragInput != null && touchDragInput.VerifyRouteForTest();
         public bool IsRelicDetailsVisible => relicDetailsPanel != null && relicDetailsPanel.activeSelf;
         public string RelicDetailsText => relicDetailsText != null ? relicDetailsText.text : "";
         public string BuildTrayText => buildTrayText != null ? buildTrayText.text : "";
