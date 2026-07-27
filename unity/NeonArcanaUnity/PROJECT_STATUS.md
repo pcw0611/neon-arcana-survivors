@@ -1,11 +1,12 @@
 # Unity 마이그레이션 현황
 
-> 2026-07-27 — 3단계 원작 유사도 복구 구현·기술 검증 완료, 사용자 승인 대기
+> 2026-07-27 — 3단계 완료 판정 철회, 인게임 동등성 재작업 중
 
-2단계 회고에서 확인한 조작, 화면, 프리팹 구조의 이탈을 3단계에서 복구했다.
-상세 구현과 비교 화면은 `docs/UNITY_MIGRATION_PHASE3.md`를 참고한다.
+일부 조작, 화면, 프리팹 구조를 복구했지만 사용자 검수에서 도감 전면 누락과
+월드 스크롤 구조 오류가 확인됐다. 기술 검증 표식은 원작 유사도를 증명하지 않는다.
+현재 범위와 우선순위는 `docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`를 참고한다.
 
-## 기술 구현 완료
+## 구현 또는 기술 검증된 항목
 
 - Unity `6000.5.1f1` 프로젝트와 `Assets/Scenes/Main.unity`
 - 모바일 가로 화면과 단일 이동 패드
@@ -55,19 +56,27 @@ bossRarities=2,7,11,4,16
 
 ## 보류
 
-- Android 반복 테스트와 실기기 프로파일링
+- Android 반복 배포와 실기기 제품화 검증
+- 온라인 랭킹
+- 서버 저장·클라우드 동기화
+- Release/AAB 서명과 배포
+
+## 인게임 재작업
+
+- 무한 월드 타일, 좌표 기반 그리드, 카메라 스크롤
+- 술식·유물·전직 전체 도감
+- 게임 메뉴, HUD, 보상 큐
+- 강화·유물·전직·적·보스 행동 동등성
 - 사이버 리바이어던과 내부 던전
 - 조련의 코어와 길들인 보스 동료
-- 오디오
-- 전용 셰이더·파티클·애니메이션 최종 폴리싱
-- 세이브 버전 관리
-- 온라인 랭킹
-- Release/AAB 서명과 배포
+- 오디오와 전용 셰이더·파티클·애니메이션
+- 전체 플레이 흐름 기반의 원작 비교 검증
 
 ## 참고 문서
 
 - `docs/UNITY_MIGRATION_PHASE1.md`
 - `docs/UNITY_MIGRATION_PHASE2.md`
 - `docs/UNITY_MIGRATION_PHASE3.md`
+- `docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`
 - `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`

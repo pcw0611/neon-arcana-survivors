@@ -1,8 +1,8 @@
-# Neon Arcana: Cyber Rift — Unity Phase 3
+# Neon Arcana: Cyber Rift — Unity Phase 3 재작업
 
 Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그레이션하는 프로젝트다.
-**3단계 원작 유사도 복구 구현과 기술 검증을 완료했다.**
-최종 체감 유사도 승인은 사용자 비교 검토 대기다.
+**사용자 검수 후 3단계 완료 판정을 철회했다.**
+도감 전체 UI와 월드 스크롤을 포함한 인게임 동등성을 전수 재감사하고 있다.
 
 ## 열기와 실행
 
@@ -36,13 +36,17 @@ Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그�
 - 성좌탄 자동 표적과 광검 방향 조준 분리
 - 실제 프리팹 9종
 - DOTween UI 모션
-- Windows 화면 자동 캡처와 유사도 회귀 검증
+- Windows 화면 자동 캡처 기반의 제한적 기술 검증
+
+위 목록은 존재하거나 기술 테스트를 통과한 항목을 뜻한다.
+원작과 같은 품질·동작으로 승인됐다는 뜻은 아니다.
 
 ## 상세 문서
 
 - 1단계: `docs/UNITY_MIGRATION_PHASE1.md`
 - 2단계: `docs/UNITY_MIGRATION_PHASE2.md`
 - 3단계: `docs/UNITY_MIGRATION_PHASE3.md`
+- 인게임 동등성 재감사: `docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`
 - 유사도 이탈 회고: `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - Android 설치 특이 사례: `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`
 
@@ -62,15 +66,21 @@ Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그�
 ARM64 IL2CPP APK 빌드와 에뮬레이터 설치·실행 스모크는 성공했다.
 Android 반복 테스트와 실제 기기 검증은 이후 단계에서 진행한다.
 
-## 후속 단계
+## 현재 우선순위
 
-아래 출시 품질 작업은 4단계로 순연됐다.
+당분간 인게임만 수정한다.
 
-- 실제 Android 기기 성능·발열·멀티터치 검증
+- 무한 월드 타일·그리드·카메라 스크롤
+- 술식·유물·전직 3개 탭을 가진 전체 도감
+- HUD·게임 메뉴·보상 큐
+- 강화·유물·전직·보스의 원작 동등성
 - 사이버 리바이어던과 내부 던전
 - 길들인 보스 동료
-- 오디오
-- 전용 셰이더·파티클·애니메이션 최종 폴리싱
-- 세이브 버전 관리
+- 인게임 오디오·셰이더·파티클·애니메이션·카메라 피드백
+
+다음 항목은 인게임 승인 뒤로 미룬다.
+
+- 실제 Android 기기 반복 배포와 제품화 검증
 - 온라인 랭킹
+- 서버 저장과 클라우드 동기화
 - Release/AAB 서명과 배포

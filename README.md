@@ -8,17 +8,19 @@
 
 ## Unity 마이그레이션 현황
 
-**2026-07-27 기준 3단계 원작 유사도 복구 구현과 기술 검증을 완료했습니다.**
+**2026-07-27 사용자 검수 후 3단계 완료 판정을 철회하고 인게임 유사도를 재작업하고 있습니다.**
 
-성좌탄 자동 표적, 단일 이동 패드, 타이틀·HUD·미니맵·강화 화면,
-핵심 프리팹 9종과 DOTween UI 모션을 적용했습니다.
-체감 유사도 80~90%의 최종 승인은 아래 비교 화면을 사용자가 확인한 뒤 결정합니다.
-기존 출시 품질 단계는 4단계로 이동했습니다.
+성좌탄 자동 표적, 단일 이동 패드, 일부 HUD·강화 화면과 핵심 프리팹은 구현됐지만,
+도감이 요약 텍스트에 그치고 배경이 플레이어를 따라가 월드 스크롤이 보이지 않는 등
+원작 동등성에 중대한 누락이 확인됐습니다.
+당분간 전투·월드·HUD·도감·진행·보스·연출 등 인게임만 수정하며,
+서버 연결·온라인 랭킹·Release/AAB·스토어·실행 파일 배포는 뒤로 미룹니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
 - 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
 - 3단계 원작 유사도 복구 기록: [`docs/UNITY_MIGRATION_PHASE3.md`](docs/UNITY_MIGRATION_PHASE3.md)
+- 인게임 동등성 재감사·현재 범위: [`docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`](docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md)
 - 유사도 이탈 회고·재발 방지 기준: [`docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
 - Android 설치·사용량 특이 사례: [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)
 - 제3자 라이브러리: [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)
