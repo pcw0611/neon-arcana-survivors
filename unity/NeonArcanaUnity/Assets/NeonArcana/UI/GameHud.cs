@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -53,6 +54,9 @@ namespace NeonArcana
         private bool soundMuted;
         private bool hitboxVisible;
         private bool bossWarningWasShown;
+        private bool relicRouletteCompleted;
+        private Action relicResultDismiss;
+        private Coroutine relicRouletteRoutine;
         [SerializeField] private List<Button> upgradeButtons = new();
         [SerializeField] private List<Button> classButtons = new();
         [SerializeField] private List<Button> relicButtons = new();
@@ -358,6 +362,12 @@ namespace NeonArcana
                 bossWarningClock -= Time.unscaledDeltaTime;
                 if (bossWarningClock <= 0f) bossWarningText.gameObject.SetActive(false);
             }
+            if (relicResultDismiss != null && Input.anyKeyDown)
+            {
+                var dismiss = relicResultDismiss;
+                relicResultDismiss = null;
+                dismiss();
+            }
         }
 
         public void Refresh()
@@ -525,6 +535,70 @@ namespace NeonArcana
             }
         }
 
+        public void ShowRelicRoulette(RelicContent result, Action award)
+        {
+            HideRelicDetails();
+            relicPanel.transform.SetAsLastSibling();
+            relicPanel.SetActive(true);
+            relicResultDismiss = null;
+            relicRouletteCompleted = false;
+            if (relicRouletteRoutine != null) StopCoroutine(relicRouletteRoutine);
+            relicRouletteRoutine = StartCoroutine(RunRelicRoulette(result, award));
+        }
+
+        private IEnumerator RunRelicRoulette(RelicContent result, Action award)
+        {
+            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<Text>();
+            if (title != null) title.text = "보스 유물 슬롯";
+            for (var i = 0; i < relicButtons.Count; i++)
+            {
+                relicButtons[i].onClick.RemoveAllListeners();
+                relicButtons[i].gameObject.SetActive(i == 1);
+            }
+            var card = relicButtons[1];
+            var catalog = ContentDatabase.Catalog.relics;
+            for (var tick = 0; tick <= 18; tick++)
+            {
+                var preview = tick == 18 ? result : catalog[UnityEngine.Random.Range(0, catalog.Count)];
+                card.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(preview.rarity), 0.35f);
+                card.GetComponentInChildren<Text>().text = tick == 18
+                    ? $"{preview.icon}\n{preview.name}\n<size=21>{ContentDatabase.RarityName(preview.rarity)} RELIC\n{preview.description}\nNEW / LEVEL UP</size>"
+                    : $"{preview.icon}\nSEARCHING RELIC\n<size=21>공명 주파수 탐색 중…\n◈ ◇ ◈</size>";
+                yield return new WaitForSecondsRealtime(0.045f + tick * 0.005f);
+            }
+            yield return new WaitForSecondsRealtime(0.52f);
+            relicRouletteRoutine = null;
+            relicRouletteCompleted = true;
+            award();
+        }
+
+        public void ShowRelicResult(RelicInstance relic, string message, Action dismiss)
+        {
+            relicPanel.SetActive(true);
+            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<Text>();
+            if (title != null) title.text = message;
+            for (var i = 0; i < relicButtons.Count; i++)
+            {
+                relicButtons[i].onClick.RemoveAllListeners();
+                relicButtons[i].gameObject.SetActive(i == 1);
+            }
+            var card = relicButtons[1];
+            card.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(relic.Definition.rarity), 0.42f);
+            card.GetComponentInChildren<Text>().text =
+                $"{relic.Definition.icon}\n{relic.Definition.name} · LV.{relic.Level}\n<size=21>{ContentDatabase.RarityName(relic.Definition.rarity)} RELIC\n{relic.Definition.description}\nTAP / PRESS KEY</size>";
+            relicResultDismiss = () =>
+            {
+                relicResultDismiss = null;
+                dismiss();
+            };
+            card.onClick.AddListener(() =>
+            {
+                var action = relicResultDismiss;
+                relicResultDismiss = null;
+                action?.Invoke();
+            });
+        }
+
         public void ShowRelicDecision(RelicContent candidate, RelicInstance weakest, Action replace, Action salvage)
         {
             for (var i = 0; i < relicButtons.Count; i++)
@@ -540,6 +614,12 @@ namespace NeonArcana
 
         public void HideAllChoices()
         {
+            relicResultDismiss = null;
+            if (relicRouletteRoutine != null)
+            {
+                StopCoroutine(relicRouletteRoutine);
+                relicRouletteRoutine = null;
+            }
             upgradePanel.SetActive(false);
             classPanel.SetActive(false);
             relicPanel.SetActive(false);
@@ -589,6 +669,14 @@ namespace NeonArcana
         public bool HasBossMinimapMarker => miniMap != null && miniMap.HasBossMarker;
         public bool TouchDragIsConfigured => touchDragInput != null && touchDragInput.IsConfigured;
         public bool VerifyTouchDragRouteForTest() => touchDragInput != null && touchDragInput.VerifyRouteForTest();
+        public bool IsRelicResultAwaitingDismiss => relicResultDismiss != null;
+        public bool RelicRouletteCompleted => relicRouletteCompleted;
+        public void DismissRelicResultForTest()
+        {
+            var dismiss = relicResultDismiss;
+            relicResultDismiss = null;
+            dismiss?.Invoke();
+        }
         public bool IsRelicDetailsVisible => relicDetailsPanel != null && relicDetailsPanel.activeSelf;
         public string RelicDetailsText => relicDetailsText != null ? relicDetailsText.text : "";
         public string BuildTrayText => buildTrayText != null ? buildTrayText.text : "";

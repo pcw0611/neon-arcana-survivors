@@ -350,11 +350,28 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167324907
 현재 항목은 에디터·Windows 빌드 기술 검증 통과 상태이며 실제 손가락 감도는 사용자 승인
 대상이다.
 
-## 11. 남은 P0
+## 11. 유물 슬롯 룰렛과 자동 보상
+
+최신 웹판의 활성 유물 경로를 기준으로 기존 Unity 3장 선택 흐름을 자동 슬롯 보상으로
+교체했다. 보상 큐가 출처와 보스 티어를 보존하며, 시간대 희귀도·보스 최소 등급과 승급·
+빌드 친화도를 반영한다.
+
+![Unity 유물 공명 검색](images/unity-phase3-relic-roulette.png)
+
+![Unity 유물 획득 결과](images/unity-phase3-relic-result.png)
+
+중복 레벨업, 빈 슬롯 장착, 최약 유물 자동 교체 후 결과 확인을 기다린다.
+상세 규칙과 검증은
+[`UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md`](UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md)에 기록했다.
+
+```text
+NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic dismiss=required
+NEON_ARCANA_WINDOWS_BUILD_OK size=167332227
+```
+
+## 12. 남은 P0
 
 - 미니맵의 보물·리바이어던·내부 던전 등 특수 대상 정보
 - 위성 방전·요격·충격파와 마스터 특수기 등 강화 실제 효과 대조
-- 유물 보상 최신 경로 구현 — 원본 대조와 수용 기준은
-  [`UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md`](UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md) 참고
 
 위 항목이 끝나기 전에는 P0 완료 또는 3단계 완료로 표시하지 않는다.

@@ -21,7 +21,9 @@ namespace NeonArcana
             Menu,
             Result,
             Hud,
-            Warning
+            Warning,
+            RelicRoulette,
+            RelicResult
         }
 
         private CaptureMode mode;
@@ -45,6 +47,8 @@ namespace NeonArcana
                 ReadArgument(argument, "--capture-phase3-result=", CaptureMode.Result);
                 ReadArgument(argument, "--capture-phase3-hud=", CaptureMode.Hud);
                 ReadArgument(argument, "--capture-phase3-warning=", CaptureMode.Warning);
+                ReadArgument(argument, "--capture-phase3-relic-roulette=", CaptureMode.RelicRoulette);
+                ReadArgument(argument, "--capture-phase3-relic-result=", CaptureMode.RelicResult);
             }
 
             if (mode == CaptureMode.None || string.IsNullOrWhiteSpace(capturePath))
@@ -86,6 +90,8 @@ namespace NeonArcana
                 : mode == CaptureMode.Result ? 1.2f
                 : mode == CaptureMode.Hud ? 1.8f
                 : mode == CaptureMode.Warning ? 0.7f
+                : mode == CaptureMode.RelicRoulette ? 0.85f
+                : mode == CaptureMode.RelicResult ? 2.9f
                 : 1.4f;
             if (preparedClock < captureAt) return;
 
@@ -133,6 +139,11 @@ namespace NeonArcana
                     break;
                 case CaptureMode.Warning:
                     manager.EnablePhaseThreeShowcase();
+                    break;
+                case CaptureMode.RelicRoulette:
+                case CaptureMode.RelicResult:
+                    manager.EnablePhaseThreeShowcase();
+                    manager.EnableRelicFlowSmoke();
                     break;
             }
         }

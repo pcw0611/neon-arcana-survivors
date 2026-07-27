@@ -19,6 +19,8 @@ namespace NeonArcana.Editor
         private static double smokeStart = -1d;
         private static bool phaseTwoInjected;
         private static bool worldScrollInjected;
+        private static bool relicFlowInjected;
+        private static bool relicFlowDismissed;
 
         [MenuItem("Neon Arcana/Configure Prototype Project")]
         public static void Configure()
@@ -122,6 +124,20 @@ namespace NeonArcana.Editor
                 worldScrollInjected = true;
                 manager.Player.transform.position = new Vector3(18f, 9f, 0f);
             }
+            if (!relicFlowInjected && elapsed >= 3d && manager != null)
+            {
+                relicFlowInjected = true;
+                manager.EnableRelicFlowSmoke();
+            }
+            if (!relicFlowDismissed && elapsed >= 7d && manager != null && GameHud.Instance != null)
+            {
+                if (GameHud.Instance.RelicRouletteCompleted && GameHud.Instance.IsRelicResultAwaitingDismiss
+                    && manager.ActiveRewardType == "Relic" && manager.LastRelicAwardRarity >= 3 && Time.timeScale == 0f)
+                {
+                    GameHud.Instance.DismissRelicResultForTest();
+                    relicFlowDismissed = true;
+                }
+            }
             if (elapsed < 8d) return;
 
             try
@@ -142,6 +158,8 @@ namespace NeonArcana.Editor
                     throw new InvalidOperationException("The runtime HUD contains an unauthorized second touch pad.");
                 if (!GameHud.Instance.TouchDragIsConfigured || !GameHud.Instance.VerifyTouchDragRouteForTest())
                     throw new InvalidOperationException("Full-screen touch drag did not route through the single move pad.");
+                if (!relicFlowDismissed || manager.ActiveRewardType != "None" || manager.IsChoosingUpgrade || Time.timeScale != 1f)
+                    throw new InvalidOperationException("Relic result dismissal did not complete the reward.");
                 var codex = GameHud.Instance.GetComponentInChildren<CodexView>(true);
                 if (codex == null) throw new InvalidOperationException("Runtime HUD has no CodexView.");
                 GameHud.Instance.ShowCodexForCapture();
@@ -180,6 +198,7 @@ namespace NeonArcana.Editor
                     || GameHud.Instance.ActiveChoicePanelCount != 1 || Time.timeScale != 0f)
                     throw new InvalidOperationException($"Reward queue overlap: active={manager.ActiveRewardType}, pending={manager.PendingRewardCount}, panels={GameHud.Instance.ActiveChoicePanelCount}, timeScale={Time.timeScale}.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
+                Debug.Log("NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic dismiss=required");
                 Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 touchDrag=fullScreen targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails+bossWarning upgradeRules={upgradeRules} rewardQueue=1+2");
                 manager.AbandonRun();
                 if (!manager.IsGameOver || !GameHud.Instance.IsGameOverVisible || Time.timeScale != 0f)
@@ -204,6 +223,8 @@ namespace NeonArcana.Editor
             smokeStart = -1d;
             phaseTwoInjected = false;
             worldScrollInjected = false;
+            relicFlowInjected = false;
+            relicFlowDismissed = false;
             EditorApplication.Exit(exitCode);
         }
 

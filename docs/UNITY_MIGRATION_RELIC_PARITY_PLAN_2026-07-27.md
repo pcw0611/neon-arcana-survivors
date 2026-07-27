@@ -2,10 +2,9 @@
 
 > 기준일: 2026-07-27
 >
-> 상태: 웹 원본 대조 완료, Unity 구현 대기
+> 상태: **Unity 구현·자동 검증·Windows 캡처 통과, 사용자 승인 대기**
 >
-> 주의: 이 문서는 완료 기록이 아니다. 구현·Play Mode·Windows 빌드·사용자 승인을
-> 모두 통과하기 전까지 P0 완료로 표시하지 않는다.
+> 주의: 기술 검증은 통과했지만 사용자 승인 전까지 P0 전체 완료로 표시하지 않는다.
 
 ## 1. 대조한 원본
 
@@ -140,3 +139,37 @@ NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic 
 - 슬롯 검색 화면과 결과 화면 캡처
 - 한글 구현 기록 및 캡처 GitHub 반영
 - 사용자 체감 승인
+
+## 9. 구현 결과
+
+2026-07-27 Unity 보상 큐를 `RewardRequest(Type, Source, Tier)`로 확장했다.
+보스 처치 시 실제 보스 티어를 함께 전달하고, 웹판의 7구간 희귀도 표·최소 등급·승급
+확률·태그 친화도·신규/중복 가중치를 적용해 유물 하나를 결정한다.
+
+기존 3장 선택은 활성 경로에서 제거했다. 18틱 검색 연출이 끝난 뒤 다음 규칙을 자동 적용한다.
+
+- 중복: 현재 유물 레벨 +1과 효과 재적용
+- 빈 슬롯: LV.1 신규 장착
+- 가득 찬 슬롯: 낮은 레벨 우선, 동률이면 낮은 희귀도 유물 자동 교체
+- 결과 카드: 터치 또는 아무 키를 받기 전까지 활성 보상과 시간 정지 유지
+
+`조련의 코어`는 동료 보스 런타임이 아직 없으므로 추첨 풀에서 제외하고 도감에는 유지한다.
+보물 출처의 26% 승급 규칙도 코드에 포함했지만 보물 상자 콘텐츠 자체는 P1 잔여다.
+
+![Unity 유물 공명 검색](images/unity-phase3-relic-roulette.png)
+
+![Unity 유물 획득 결과](images/unity-phase3-relic-result.png)
+
+검증 결과:
+
+```text
+NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic dismiss=required
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... rewardQueue=1+2
+NEON_ARCANA_P0_FLOW_OK rewards=queued abandon=result return=title
+NEON_ARCANA_WINDOWS_BUILD_OK size=167332227
+```
+
+전용 스모크는 티어 3 보스 보상의 최종 유물이 최소 전설인지, 룰렛이 18틱을 마쳤는지,
+결과 확인 전 `activeReward=Relic`과 `timeScale=0`인지, 결과를 닫은 뒤 활성 보상과
+시간 정지가 정확히 해제되는지 검사한다. 이어서 기존 FIFO 3종과 작전 종료 회귀 검사도
+같은 Play Mode 세션에서 통과했다.

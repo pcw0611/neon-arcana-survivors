@@ -19,6 +19,7 @@ namespace NeonArcana
         public float MaxHp => maxHp;
         public EnemyArchetype Archetype { get; private set; }
         public BossKind BossKind { get; private set; }
+        public int BossTier => tier;
         public IReadOnlyList<BossOptionContent> BossOptions => bossOptions;
         public float BossTimeRemaining => Mathf.Max(0f, deadline - (GameManager.Instance?.Elapsed ?? 0f));
 

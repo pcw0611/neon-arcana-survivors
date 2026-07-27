@@ -13,6 +13,19 @@ namespace NeonArcana
             Relic
         }
 
+        private readonly struct RewardRequest
+        {
+            public readonly RewardType Type;
+            public readonly string Source;
+            public readonly int Tier;
+            public RewardRequest(RewardType type, string source = "", int tier = 0)
+            {
+                Type = type;
+                Source = source;
+                Tier = tier;
+            }
+        }
+
         public static GameManager Instance { get; private set; }
 
         public PlayerController Player { get; private set; }
@@ -32,7 +45,8 @@ namespace NeonArcana
         public IReadOnlyList<RelicInstance> Relics => relics;
         public IReadOnlyDictionary<string, int> UpgradeRanks => upgradeRanks;
         public int PendingRewardCount => rewardQueue.Count;
-        public string ActiveRewardType => activeReward?.ToString() ?? "None";
+        public string ActiveRewardType => activeReward?.Type.ToString() ?? "None";
+        public int LastRelicAwardRarity { get; private set; } = -1;
 
         private GameHud hud;
         private readonly List<UpgradeDefinition> upgradePool = new();
@@ -40,11 +54,11 @@ namespace NeonArcana
         private readonly Dictionary<string, int> upgradeRanks = new();
         private readonly Dictionary<string, int> relicKillCounters = new();
         private readonly HashSet<string> discoveredRelics = new();
-        private readonly Queue<RewardType> rewardQueue = new();
+        private readonly Queue<RewardRequest> rewardQueue = new();
         private readonly System.Random random = new(61061);
         private bool phoenixUsed;
         private int slotPity;
-        private RewardType? activeReward;
+        private RewardRequest? activeReward;
 
         private void Awake()
         {
@@ -105,7 +119,7 @@ namespace NeonArcana
             Player.Heal(8f);
             ActiveBoss = null;
             hud?.HideBoss();
-            EnqueueReward(RewardType.Relic);
+            EnqueueReward(RewardType.Relic, "boss", boss.BossTier);
         }
 
         public void RegisterBossTimeout(EnemyController boss)
@@ -132,9 +146,9 @@ namespace NeonArcana
             hud?.Refresh();
         }
 
-        private void EnqueueReward(RewardType reward)
+        private void EnqueueReward(RewardType reward, string source = "", int tier = 0)
         {
-            rewardQueue.Enqueue(reward);
+            rewardQueue.Enqueue(new RewardRequest(reward, source, tier));
             ProcessNextReward();
         }
 
@@ -144,7 +158,7 @@ namespace NeonArcana
             activeReward = rewardQueue.Dequeue();
             IsChoosingUpgrade = true;
             Time.timeScale = 0f;
-            switch (activeReward.Value)
+            switch (activeReward.Value.Type)
             {
                 case RewardType.Upgrade:
                     var choices = WeightedChoices(3);
@@ -159,7 +173,9 @@ namespace NeonArcana
                     hud.ShowClassChoices(ContentDatabase.Catalog.classes, ApplyClass);
                     break;
                 case RewardType.Relic:
-                    hud.ShowRelicChoices(RollRelics(3), SelectRelic);
+                    var request = activeReward.Value;
+                    var relic = RollRelicAward(request.Source, request.Tier);
+                    hud.ShowRelicRoulette(relic, () => AwardRelic(relic));
                     break;
             }
         }
@@ -443,26 +459,72 @@ namespace NeonArcana
             hud.ShowToast($"전직 완료 · {definition.koreanName}");
         }
 
-        private List<RelicContent> RollRelics(int count)
+        private RelicContent RollRelicAward(string source, int tier)
         {
             var available = new List<RelicContent>(ContentDatabase.Catalog.relics);
-            // The companion runtime belongs to the deferred release-content phase. Keep its catalog entry for
-            // parity, but never offer a relic whose effect is not active yet.
             available.RemoveAll(item => item.id == "tamer_core");
-            var choices = new List<RelicContent>();
-            while (choices.Count < count && available.Count > 0)
+            var rarity = RollRelicRarity(source, tier);
+            var candidates = new List<RelicContent>();
+            for (var distance = 0; distance < 5 && candidates.Count == 0; distance++)
             {
-                var rarityRoll = Mathf.Clamp(Mathf.FloorToInt((float)random.NextDouble() * 3f + Elapsed / 360f), 0, 4);
-                var candidates = available.FindAll(item => item.rarity == rarityRoll);
-                if (candidates.Count == 0) candidates = available;
-                var selected = candidates[random.Next(candidates.Count)];
-                choices.Add(selected);
-                available.Remove(selected);
+                var high = rarity + distance;
+                var low = rarity - distance;
+                if (high <= 4) candidates = available.FindAll(item => item.rarity == high);
+                if (candidates.Count == 0 && low >= 0) candidates = available.FindAll(item => item.rarity == low);
             }
-            return choices;
+            if (candidates.Count == 0) candidates = available;
+
+            var affinity = BuildAffinityScores();
+            var total = 0f;
+            foreach (var candidate in candidates) total += RelicAwardWeight(candidate, affinity);
+            var roll = (float)random.NextDouble() * total;
+            foreach (var candidate in candidates)
+            {
+                roll -= RelicAwardWeight(candidate, affinity);
+                if (roll <= 0f)
+                {
+                    LastRelicAwardRarity = candidate.rarity;
+                    return candidate;
+                }
+            }
+            LastRelicAwardRarity = candidates[candidates.Count - 1].rarity;
+            return candidates[candidates.Count - 1];
         }
 
-        private void SelectRelic(RelicContent relic)
+        private int RollRelicRarity(string source, int tier)
+        {
+            float[] weights = Elapsed < 60f ? new[] { 62f, 27f, 9f, 2f, 0f }
+                : Elapsed < 120f ? new[] { 48f, 29f, 17f, 5.5f, 0.5f }
+                : Elapsed < 180f ? new[] { 35f, 30f, 23f, 10f, 2f }
+                : Elapsed < 300f ? new[] { 23f, 28f, 29f, 16f, 4f }
+                : Elapsed < 480f ? new[] { 13f, 23f, 31f, 25f, 8f }
+                : Elapsed < 720f ? new[] { 6f, 17f, 30f, 32f, 15f }
+                : new[] { 2f, 9f, 24f, 39f, 26f };
+            var total = 0f;
+            foreach (var weight in weights) total += weight;
+            var roll = (float)random.NextDouble() * total;
+            var rarity = 0;
+            for (var i = 0; i < weights.Length; i++)
+            {
+                roll -= weights[i];
+                if (roll <= 0f) { rarity = i; break; }
+            }
+            if (source == "boss") rarity = Mathf.Max(rarity, Mathf.Min(3, tier));
+            var promotion = source == "boss" ? 0.18f + tier * 0.12f : source == "treasure" ? 0.26f : 0f;
+            if (random.NextDouble() < promotion) rarity++;
+            return Mathf.Clamp(rarity, 0, 4);
+        }
+
+        private float RelicAwardWeight(RelicContent relic, IReadOnlyDictionary<string, float> affinity)
+        {
+            var best = 0f;
+            foreach (var tag in RelicInstance.TagsFor(relic.id))
+                best = Mathf.Max(best, affinity.GetValueOrDefault(tag));
+            var owned = relics.Exists(item => item.Definition.id == relic.id) ? 1.18f : 1.35f;
+            return owned * Mathf.Min(1.8f, 1f + best * 0.12f);
+        }
+
+        private void AwardRelic(RelicContent relic)
         {
             var existing = relics.Find(item => item.Definition.id == relic.id);
             if (existing != null)
@@ -470,20 +532,24 @@ namespace NeonArcana
                 existing.Level++;
                 ApplyRelicEffect(relic, true, false);
                 Discover(relic.id);
-                CompleteReward();
-                hud.ShowToast($"{relic.name} · LV.{existing.Level}");
+                hud.ShowRelicResult(existing, $"유물 레벨 업 · LV.{existing.Level}", CompleteReward);
                 return;
             }
             if (relics.Count < Player.RelicSlots)
             {
                 EquipRelic(relic);
-                CompleteReward();
+                var equipped = relics.Find(item => item.Definition.id == relic.id);
+                hud.ShowRelicResult(equipped, "새 유물 획득", CompleteReward);
                 return;
             }
             var weakest = 0;
             for (var i = 1; i < relics.Count; i++)
-                if (relics[i].Definition.rarity < relics[weakest].Definition.rarity || relics[i].Level < relics[weakest].Level) weakest = i;
-            hud.ShowRelicDecision(relic, relics[weakest], () => ReplaceRelic(weakest, relic), () => SalvageRelic(relic));
+                if (relics[i].Level < relics[weakest].Level
+                    || relics[i].Level == relics[weakest].Level && relics[i].Definition.rarity < relics[weakest].Definition.rarity)
+                    weakest = i;
+            var oldName = relics[weakest].Definition.name;
+            ReplaceRelic(weakest, relic);
+            hud.ShowRelicResult(relics[weakest], $"{oldName} → {relic.name}", CompleteReward);
         }
 
         private void EquipRelic(RelicContent definition)
@@ -501,16 +567,7 @@ namespace NeonArcana
             relics[index] = new RelicInstance(definition);
             ApplyRelicEffect(definition, true, true);
             Discover(definition.id);
-            CompleteReward();
             hud.ShowToast($"{old.Definition.name} → {definition.name}");
-        }
-
-        private void SalvageRelic(RelicContent definition)
-        {
-            Xp += Mathf.RoundToInt(XpToNext * ContentDatabase.RelicSalvageRatio(definition.rarity));
-            Player.Heal(new[] { 2f, 3f, 5f, 9f, Player.MaxHp }[definition.rarity]);
-            CompleteReward();
-            hud.ShowToast($"{definition.name} 분해 · 공명 에너지 회수");
         }
 
         private void ApplyRelicEffect(RelicContent relic, bool equip, bool first)
@@ -658,6 +715,11 @@ namespace NeonArcana
             EnqueueReward(RewardType.Class);
         }
 
+        public void EnableRelicFlowSmoke()
+        {
+            EnqueueReward(RewardType.Relic, "boss", 3);
+        }
+
         private void BuildUpgradePool()
         {
             foreach (var content in ContentDatabase.Catalog.upgrades)
@@ -782,10 +844,10 @@ namespace NeonArcana
         public RelicInstance(RelicContent definition)
         {
             Definition = definition;
-            Tags = RelicTags(definition.id);
+            Tags = TagsFor(definition.id);
         }
 
-        private static string[] RelicTags(string id)
+        public static string[] TagsFor(string id)
         {
             return id switch
             {

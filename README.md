@@ -25,6 +25,8 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 유물 슬롯 2회 천장, 정확한 마스터 선행 조건을 복구했습니다.
 모바일 이동은 고정 패드뿐 아니라 화면의 빈 영역을 누른 위치에서 시작하는 64픽셀
 터치 드래그를 지원하며, 마우스 광검 조준과 입력 경로를 분리했습니다.
+유물 보상은 시간·출처·보스 티어·빌드 친화도로 결과를 결정하는 18틱 슬롯 룰렛과
+자동 레벨업·장착·최약 교체·결과 확인 흐름으로 최신 웹판에 맞췄습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
@@ -53,6 +55,10 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 ![Unity 보스 출현 경고와 미니맵 표식](docs/images/unity-phase3-warning.png)
 
 ![Unity 강화 선택 규칙 복구](docs/images/unity-phase3-upgrade-rules.png)
+
+![Unity 유물 공명 검색](docs/images/unity-phase3-relic-roulette.png)
+
+![Unity 유물 획득 결과](docs/images/unity-phase3-relic-result.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

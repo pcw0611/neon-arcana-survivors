@@ -648,3 +648,21 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167324907
 ```
 
 Android 실기기 감도 검수는 현재 보류하고 인게임 P0·P1 구현을 계속한다.
+
+## 20. P0 유물 슬롯 룰렛·자동 보상
+
+최신 웹판의 활성 경로에 맞춰 유물 3장 선택을 18틱 슬롯 검색과 자동 확정으로 교체했다.
+보상 큐는 `source`와 `tier`를 보존하며 시간대 희귀도, 보스 최소 등급·승급 확률,
+현재 빌드 태그 친화도를 반영한다.
+
+![Unity 유물 공명 검색](images/unity-phase3-relic-roulette.png)
+
+![Unity 유물 획득 결과](images/unity-phase3-relic-result.png)
+
+```text
+NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic dismiss=required
+NEON_ARCANA_WINDOWS_BUILD_OK size=167332227
+```
+
+중복은 레벨업, 빈 슬롯은 장착, 가득 찬 슬롯은 최약 유물 자동 교체로 처리한다.
+결과 카드는 터치 또는 아무 키를 받기 전까지 다음 FIFO 보상으로 넘어가지 않는다.
