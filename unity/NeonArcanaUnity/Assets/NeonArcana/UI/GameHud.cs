@@ -33,6 +33,7 @@ namespace NeonArcana
         [SerializeField] private GameObject relicDetailsPanel;
         [SerializeField] private Text relicDetailsText;
         [SerializeField] private Text toastText;
+        [SerializeField] private Text bossWarningText;
         [SerializeField] private CodexView codexView;
         [SerializeField] private Button startButton;
         [SerializeField] private Button codexOpenButton;
@@ -47,8 +48,10 @@ namespace NeonArcana
         [SerializeField] private VirtualJoystick moveJoystick;
         [SerializeField] private MiniMapGraphic miniMap;
         private float toastClock;
+        private float bossWarningClock;
         private bool soundMuted;
         private bool hitboxVisible;
+        private bool bossWarningWasShown;
         [SerializeField] private List<Button> upgradeButtons = new();
         [SerializeField] private List<Button> classButtons = new();
         [SerializeField] private List<Button> relicButtons = new();
@@ -228,6 +231,10 @@ namespace NeonArcana
 
             toastText = CreateText(root, "Toast", 32, TextAnchor.MiddleCenter, new Vector2(0.25f, 0.72f), new Vector2(0.75f, 0.8f), new Color(1f, 0.82f, 0.3f));
             toastText.gameObject.SetActive(false);
+            bossWarningText = CreateText(root, "Boss Warning", 54, TextAnchor.MiddleCenter, new Vector2(0.2f, 0.5f), new Vector2(0.8f, 0.68f), new Color(1f, 0.18f, 0.38f));
+            bossWarningText.gameObject.AddComponent<CanvasGroup>();
+            bossWarningText.gameObject.AddComponent<UiMotion>();
+            bossWarningText.gameObject.SetActive(false);
 
             gameOverPanel = CreateModal(root, "RIFT COLLAPSED", out var gameOverBody);
             gameOverText = CreateText(gameOverBody, "Result", 29, TextAnchor.MiddleCenter, new Vector2(0.06f, 0.28f), new Vector2(0.94f, 0.73f), Color.white);
@@ -333,6 +340,11 @@ namespace NeonArcana
             {
                 toastClock -= Time.unscaledDeltaTime;
                 if (toastClock <= 0f) toastText.gameObject.SetActive(false);
+            }
+            if (bossWarningClock > 0f)
+            {
+                bossWarningClock -= Time.unscaledDeltaTime;
+                if (bossWarningClock <= 0f) bossWarningText.gameObject.SetActive(false);
             }
         }
 
@@ -520,6 +532,11 @@ namespace NeonArcana
         public void ShowBoss(EnemyController boss)
         {
             bossPanel.SetActive(true);
+            bossWarningText.text = $"⚠  ANOMALY DETECTED  ⚠\n{boss.BossKind} · LIMIT {boss.BossTimeRemaining:0}s";
+            bossWarningText.gameObject.SetActive(true);
+            bossWarningText.transform.SetAsLastSibling();
+            bossWarningClock = 2.2f;
+            bossWarningWasShown = true;
             ShowToast($"ANOMALY BOSS · {boss.BossKind}");
         }
 
@@ -551,6 +568,9 @@ namespace NeonArcana
         public string CodexDiagnostics => codexView != null ? codexView.Diagnostics : "missing";
         public bool IsTitleVisible => titlePanel != null && titlePanel.activeSelf;
         public bool IsGameOverVisible => gameOverPanel != null && gameOverPanel.activeSelf;
+        public bool IsBossWarningVisible => bossWarningText != null && bossWarningText.gameObject.activeSelf;
+        public bool BossWarningWasShown => bossWarningWasShown;
+        public bool HasBossMinimapMarker => miniMap != null && miniMap.HasBossMarker;
         public bool IsRelicDetailsVisible => relicDetailsPanel != null && relicDetailsPanel.activeSelf;
         public string RelicDetailsText => relicDetailsText != null ? relicDetailsText.text : "";
         public string BuildTrayText => buildTrayText != null ? buildTrayText.text : "";

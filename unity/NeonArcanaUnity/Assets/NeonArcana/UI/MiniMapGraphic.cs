@@ -9,10 +9,14 @@ namespace NeonArcana
     {
         [SerializeField] private Color ringColor = new(0.2f, 0.9f, 1f, 0.75f);
         [SerializeField] private Color hostileColor = new(1f, 0.2f, 0.65f, 0.95f);
+        [SerializeField] private Color bossColor = new(1f, 0.78f, 0.18f, 1f);
         [SerializeField] private Color playerColor = new(0.55f, 1f, 1f, 1f);
         [SerializeField] private float worldRange = 10f;
         private readonly List<Vector2> hostiles = new(96);
+        private Vector2 bossPosition;
+        private bool hasBoss;
         private float refreshClock;
+        public bool HasBossMarker => hasBoss;
 
         protected override void Awake()
         {
@@ -27,8 +31,22 @@ namespace NeonArcana
             if (refreshClock > 0f) return;
             refreshClock = 0.08f;
             var player = GameManager.Instance?.Player;
-            if (player == null) hostiles.Clear();
-            else EnemyController.FillMinimap(player.transform.position, worldRange, hostiles);
+            if (player == null)
+            {
+                hostiles.Clear();
+                hasBoss = false;
+            }
+            else
+            {
+                EnemyController.FillMinimap(player.transform.position, worldRange, hostiles);
+                var boss = GameManager.Instance?.ActiveBoss;
+                hasBoss = boss != null;
+                if (hasBoss)
+                {
+                    var relative = (Vector2)(boss.transform.position - player.transform.position) / Mathf.Max(0.01f, worldRange);
+                    bossPosition = Vector2.ClampMagnitude(relative, 0.92f);
+                }
+            }
             SetVerticesDirty();
         }
 
@@ -74,6 +92,19 @@ namespace NeonArcana
                     position + new Vector2(size, size),
                     position + new Vector2(size, -size),
                     hostileColor);
+            }
+
+            if (hasBoss)
+            {
+                var position = center + bossPosition * radius;
+                const float size = 6f;
+                AddQuad(
+                    vertexHelper,
+                    position + new Vector2(0f, size),
+                    position + new Vector2(size, 0f),
+                    position + new Vector2(0f, -size),
+                    position + new Vector2(-size, 0f),
+                    bossColor);
             }
         }
 

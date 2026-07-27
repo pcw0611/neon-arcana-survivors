@@ -590,4 +590,22 @@ NEON_ARCANA_P0_FLOW_OK rewards=queued abandon=result return=title
 NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... hud=build+relicDetails
 ```
 
-보스 경고와 미니맵 특수 대상 표시는 아직 P0 잔여 항목이다.
+## 17. P0 보스 출현 경고·미니맵 보스 표식
+
+보스가 생성되면 HUD 중앙에 보스 종류와 제한 시간이 포함된 `ANOMALY DETECTED`
+경고를 2.2초 동안 표시한다. 기존 보스 체력 바와 제한 시간은 경고가 사라진 뒤에도
+계속 유지된다.
+
+미니맵에는 일반 적의 분홍색 점과 구분되는 노란색 다이아몬드로 활성 보스를 표시한다.
+플레이어에게서 멀리 떨어진 보스는 미니맵 원 가장자리에 고정해 방향을 잃지 않게 했다.
+
+![Unity 보스 출현 경고와 미니맵 표식](images/unity-phase3-warning.png)
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... hud=build+relicDetails+bossWarning
+NEON_ARCANA_WINDOWS_BUILD_OK size=167312379
+```
+
+자동 검사는 경고가 실제로 한 번 표시됐는지와 미니맵 보스 표식이 존재하는지를 함께
+확인한다. 보물·리바이어던·내부 던전 입구 같은 특수 대상과 보스별 공격 예고는 아직
+잔여 작업이다.
