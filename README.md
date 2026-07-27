@@ -8,11 +8,16 @@
 
 ## Unity 마이그레이션 현황
 
-**2026-07-27 기준 3단계 중 2단계인 콘텐츠 시스템 확장까지 완료되었습니다.**
+**2026-07-27 기준 2단계 콘텐츠 시스템의 기술 구현은 완료했지만,
+웹판과의 행동·조작·시각 유사도는 승인되지 않았습니다.**
+
+현재 상태를 “전체 마이그레이션 2단계 완료”로 해석하면 안 됩니다.
+사용자가 새로 정의할 3단계에서 유사도를 복구하고, 기존 출시 품질 단계는 4단계로 이동합니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
 - 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
+- 유사도 이탈 회고·재발 방지 기준: [`docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
 - Android 설치·사용량 특이 사례: [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)
 - 원본 인수인계 문서: [`UNITY_MIGRATION_HANDOFF.md`](UNITY_MIGRATION_HANDOFF.md)
 

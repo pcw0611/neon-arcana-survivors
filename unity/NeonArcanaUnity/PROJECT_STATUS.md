@@ -1,8 +1,12 @@
 # Unity 마이그레이션 현황
 
-> 2026-07-27 — 3단계 중 2단계 완료
+> 2026-07-27 — 2단계 기술 구현 완료, 웹판 유사도 미승인
 
-## 완료
+컴파일·시뮬레이션·빌드 기준은 통과했지만 조작, 화면, 프리팹 구조가
+원본 마이그레이션 완료 기준을 충족하지 못했다.
+상세 원인은 `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`를 참고한다.
+
+## 기술 구현 완료
 
 - Unity `6000.5.1f1` 프로젝트와 `Assets/Scenes/Main.unity`
 - 모바일 가로 화면과 듀얼 스틱
@@ -58,4 +62,5 @@ bossRarities=2,7,11,4,16
 
 - `docs/UNITY_MIGRATION_PHASE1.md`
 - `docs/UNITY_MIGRATION_PHASE2.md`
+- `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`

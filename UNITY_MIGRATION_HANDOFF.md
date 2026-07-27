@@ -2,10 +2,13 @@
 
 > **진행 상태 — 2026-07-27**
 >
-> 3단계 중 **2단계 콘텐츠 시스템 확장까지 완료**했다. 실제 Unity 프로젝트는
+> **2단계 콘텐츠 시스템의 기술 구현은 완료했지만 웹판 유사도는 미승인 상태**다.
+> “전체 마이그레이션 2단계 완료”로 해석하면 안 된다. 실제 Unity 프로젝트는
 > [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)에 있다.
 > 1단계 기록은 [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md),
-> 2단계 구현·검증·3단계 인수인계는 [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md),
+> 2단계 구현·검증·후속 단계 인수인계는 [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md),
+> 유사도 이탈 원인과 재발 방지 기준은
+> [`docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md),
 > Android 설치 중 발생한 디스크·Codex 사용량 특이 사례는
 > [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)에 기록했다.
 
