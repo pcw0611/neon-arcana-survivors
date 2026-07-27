@@ -354,6 +354,7 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167324907
 
 - 미니맵의 보물·리바이어던·내부 던전 등 특수 대상 정보
 - 위성 방전·요격·충격파와 마스터 특수기 등 강화 실제 효과 대조
-- 유물 획득 출처, 중첩, 교체 미리보기, 분해 결과 흐름 대조
+- 유물 보상 최신 경로 구현 — 원본 대조와 수용 기준은
+  [`UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md`](UNITY_MIGRATION_RELIC_PARITY_PLAN_2026-07-27.md) 참고
 
 위 항목이 끝나기 전에는 P0 완료 또는 3단계 완료로 표시하지 않는다.
