@@ -35,6 +35,14 @@ namespace NeonArcana
             sequence?.Kill();
             sequence = null;
         }
+
+        public void CompleteImmediately()
+        {
+            sequence?.Kill();
+            sequence = null;
+            if (canvasGroup != null) canvasGroup.alpha = 1f;
+            if (rectTransform != null) rectTransform.localScale = Vector3.one;
+        }
     }
 
 }

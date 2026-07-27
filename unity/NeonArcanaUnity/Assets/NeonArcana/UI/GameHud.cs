@@ -22,6 +22,7 @@ namespace NeonArcana
         [SerializeField] private GameObject classPanel;
         [SerializeField] private GameObject relicPanel;
         [SerializeField] private GameObject codexPanel;
+        [SerializeField] private GameObject gameMenuPanel;
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private Text gameOverText;
         [SerializeField] private Text bossText;
@@ -29,14 +30,20 @@ namespace NeonArcana
         [SerializeField] private GameObject bossPanel;
         [SerializeField] private Text relicTrayText;
         [SerializeField] private Text toastText;
-        [SerializeField] private Text codexText;
+        [SerializeField] private CodexView codexView;
         [SerializeField] private Button startButton;
         [SerializeField] private Button codexOpenButton;
-        [SerializeField] private Button closeCodexButton;
+        [SerializeField] private Button menuOpenButton;
+        [SerializeField] private Button menuResumeButton;
+        [SerializeField] private Button menuSoundButton;
+        [SerializeField] private Button menuHitboxButton;
+        [SerializeField] private Button menuAbandonButton;
         [SerializeField] private Button restartButton;
         [SerializeField] private VirtualJoystick moveJoystick;
         [SerializeField] private MiniMapGraphic miniMap;
         private float toastClock;
+        private bool soundMuted;
+        private bool hitboxVisible;
         [SerializeField] private List<Button> upgradeButtons = new();
         [SerializeField] private List<Button> classButtons = new();
         [SerializeField] private List<Button> relicButtons = new();
@@ -97,8 +104,27 @@ namespace NeonArcana
             startButton?.onClick.AddListener(manager.StartRun);
             codexOpenButton?.onClick.RemoveAllListeners();
             codexOpenButton?.onClick.AddListener(OpenCodex);
-            closeCodexButton?.onClick.RemoveAllListeners();
-            closeCodexButton?.onClick.AddListener(CloseCodex);
+            menuOpenButton?.onClick.RemoveAllListeners();
+            menuOpenButton?.onClick.AddListener(OpenGameMenu);
+            menuResumeButton?.onClick.RemoveAllListeners();
+            menuResumeButton?.onClick.AddListener(CloseGameMenu);
+            menuSoundButton?.onClick.RemoveAllListeners();
+            menuSoundButton?.onClick.AddListener(ToggleSound);
+            menuHitboxButton?.onClick.RemoveAllListeners();
+            menuHitboxButton?.onClick.AddListener(ToggleHitbox);
+            menuAbandonButton?.onClick.RemoveAllListeners();
+            menuAbandonButton?.onClick.AddListener(AbandonRun);
+            soundMuted = PlayerPrefs.GetInt("NeonArcana.SoundMuted", 0) != 0;
+            hitboxVisible = PlayerPrefs.GetInt("NeonArcana.ShowHitbox", 0) != 0;
+            ApplySound();
+            player?.SetHitboxVisible(hitboxVisible);
+            RefreshMenuLabels();
+            if (codexView != null)
+            {
+                codexView.Bind(manager);
+                codexView.Closed -= ResumeAfterCodex;
+                codexView.Closed += ResumeAfterCodex;
+            }
             restartButton?.onClick.RemoveAllListeners();
             restartButton?.onClick.AddListener(manager.Restart);
         }
@@ -113,14 +139,12 @@ namespace NeonArcana
 
         private void OpenCodex()
         {
-            if (codexText != null) codexText.text = manager.CodexSummary() + $"\n\n최근 런\n{SaveProgress.LastRun}";
-            codexPanel.SetActive(true);
+            codexView.Show(manager);
             Time.timeScale = 0f;
         }
 
-        private void CloseCodex()
+        private void ResumeAfterCodex()
         {
-            codexPanel.SetActive(false);
             if (!manager.IsGameOver && !manager.IsChoosingUpgrade) Time.timeScale = 1f;
         }
 
@@ -165,11 +189,11 @@ namespace NeonArcana
             for (var i = 0; i < 3; i++) relicButtons.Add(CreateButton(relicBody, $"Relic {i + 1}", ""));
             relicPanel.SetActive(false);
 
-            codexPanel = CreateModal(root, "CODEX · 균열 도감", out var codexBody);
-            codexText = CreateText(codexBody, "Codex Summary", 32, TextAnchor.MiddleCenter, new Vector2(0.08f, 0.3f), new Vector2(0.92f, 0.74f), Color.white);
-            closeCodexButton = CreateButton(codexBody, "Close Codex", "닫기");
-            codexOpenButton = CreateFixedButton(root, "Codex", "☰", new Vector2(0.92f, 0.925f), new Vector2(0.97f, 0.978f));
-            codexPanel.SetActive(false);
+            codexView = CodexView.Create(root);
+            codexPanel = codexView.gameObject;
+            codexOpenButton = CreateFixedButton(root, "Codex", "▤ 도감", new Vector2(0.02f, 0.925f), new Vector2(0.105f, 0.978f));
+            menuOpenButton = CreateFixedButton(root, "Game Menu", "☰", new Vector2(0.92f, 0.925f), new Vector2(0.97f, 0.978f));
+            BuildGameMenu(root);
 
             bossPanel = new GameObject("Boss HUD", typeof(RectTransform));
             bossPanel.transform.SetParent(root, false);
@@ -262,6 +286,13 @@ namespace NeonArcana
 
         private void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (codexPanel != null && codexPanel.activeSelf) codexView.Hide();
+                else if (gameMenuPanel != null && gameMenuPanel.activeSelf) CloseGameMenu();
+                else OpenGameMenu();
+            }
+            if (Input.GetKeyDown(KeyCode.M)) ToggleSound();
             if (damageFlash != null && damageFlash.color.a > 0f)
             {
                 var color = damageFlash.color;
@@ -300,12 +331,14 @@ namespace NeonArcana
         {
             if (titlePanel != null) titlePanel.SetActive(true);
             if (codexOpenButton != null) codexOpenButton.gameObject.SetActive(false);
+            if (menuOpenButton != null) menuOpenButton.gameObject.SetActive(false);
         }
 
         public void HideTitle()
         {
             if (titlePanel != null) titlePanel.SetActive(false);
             if (codexOpenButton != null) codexOpenButton.gameObject.SetActive(true);
+            if (menuOpenButton != null) menuOpenButton.gameObject.SetActive(true);
         }
 
         private IEnumerable<string> RelicLabels()
@@ -420,6 +453,94 @@ namespace NeonArcana
 
         public void HideGameOver() => gameOverPanel.SetActive(false);
 
+        public bool IsGameMenuOpen => gameMenuPanel != null && gameMenuPanel.activeSelf;
+        public bool IsHitboxVisible => hitboxVisible;
+        public string CodexDiagnostics => codexView != null ? codexView.Diagnostics : "missing";
+
+        public void ShowGameMenuForTest()
+        {
+            if (manager == null || manager.IsAwaitingStart || manager.IsGameOver) return;
+            gameMenuPanel.transform.SetAsLastSibling();
+            gameMenuPanel.SetActive(true);
+            RefreshMenuLabels();
+            Time.timeScale = 0f;
+        }
+        public void HideGameMenuForTest() => CloseGameMenu();
+
+        private void BuildGameMenu(Transform root)
+        {
+            gameMenuPanel = CreateModal(root, "NEON ARCANA · 작전 메뉴", out var menuBody);
+            CreateText(menuBody, "Menu Note", 17, TextAnchor.MiddleCenter, new Vector2(0.2f, 0.7f), new Vector2(0.8f, 0.78f), new Color(0.62f, 0.7f, 0.84f)).text =
+                "현재 기록으로 작전을 종료하거나 설정을 변경할 수 있습니다.";
+            menuResumeButton = CreateMenuButton(menuBody, "Resume", "계속하기", 0);
+            menuSoundButton = CreateMenuButton(menuBody, "Sound", "사운드  ON", 1);
+            menuHitboxButton = CreateMenuButton(menuBody, "Hitbox", "플레이어 히트박스  OFF", 2);
+            menuAbandonButton = CreateMenuButton(menuBody, "Abandon", "작전 포기  ×", 3, true);
+            gameMenuPanel.SetActive(false);
+        }
+
+        private void OpenGameMenu()
+        {
+            if (manager == null || manager.IsAwaitingStart || manager.IsGameOver || manager.IsChoosingUpgrade) return;
+            if (codexPanel != null && codexPanel.activeSelf) return;
+            gameMenuPanel.transform.SetAsLastSibling();
+            gameMenuPanel.SetActive(true);
+            RefreshMenuLabels();
+            Time.timeScale = 0f;
+        }
+
+        private void CloseGameMenu()
+        {
+            if (gameMenuPanel == null || !gameMenuPanel.activeSelf) return;
+            gameMenuPanel.SetActive(false);
+            if (!manager.IsGameOver && !manager.IsChoosingUpgrade) Time.timeScale = 1f;
+        }
+
+        private void ToggleSound()
+        {
+            soundMuted = !soundMuted;
+            PlayerPrefs.SetInt("NeonArcana.SoundMuted", soundMuted ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplySound();
+            RefreshMenuLabels();
+        }
+
+        private void ApplySound()
+        {
+            AudioListener.volume = soundMuted ? 0f : 1f;
+        }
+
+        private void ToggleHitbox()
+        {
+            hitboxVisible = !hitboxVisible;
+            PlayerPrefs.SetInt("NeonArcana.ShowHitbox", hitboxVisible ? 1 : 0);
+            PlayerPrefs.Save();
+            player?.SetHitboxVisible(hitboxVisible);
+            RefreshMenuLabels();
+        }
+
+        private void RefreshMenuLabels()
+        {
+            SetButtonLabel(menuSoundButton, $"사운드  {(soundMuted ? "OFF" : "ON")}");
+            SetButtonLabel(menuHitboxButton, $"플레이어 히트박스  {(hitboxVisible ? "ON" : "OFF")}");
+        }
+
+        private void AbandonRun()
+        {
+            CloseGameMenu();
+            manager.AbandonRun();
+        }
+
+        private static void SetButtonLabel(Button button, string label)
+        {
+            if (button != null) button.GetComponentInChildren<Text>().text = label;
+        }
+
+        public void ShowCodexForCapture()
+        {
+            OpenCodex();
+        }
+
         private static Image CreateBar(Transform parent, string name, Color fillColor, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 size)
         {
             var background = CreateImage(parent, name, new Color(0.02f, 0.04f, 0.1f, 0.88f), anchorMin, anchorMax);
@@ -521,6 +642,30 @@ namespace NeonArcana
             buttonObject.GetComponent<Image>().color = new Color(0.08f, 0.2f, 0.34f, 0.98f);
             CreateText(buttonObject.transform, "Label", 26, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = "";
             return buttonObject.GetComponent<Button>();
+        }
+
+        private static Button CreateMenuButton(Transform parent, string name, string label, int index, bool danger = false)
+        {
+            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(CanvasGroup), typeof(UiMotion));
+            buttonObject.transform.SetParent(parent, false);
+            var rect = buttonObject.GetComponent<RectTransform>();
+            var top = 0.66f - index * 0.135f;
+            rect.anchorMin = new Vector2(0.28f, top - 0.1f);
+            rect.anchorMax = new Vector2(0.72f, top);
+            rect.offsetMin = new Vector2(5f, 5f);
+            rect.offsetMax = new Vector2(-5f, -5f);
+            var image = buttonObject.GetComponent<Image>();
+            image.color = danger ? new Color(0.32f, 0.055f, 0.12f, 0.98f) : new Color(0.045f, 0.14f, 0.25f, 0.98f);
+            var outline = buttonObject.AddComponent<Outline>();
+            outline.effectColor = danger ? new Color(1f, 0.25f, 0.42f, 0.75f) : new Color(0.25f, 0.82f, 1f, 0.58f);
+            outline.effectDistance = new Vector2(1.5f, -1.5f);
+            var button = buttonObject.GetComponent<Button>();
+            var colors = button.colors;
+            colors.highlightedColor = danger ? new Color(0.62f, 0.1f, 0.2f) : new Color(0.12f, 0.38f, 0.58f);
+            colors.pressedColor = new Color(0.48f, 0.15f, 0.62f);
+            button.colors = colors;
+            CreateText(buttonObject.transform, "Label", 26, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = label;
+            return button;
         }
 
         private static Button CreateFixedButton(Transform parent, string name, string label, Vector2 anchorMin, Vector2 anchorMax)

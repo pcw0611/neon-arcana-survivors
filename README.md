@@ -17,13 +17,15 @@
 서버 연결·온라인 랭킹·Release/AAB·스토어·실행 파일 배포는 뒤로 미룹니다.
 
 P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도시 타일,
-월드 좌표 그리드를 구현해 맵 스크롤을 복구했습니다.
+월드 좌표 그리드를 구현해 맵 스크롤을 복구했습니다. 이어서 도감의 술식·유물·전직
+3개 탭과 전체 카드, 작전 메뉴의 정지·음소거·히트박스·포기 흐름을 구현했습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
 - 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
 - 3단계 원작 유사도 복구 기록: [`docs/UNITY_MIGRATION_PHASE3.md`](docs/UNITY_MIGRATION_PHASE3.md)
 - 인게임 동등성 재감사·현재 범위: [`docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`](docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md)
+- P0 상세 진행 기록: [`docs/UNITY_MIGRATION_P0_PROGRESS_2026-07-27.md`](docs/UNITY_MIGRATION_P0_PROGRESS_2026-07-27.md)
 - 유사도 이탈 회고·재발 방지 기준: [`docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
 - Android 설치·사용량 특이 사례: [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)
 - 제3자 라이브러리: [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)
@@ -32,6 +34,10 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 ![Unity 3단계 원작 유사도 복구](docs/images/unity-phase3-gameplay.png)
 
 ![Unity 무한 월드 스크롤](docs/images/unity-phase3-world-scroll.png)
+
+![Unity 도감 술식 탭](docs/images/unity-phase3-codex.png)
+
+![Unity 작전 메뉴](docs/images/unity-phase3-menu.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

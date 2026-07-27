@@ -29,9 +29,11 @@
 - Android ARM64 IL2CPP APK
 - Android 에뮬레이터 설치·실행 스모크
 - 원작 타이틀·HUD·미니맵·강화 선택
-- 핵심 오브젝트 프리팹 9종
+- 핵심 오브젝트 프리팹 10종
 - DOTween UI 모션
 - Phase 3 자동 화면 캡처
+- 도감 술식·유물·전직 3탭과 카드 27/21/5개
+- 작전 메뉴의 정지·재개·음소거·히트박스·포기
 
 ## 최종 검증 표식
 
@@ -64,8 +66,9 @@ bossRarities=2,7,11,4,16
 ## 인게임 재작업
 
 - 무한 월드 타일, 좌표 기반 그리드, Cinemachine 카메라 스크롤 — 구현·기술 검증 통과, 사용자 승인 대기
-- 술식·유물·전직 전체 도감
-- 게임 메뉴, HUD, 보상 큐
+- 술식·유물·전직 전체 도감 — 구현·기술 검증 통과, 사용자 승인 대기
+- 작전 메뉴 — 구현·기술 검증 통과, 사용자 승인 대기
+- HUD, 보상 큐
 - 강화·유물·전직·적·보스 행동 동등성
 - 사이버 리바이어던과 내부 던전
 - 조련의 코어와 길들인 보스 동료
@@ -78,5 +81,6 @@ bossRarities=2,7,11,4,16
 - `docs/UNITY_MIGRATION_PHASE2.md`
 - `docs/UNITY_MIGRATION_PHASE3.md`
 - `docs/UNITY_MIGRATION_INGAME_PARITY_AUDIT_2026-07-27.md`
+- `docs/UNITY_MIGRATION_P0_PROGRESS_2026-07-27.md`
 - `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`

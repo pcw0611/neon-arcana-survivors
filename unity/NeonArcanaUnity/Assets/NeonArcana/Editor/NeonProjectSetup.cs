@@ -85,7 +85,10 @@ namespace NeonArcana.Editor
             var worldPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Prefabs/WorldBackground.prefab");
             if (worldPrefab == null || worldPrefab.GetComponent<InfiniteWorldBackground>() == null)
                 throw new InvalidOperationException("Infinite world background prefab is missing.");
-            Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=9 projectileTargeting=automatic rightAimPad=removed infiniteWorld=authored");
+            var codexCard = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Prefabs/CodexCard.prefab");
+            if (codexCard == null || codexCard.GetComponent<CodexCard>() == null)
+                throw new InvalidOperationException("Authored CodexCard prefab is missing.");
+            Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=10 projectileTargeting=automatic rightAimPad=removed infiniteWorld=authored codex=threeTabs");
         }
 
         public static void PlaySmokeBatch()
@@ -134,6 +137,23 @@ namespace NeonArcana.Editor
                 if (manager.ActiveBoss == null) throw new InvalidOperationException("Boss runtime did not activate.");
                 if (GameHud.Instance.GetComponentsInChildren<VirtualJoystick>(true).Length != 1)
                     throw new InvalidOperationException("The runtime HUD contains an unauthorized second touch pad.");
+                var codex = GameHud.Instance.GetComponentInChildren<CodexView>(true);
+                if (codex == null) throw new InvalidOperationException("Runtime HUD has no CodexView.");
+                GameHud.Instance.ShowCodexForCapture();
+                if (codex.ActiveTabName != "Builds" || codex.VisibleCardCount != 27)
+                    throw new InvalidOperationException($"Codex build tab mismatch: tab={codex.ActiveTabName}, cards={codex.VisibleCardCount}.");
+                codex.ShowRelics();
+                if (codex.ActiveTabName != "Relics" || codex.VisibleCardCount != 21)
+                    throw new InvalidOperationException($"Codex relic tab mismatch: tab={codex.ActiveTabName}, cards={codex.VisibleCardCount}.");
+                codex.ShowClasses();
+                if (codex.ActiveTabName != "Classes" || codex.VisibleCardCount != 5)
+                    throw new InvalidOperationException($"Codex class tab mismatch: tab={codex.ActiveTabName}, cards={codex.VisibleCardCount}.");
+                codex.ShowBuilds();
+                codex.Hide();
+                GameHud.Instance.ShowGameMenuForTest();
+                if (!GameHud.Instance.IsGameMenuOpen || Time.timeScale != 0f)
+                    throw new InvalidOperationException("Operation menu did not pause the active run.");
+                GameHud.Instance.HideGameMenuForTest();
                 if (manager.Player.LastProjectileDirection.sqrMagnitude < 0.9f)
                     throw new InvalidOperationException("Automatic constellation targeting did not produce a valid direction.");
                 var world = UnityEngine.Object.FindFirstObjectByType<InfiniteWorldBackground>();
@@ -146,7 +166,7 @@ namespace NeonArcana.Editor
                 if (world.TileAnchor.sqrMagnitude < 1f || world.GridAnchor.sqrMagnitude < 1f)
                     throw new InvalidOperationException("World tile and grid anchors did not advance after movement.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=9 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor}");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume");
                 FinishSmoke(0);
             }
             catch (Exception exception)

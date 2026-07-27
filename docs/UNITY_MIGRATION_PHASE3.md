@@ -522,3 +522,33 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167254479
 
 이 항목은 기술 검증을 통과했지만 3단계 전체 완료를 뜻하지 않는다.
 도감과 나머지 P0·P1 항목의 재작업은 계속한다.
+
+## 14. P0 도감·작전 메뉴 재작업
+
+월드 스크롤 다음으로 웹판 도감과 작전 메뉴를 일대일 대조해 다시 구현했다.
+
+- `CodexView`: 술식·유물·전직 3탭과 세로 스크롤
+- `CodexCard.prefab`: 아이콘·이름·상태·설명·희귀도/마스터 외곽선
+- 술식 27개, 유물 21개, 전직 5개 런타임 카드
+- 현재 랭크, 보유 유물 레벨, 발견 기록, 활성 전직 상태
+- 왼쪽 상단 `▤ 도감`, 오른쪽 상단 `☰` 작전 메뉴 분리
+- 계속하기, 사운드, 히트박스, 작전 포기
+- `Escape` 메뉴 열기/닫기, `M` 음소거
+- 메뉴와 도감의 일시 정지·재개 상태 분리
+- DOTween 모션 완료 안전장치
+
+![Unity 도감 술식 탭](images/unity-phase3-codex.png)
+
+![Unity 작전 메뉴](images/unity-phase3-menu.png)
+
+상세 구현, 검증 값, 남은 P0 목록은
+[`UNITY_MIGRATION_P0_PROGRESS_2026-07-27.md`](UNITY_MIGRATION_P0_PROGRESS_2026-07-27.md)에 기록했다.
+
+Play Mode 스모크 결과:
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... codexTabs=27/21/5 gameMenu=pauseResume
+```
+
+필수 프리팹은 `CodexCard.prefab` 추가로 10개가 됐다.
+도감과 메뉴 역시 기술 검증 통과 상태이며 사용자 체감 승인 전에는 3단계 완료로 표시하지 않는다.

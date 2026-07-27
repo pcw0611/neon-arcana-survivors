@@ -20,6 +20,7 @@ namespace NeonArcana.Editor
             "CombatPulse",
             "MovePad",
             "WorldBackground",
+            "CodexCard",
             "GameHud"
         };
 
@@ -37,6 +38,7 @@ namespace NeonArcana.Editor
             Save("ExperienceGem", ExperienceGem.CreateTemplate());
             Save("CombatPulse", CombatPulse.CreateTemplate());
             Save("WorldBackground", NeonGameBootstrap.CreateBackgroundTemplate());
+            Save("CodexCard", CodexCard.CreateTemplate());
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -73,6 +75,13 @@ namespace NeonArcana.Editor
             if (hud.GetComponentsInChildren<VirtualJoystick>(true).Length != 1)
                 throw new InvalidOperationException("GameHud must contain exactly one movement pad.");
             if (hud.transform.Find("Title Screen") == null) throw new InvalidOperationException("GameHud prefab has no title screen.");
+            if (hud.transform.Find("NEON ARCANA · 작전 메뉴") == null)
+                throw new InvalidOperationException("GameHud prefab has no authored operation menu.");
+            var codex = hud.GetComponentInChildren<CodexView>(true);
+            if (codex == null) throw new InvalidOperationException("GameHud prefab has no authored CodexView.");
+            var codexCard = AssetDatabase.LoadAssetAtPath<GameObject>($"{PrefabRoot}/CodexCard.prefab");
+            if (codexCard == null || codexCard.GetComponent<CodexCard>() == null)
+                throw new InvalidOperationException("CodexCard prefab is invalid.");
         }
 
         private static void Save(string name, GameObject root)

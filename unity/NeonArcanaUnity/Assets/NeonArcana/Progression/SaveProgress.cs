@@ -13,6 +13,11 @@ namespace NeonArcana
         public static int HighScore => PlayerPrefs.GetInt(HighScoreKey, 0);
         public static int ClassCount => PlayerPrefs.GetString(ClassesKey, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Length;
         public static string LastRun => PlayerPrefs.GetString(LastRunKey, "아직 완료한 런이 없습니다.");
+        public static bool HasClass(ArcanaClass classId)
+        {
+            var classes = PlayerPrefs.GetString(ClassesKey, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            return Array.Exists(classes, item => item == classId.ToString());
+        }
 
         public static void RecordClass(ArcanaClass classId)
         {

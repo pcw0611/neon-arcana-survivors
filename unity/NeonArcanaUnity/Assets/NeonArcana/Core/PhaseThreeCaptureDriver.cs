@@ -16,7 +16,9 @@ namespace NeonArcana
             Title,
             Gameplay,
             WorldScroll,
-            Upgrade
+            Upgrade,
+            Codex,
+            Menu
         }
 
         private CaptureMode mode;
@@ -35,6 +37,8 @@ namespace NeonArcana
                 ReadArgument(argument, "--capture-phase3-gameplay=", CaptureMode.Gameplay);
                 ReadArgument(argument, "--capture-phase3-world=", CaptureMode.WorldScroll);
                 ReadArgument(argument, "--capture-phase3-upgrade=", CaptureMode.Upgrade);
+                ReadArgument(argument, "--capture-phase3-codex=", CaptureMode.Codex);
+                ReadArgument(argument, "--capture-phase3-menu=", CaptureMode.Menu);
             }
 
             if (mode == CaptureMode.None || string.IsNullOrWhiteSpace(capturePath))
@@ -71,6 +75,8 @@ namespace NeonArcana
             var captureAt = mode == CaptureMode.Title ? 0.8f
                 : mode == CaptureMode.Gameplay ? 2.2f
                 : mode == CaptureMode.WorldScroll ? 1.8f
+                : mode == CaptureMode.Codex ? 1.2f
+                : mode == CaptureMode.Menu ? 1.2f
                 : 1.4f;
             if (preparedClock < captureAt) return;
 
@@ -78,7 +84,8 @@ namespace NeonArcana
             if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
             ScreenCapture.CaptureScreenshot(capturePath);
             captureRequested = true;
-            Debug.Log($"NEON_ARCANA_PHASE3_CAPTURE_OK mode={mode} elapsed={GameManager.Instance?.Elapsed:F2} hostiles={EnemyController.ActiveCount} path={capturePath}");
+            var codexDiagnostic = mode == CaptureMode.Codex ? $" codex=[{GameHud.Instance?.CodexDiagnostics}]" : "";
+            Debug.Log($"NEON_ARCANA_PHASE3_CAPTURE_OK mode={mode} elapsed={GameManager.Instance?.Elapsed:F2} hostiles={EnemyController.ActiveCount}{codexDiagnostic} path={capturePath}");
         }
 
         private void PrepareScene()
@@ -98,6 +105,14 @@ namespace NeonArcana
                 case CaptureMode.Upgrade:
                     manager.StartRun();
                     manager.AddExperience(manager.XpToNext);
+                    break;
+                case CaptureMode.Codex:
+                    manager.EnablePhaseThreeShowcase();
+                    GameHud.Instance?.ShowCodexForCapture();
+                    break;
+                case CaptureMode.Menu:
+                    manager.EnablePhaseThreeShowcase();
+                    GameHud.Instance?.ShowGameMenuForTest();
                     break;
             }
         }

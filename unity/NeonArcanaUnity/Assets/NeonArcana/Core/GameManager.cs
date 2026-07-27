@@ -382,10 +382,17 @@ namespace NeonArcana
 
         private void HandleGameOver()
         {
+            if (IsGameOver) return;
             IsGameOver = true;
             Time.timeScale = 0f;
             SaveProgress.RecordRun(Score, Kills, BossKills, Level, Elapsed, Player.Class, relics);
             hud.ShowGameOver();
+        }
+
+        public void AbandonRun()
+        {
+            if (IsAwaitingStart || IsGameOver) return;
+            HandleGameOver();
         }
 
         public void Restart()
@@ -428,6 +435,8 @@ namespace NeonArcana
         }
 
         private void SaveCodex() => PlayerPrefs.SetString("NeonArcana.DiscoveredRelics", string.Join(",", discoveredRelics));
+
+        public bool IsRelicDiscovered(string relicId) => discoveredRelics.Contains(relicId);
 
         public string CodexSummary()
         {

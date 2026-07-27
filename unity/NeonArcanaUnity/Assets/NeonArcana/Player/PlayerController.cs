@@ -55,6 +55,7 @@ namespace NeonArcana
         [SerializeField] private SpriteRenderer auraRenderer;
         [SerializeField] private SpriteRenderer hpBackRenderer;
         [SerializeField] private SpriteRenderer hpFillRenderer;
+        [SerializeField] private SpriteRenderer hitboxRenderer;
         private float attackCooldown;
         private float hurtCooldown;
         private Vector2 lastAim = Vector2.right;
@@ -121,6 +122,15 @@ namespace NeonArcana
             controller.hpFillRenderer.sprite = NeonAssets.SolidSprite(Color.white);
             controller.hpFillRenderer.color = new Color(0.24f, 1f, 0.66f, 1f);
             controller.hpFillRenderer.sortingOrder = 23;
+
+            var hitbox = new GameObject("Hitbox Debug", typeof(SpriteRenderer));
+            hitbox.transform.SetParent(playerObject.transform, false);
+            hitbox.transform.localScale = Vector3.one * 0.9f;
+            controller.hitboxRenderer = hitbox.GetComponent<SpriteRenderer>();
+            controller.hitboxRenderer.sprite = NeonAssets.RingSprite(128);
+            controller.hitboxRenderer.color = new Color(1f, 0.2f, 0.32f, 0.9f);
+            controller.hitboxRenderer.sortingOrder = 24;
+            controller.hitboxRenderer.enabled = false;
             return playerObject;
         }
 
@@ -148,6 +158,14 @@ namespace NeonArcana
             var hpFill = transform.Find("HP Fill");
             if (hpFillRenderer == null && hpFill != null) hpFillRenderer = hpFill.GetComponent<SpriteRenderer>();
             if (hpFillRenderer != null && hpFillRenderer.sprite == null) hpFillRenderer.sprite = NeonAssets.SolidSprite(Color.white);
+            var hitbox = transform.Find("Hitbox Debug");
+            if (hitboxRenderer == null && hitbox != null) hitboxRenderer = hitbox.GetComponent<SpriteRenderer>();
+            if (hitboxRenderer != null && hitboxRenderer.sprite == null) hitboxRenderer.sprite = NeonAssets.RingSprite(128);
+        }
+
+        public void SetHitboxVisible(bool visible)
+        {
+            if (hitboxRenderer != null) hitboxRenderer.enabled = visible;
         }
 
         private void Update()
