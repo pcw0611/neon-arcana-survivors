@@ -15,6 +15,7 @@ namespace NeonArcana
             None,
             Title,
             Gameplay,
+            WorldScroll,
             Upgrade
         }
 
@@ -32,6 +33,7 @@ namespace NeonArcana
             {
                 ReadArgument(argument, "--capture-phase3-title=", CaptureMode.Title);
                 ReadArgument(argument, "--capture-phase3-gameplay=", CaptureMode.Gameplay);
+                ReadArgument(argument, "--capture-phase3-world=", CaptureMode.WorldScroll);
                 ReadArgument(argument, "--capture-phase3-upgrade=", CaptureMode.Upgrade);
             }
 
@@ -66,7 +68,10 @@ namespace NeonArcana
             if (!scenePrepared) return;
             preparedClock += Time.unscaledDeltaTime;
 
-            var captureAt = mode == CaptureMode.Title ? 0.8f : mode == CaptureMode.Gameplay ? 2.2f : 1.4f;
+            var captureAt = mode == CaptureMode.Title ? 0.8f
+                : mode == CaptureMode.Gameplay ? 2.2f
+                : mode == CaptureMode.WorldScroll ? 1.8f
+                : 1.4f;
             if (preparedClock < captureAt) return;
 
             var directory = Path.GetDirectoryName(capturePath);
@@ -85,6 +90,10 @@ namespace NeonArcana
             {
                 case CaptureMode.Gameplay:
                     manager.StartRun();
+                    break;
+                case CaptureMode.WorldScroll:
+                    manager.StartRun();
+                    manager.Player.transform.position = new Vector3(18f, 9f, 0f);
                     break;
                 case CaptureMode.Upgrade:
                     manager.StartRun();

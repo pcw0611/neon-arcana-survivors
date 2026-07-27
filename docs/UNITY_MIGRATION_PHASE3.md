@@ -393,6 +393,7 @@ Windows 플레이어에 다음 인자를 줄 수 있다.
 ```text
 --capture-phase3-title=<png>
 --capture-phase3-gameplay=<png>
+--capture-phase3-world=<png>
 --capture-phase3-upgrade=<png>
 ```
 
@@ -462,3 +463,62 @@ NEON_ARCANA_PHASE3_CAPTURE_OK mode=Gameplay elapsed=1.67 hostiles=26
 
 원작과 다른 개선안을 넣을 경우에는 원작 동작을 기본값으로 유지하고,
 변경 이유·장단점·옵션화 여부를 먼저 사용자에게 승인받는다.
+
+## 13. 사용자 검수 후 P0 재작업 기록
+
+### 13.1 무한 월드 스크롤 복구
+
+사용자 검수에서 “맵 스크롤이 되지 않는다”는 문제가 확인됐다.
+기존 `CameraFollow`는 카메라뿐 아니라 `Cyber City Background`도 매 프레임 플레이어 위치로 옮겼다.
+플레이어와 배경의 상대 위치가 고정되므로 월드 좌표는 변해도 화면에서 배경 이동을 느낄 수 없었다.
+
+다음과 같이 교체했다.
+
+- 기존 `CameraFollow` 제거
+- `CinemachineBrain`, `CinemachineCamera`, `CinemachinePositionComposer` 기반 2D 추적 카메라
+- 좌우·상하 추적 감쇠 `0.12`
+- `InfiniteWorldBackground` 컴포넌트
+- 5×5 사이버 도시 반복 타일
+- 웹판과 같은 0.72 Unity 단위 월드 그리드
+- 타일 경계를 넘을 때 보이는 빈 공간 없이 앵커 재배치
+- 카메라를 따라가는 안개는 배경 패턴과 분리
+
+`WorldBackground.prefab`은 `InfiniteWorldBackground`를 직렬화한다.
+타일과 그리드는 무한 월드의 현재 카메라 셀 주변만 런타임에 재사용한다.
+
+### 13.2 이동 후 결과 화면
+
+아래 캡처는 런 시작 후 플레이어를 월드 좌표 `(18, 9)`로 이동한 상태다.
+
+![Unity 무한 월드 스크롤](images/unity-phase3-world-scroll.png)
+
+### 13.3 검증
+
+정적 검증:
+
+```text
+NEON_ARCANA_PHASE3_VALIDATION_OK ... infiniteWorld=authored
+```
+
+Play Mode 스모크:
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... worldTiles=25 tileAnchor=(20.48, 10.24) gridAnchor=(17.28, 8.64)
+```
+
+스모크 테스트는 플레이어를 실제로 `(18, 9)`로 이동한 뒤 다음을 검사한다.
+
+- Cinemachine 카메라와 플레이어 사이 거리 0.5 이하
+- 도시 타일 25개 활성
+- 타일 앵커가 원점에서 이동
+- 월드 그리드 앵커가 원점에서 이동
+- `WorldBackground.prefab`에 무한 월드 컴포넌트 존재
+
+Windows 개발 빌드도 다시 통과했다.
+
+```text
+NEON_ARCANA_WINDOWS_BUILD_OK size=167254479
+```
+
+이 항목은 기술 검증을 통과했지만 3단계 전체 완료를 뜻하지 않는다.
+도감과 나머지 P0·P1 항목의 재작업은 계속한다.

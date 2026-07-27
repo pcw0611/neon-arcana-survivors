@@ -1,7 +1,7 @@
 using System;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI;
 
 namespace NeonArcana
 {
@@ -18,7 +18,7 @@ namespace NeonArcana
             var root = new GameObject("Neon Arcana Runtime");
             UnityEngine.Object.DontDestroyOnLoad(root);
 
-            var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(CameraFollow));
+            var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(CinemachineBrain));
             cameraObject.tag = "MainCamera";
             var camera = cameraObject.GetComponent<Camera>();
             camera.orthographic = true;
@@ -26,11 +26,10 @@ namespace NeonArcana
             camera.backgroundColor = new Color(0.008f, 0.012f, 0.035f);
             camera.clearFlags = CameraClearFlags.SolidColor;
 
-            CreateBackground();
-
             var manager = root.AddComponent<GameManager>();
             var player = PlayerController.Create();
-            cameraObject.GetComponent<CameraFollow>().Target = player.transform;
+            CreateGameplayCamera(player.transform);
+            CreateBackground(camera);
             manager.Initialize(player);
 
             new GameObject("Enemy Spawner", typeof(EnemySpawner));
@@ -49,40 +48,48 @@ namespace NeonArcana
                 root.AddComponent<PhaseThreeCaptureDriver>();
         }
 
-        private static void CreateBackground()
+        private static void CreateGameplayCamera(Transform player)
+        {
+            var cameraObject = new GameObject(
+                "Gameplay Camera",
+                typeof(CinemachineCamera),
+                typeof(CinemachinePositionComposer));
+            cameraObject.transform.position = new Vector3(player.position.x, player.position.y, -10f);
+            var gameplayCamera = cameraObject.GetComponent<CinemachineCamera>();
+            gameplayCamera.Follow = player;
+            var lens = gameplayCamera.Lens;
+            lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
+            lens.OrthographicSize = 5.6f;
+            lens.NearClipPlane = 0.01f;
+            lens.FarClipPlane = 100f;
+            gameplayCamera.Lens = lens;
+
+            var composer = cameraObject.GetComponent<CinemachinePositionComposer>();
+            composer.CameraDistance = 10f;
+            composer.Damping = new Vector3(0.12f, 0.12f, 0f);
+            composer.CenterOnActivate = true;
+        }
+
+        private static void CreateBackground(Camera camera)
         {
             var prefab = Resources.Load<GameObject>("Prefabs/WorldBackground");
             if (prefab != null)
             {
                 var instance = UnityEngine.Object.Instantiate(prefab);
                 instance.name = "Cyber City Background";
-                var renderer = instance.GetComponent<SpriteRenderer>();
-                if (renderer != null) renderer.sprite = NeonAssets.FullSprite("Art/cyber-city", 100f);
-                var glow = instance.transform.Find("Rift Haze");
-                var glowRenderer = glow != null ? glow.GetComponent<SpriteRenderer>() : null;
-                if (glowRenderer != null) glowRenderer.sprite = NeonAssets.GlowSprite();
+                var world = instance.GetComponent<InfiniteWorldBackground>();
+                if (world == null) world = instance.AddComponent<InfiniteWorldBackground>();
+                world.Initialize(camera);
                 return;
             }
-            CreateBackgroundTemplate().name = "Cyber City Background";
+            var background = CreateBackgroundTemplate();
+            background.name = "Cyber City Background";
+            background.GetComponent<InfiniteWorldBackground>().Initialize(camera);
         }
 
         public static GameObject CreateBackgroundTemplate()
         {
-            var background = new GameObject("Cyber City Background");
-            var renderer = background.AddComponent<SpriteRenderer>();
-            renderer.sprite = NeonAssets.FullSprite("Art/cyber-city", 100f);
-            renderer.color = new Color(0.44f, 0.52f, 0.72f, 0.62f);
-            renderer.sortingOrder = -100;
-            background.transform.localScale = Vector3.one * 2.05f;
-
-            var glow = new GameObject("Rift Haze", typeof(SpriteRenderer));
-            glow.transform.SetParent(background.transform, false);
-            glow.transform.localScale = new Vector3(8f, 5f, 1f);
-            var glowRenderer = glow.GetComponent<SpriteRenderer>();
-            glowRenderer.sprite = NeonAssets.GlowSprite();
-            glowRenderer.color = new Color(0.18f, 0.04f, 0.48f, 0.2f);
-            glowRenderer.sortingOrder = -99;
-            return background;
+            return new GameObject("Cyber City Background", typeof(InfiniteWorldBackground));
         }
 
         private static void EnsureEventSystem()
@@ -138,16 +145,4 @@ namespace NeonArcana
         }
     }
 
-    public sealed class CameraFollow : MonoBehaviour
-    {
-        public Transform Target { get; set; }
-
-        private void LateUpdate()
-        {
-            if (Target == null) return;
-            transform.position = new Vector3(Target.position.x, Target.position.y, -10f);
-            var background = GameObject.Find("Cyber City Background");
-            if (background != null) background.transform.position = new Vector3(Target.position.x, Target.position.y, 2f);
-        }
-    }
 }

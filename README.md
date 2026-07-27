@@ -16,6 +16,9 @@
 당분간 전투·월드·HUD·도감·진행·보스·연출 등 인게임만 수정하며,
 서버 연결·온라인 랭킹·Release/AAB·스토어·실행 파일 배포는 뒤로 미룹니다.
 
+P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도시 타일,
+월드 좌표 그리드를 구현해 맵 스크롤을 복구했습니다.
+
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
 - 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
@@ -27,6 +30,8 @@
 - 원본 인수인계 문서: [`UNITY_MIGRATION_HANDOFF.md`](UNITY_MIGRATION_HANDOFF.md)
 
 ![Unity 3단계 원작 유사도 복구](docs/images/unity-phase3-gameplay.png)
+
+![Unity 무한 월드 스크롤](docs/images/unity-phase3-world-scroll.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

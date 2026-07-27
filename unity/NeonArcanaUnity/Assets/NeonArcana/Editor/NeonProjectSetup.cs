@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEditor.Build.Reporting;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -17,6 +18,7 @@ namespace NeonArcana.Editor
         private const string AndroidJdkPath = @"C:\Users\pcw06\AppData\Local\UnityAndroid\OpenJDK";
         private static double smokeStart = -1d;
         private static bool phaseTwoInjected;
+        private static bool worldScrollInjected;
 
         [MenuItem("Neon Arcana/Configure Prototype Project")]
         public static void Configure()
@@ -80,7 +82,10 @@ namespace NeonArcana.Editor
                 throw new InvalidOperationException("Phase 3 Player prefab is invalid.");
             if (PlayerController.ConstellationTargetingMode != "NearestEnemyAutomatic")
                 throw new InvalidOperationException("Constellation projectile targeting contract changed.");
-            Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=9 projectileTargeting=automatic rightAimPad=removed");
+            var worldPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Prefabs/WorldBackground.prefab");
+            if (worldPrefab == null || worldPrefab.GetComponent<InfiniteWorldBackground>() == null)
+                throw new InvalidOperationException("Infinite world background prefab is missing.");
+            Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=9 projectileTargeting=automatic rightAimPad=removed infiniteWorld=authored");
         }
 
         public static void PlaySmokeBatch()
@@ -109,6 +114,11 @@ namespace NeonArcana.Editor
                 phaseTwoInjected = true;
                 manager.EnablePhaseTwoShowcase();
             }
+            if (!worldScrollInjected && elapsed >= 5d && manager?.Player != null)
+            {
+                worldScrollInjected = true;
+                manager.Player.transform.position = new Vector3(18f, 9f, 0f);
+            }
             if (elapsed < 8d) return;
 
             try
@@ -126,8 +136,17 @@ namespace NeonArcana.Editor
                     throw new InvalidOperationException("The runtime HUD contains an unauthorized second touch pad.");
                 if (manager.Player.LastProjectileDirection.sqrMagnitude < 0.9f)
                     throw new InvalidOperationException("Automatic constellation targeting did not produce a valid direction.");
+                var world = UnityEngine.Object.FindFirstObjectByType<InfiniteWorldBackground>();
+                if (world == null || !world.IsReady || world.ActiveTileCount != InfiniteWorldBackground.TileColumns * InfiniteWorldBackground.TileRows)
+                    throw new InvalidOperationException("Infinite world tiles or grid were not created.");
+                if (UnityEngine.Object.FindFirstObjectByType<CinemachineCamera>() == null
+                    || Camera.main == null
+                    || Vector2.Distance(Camera.main.transform.position, manager.Player.transform.position) > 0.5f)
+                    throw new InvalidOperationException("Cinemachine did not follow the moved player.");
+                if (world.TileAnchor.sqrMagnitude < 1f || world.GridAnchor.sqrMagnitude < 1f)
+                    throw new InvalidOperationException("World tile and grid anchors did not advance after movement.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=9 touchPads=1 targeting={PlayerController.ConstellationTargetingMode}");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=9 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor}");
                 FinishSmoke(0);
             }
             catch (Exception exception)
@@ -143,6 +162,7 @@ namespace NeonArcana.Editor
             EditorApplication.update -= SmokeTick;
             smokeStart = -1d;
             phaseTwoInjected = false;
+            worldScrollInjected = false;
             EditorApplication.Exit(exitCode);
         }
 
