@@ -574,3 +574,20 @@ NEON_ARCANA_P0_FLOW_OK rewards=queued abandon=result return=title
 ```
 
 상세 내용은 P0 진행 기록의 6장을 참고한다.
+
+## 16. P0 HUD 빌드·유물 트레이
+
+현재 런의 술식 아이콘과 랭크를 왼쪽 하단 `BUILD`에 표시한다.
+오른쪽 하단 `RELIC LOADOUT`은 장착 수와 슬롯 수를 보여주며,
+누르면 유물의 희귀도, 이름, 레벨, 효과가 펼쳐진다.
+
+![Unity HUD 빌드와 유물 상세](images/unity-phase3-hud.png)
+
+도감·메뉴·보상 패널이 열릴 때 유물 상세를 자동으로 닫아 UI 중첩을 방지한다.
+강화, 유물, 전직 선택에는 숫자키와 숫자 패드 `1`~`5`를 연결했다.
+
+```text
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... hud=build+relicDetails
+```
+
+보스 경고와 미니맵 특수 대상 표시는 아직 P0 잔여 항목이다.

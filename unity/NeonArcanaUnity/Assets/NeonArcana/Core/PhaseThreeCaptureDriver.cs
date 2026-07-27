@@ -19,7 +19,8 @@ namespace NeonArcana
             Upgrade,
             Codex,
             Menu,
-            Result
+            Result,
+            Hud
         }
 
         private CaptureMode mode;
@@ -41,6 +42,7 @@ namespace NeonArcana
                 ReadArgument(argument, "--capture-phase3-codex=", CaptureMode.Codex);
                 ReadArgument(argument, "--capture-phase3-menu=", CaptureMode.Menu);
                 ReadArgument(argument, "--capture-phase3-result=", CaptureMode.Result);
+                ReadArgument(argument, "--capture-phase3-hud=", CaptureMode.Hud);
             }
 
             if (mode == CaptureMode.None || string.IsNullOrWhiteSpace(capturePath))
@@ -80,6 +82,7 @@ namespace NeonArcana
                 : mode == CaptureMode.Codex ? 1.2f
                 : mode == CaptureMode.Menu ? 1.2f
                 : mode == CaptureMode.Result ? 1.2f
+                : mode == CaptureMode.Hud ? 1.8f
                 : 1.4f;
             if (preparedClock < captureAt) return;
 
@@ -120,6 +123,10 @@ namespace NeonArcana
                 case CaptureMode.Result:
                     manager.EnablePhaseThreeShowcase();
                     manager.AbandonRun();
+                    break;
+                case CaptureMode.Hud:
+                    manager.EnablePhaseThreeShowcase();
+                    GameHud.Instance?.ShowRelicDetailsForTest();
                     break;
             }
         }

@@ -165,12 +165,17 @@ namespace NeonArcana.Editor
                     throw new InvalidOperationException("Cinemachine did not follow the moved player.");
                 if (world.TileAnchor.sqrMagnitude < 1f || world.GridAnchor.sqrMagnitude < 1f)
                     throw new InvalidOperationException("World tile and grid anchors did not advance after movement.");
+                GameHud.Instance.ShowRelicDetailsForTest();
+                if (!GameHud.Instance.IsRelicDetailsVisible
+                    || !GameHud.Instance.RelicDetailsText.Contains("균열 왕관")
+                    || !GameHud.Instance.BuildTrayText.Contains("BUILD"))
+                    throw new InvalidOperationException("HUD build or relic detail tray did not reflect the active loadout.");
                 manager.EnableRewardQueueSmoke();
                 if (manager.ActiveRewardType != "Upgrade" || manager.PendingRewardCount != 2
                     || GameHud.Instance.ActiveChoicePanelCount != 1 || Time.timeScale != 0f)
                     throw new InvalidOperationException($"Reward queue overlap: active={manager.ActiveRewardType}, pending={manager.PendingRewardCount}, panels={GameHud.Instance.ActiveChoicePanelCount}, timeScale={Time.timeScale}.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume rewardQueue=1+2");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume hud=build+relicDetails rewardQueue=1+2");
                 manager.AbandonRun();
                 if (!manager.IsGameOver || !GameHud.Instance.IsGameOverVisible || Time.timeScale != 0f)
                     throw new InvalidOperationException("Abandon run did not enter the result state.");

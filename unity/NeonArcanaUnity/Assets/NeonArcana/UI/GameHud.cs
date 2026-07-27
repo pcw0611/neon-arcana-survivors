@@ -28,7 +28,10 @@ namespace NeonArcana
         [SerializeField] private Text bossText;
         [SerializeField] private Image bossFill;
         [SerializeField] private GameObject bossPanel;
+        [SerializeField] private Text buildTrayText;
         [SerializeField] private Text relicTrayText;
+        [SerializeField] private GameObject relicDetailsPanel;
+        [SerializeField] private Text relicDetailsText;
         [SerializeField] private Text toastText;
         [SerializeField] private CodexView codexView;
         [SerializeField] private Button startButton;
@@ -38,6 +41,7 @@ namespace NeonArcana
         [SerializeField] private Button menuSoundButton;
         [SerializeField] private Button menuHitboxButton;
         [SerializeField] private Button menuAbandonButton;
+        [SerializeField] private Button relicTrayToggleButton;
         [SerializeField] private Button restartButton;
         [SerializeField] private Button mainMenuButton;
         [SerializeField] private VirtualJoystick moveJoystick;
@@ -115,6 +119,8 @@ namespace NeonArcana
             menuHitboxButton?.onClick.AddListener(ToggleHitbox);
             menuAbandonButton?.onClick.RemoveAllListeners();
             menuAbandonButton?.onClick.AddListener(AbandonRun);
+            relicTrayToggleButton?.onClick.RemoveAllListeners();
+            relicTrayToggleButton?.onClick.AddListener(ToggleRelicDetails);
             soundMuted = PlayerPrefs.GetInt("NeonArcana.SoundMuted", 0) != 0;
             hitboxVisible = PlayerPrefs.GetInt("NeonArcana.ShowHitbox", 0) != 0;
             ApplySound();
@@ -142,6 +148,7 @@ namespace NeonArcana
 
         private void OpenCodex()
         {
+            HideRelicDetails();
             codexView.Show(manager);
             Time.timeScale = 0f;
         }
@@ -159,7 +166,18 @@ namespace NeonArcana
             statsText = CreateText(root, "Stats", 20, TextAnchor.MiddleLeft, new Vector2(0.046f, 0.92f), new Vector2(0.46f, 0.976f), new Color(0.93f, 0.96f, 1f));
             timerText = CreateText(root, "Timer", 20, TextAnchor.MiddleRight, new Vector2(0.77f, 0.92f), new Vector2(0.9f, 0.976f), Color.white);
             hostileText = CreateText(root, "Hostiles", 14, TextAnchor.UpperCenter, new Vector2(0.86f, 0.69f), new Vector2(0.97f, 0.74f), new Color(0.65f, 0.72f, 0.86f));
-            relicTrayText = CreateText(root, "Relics", 18, TextAnchor.MiddleRight, new Vector2(0.58f, 0.02f), new Vector2(0.97f, 0.1f), new Color(1f, 0.78f, 0.3f));
+            buildTrayText = CreateText(root, "Build Tray", 17, TextAnchor.MiddleLeft, new Vector2(0.02f, 0.02f), new Vector2(0.62f, 0.1f), new Color(0.55f, 0.92f, 1f));
+            relicTrayToggleButton = CreateFixedButton(root, "Relic Tray Toggle", "RELIC LOADOUT", new Vector2(0.72f, 0.02f), new Vector2(0.97f, 0.1f));
+            relicTrayText = relicTrayToggleButton.GetComponentInChildren<Text>();
+            relicTrayText.fontSize = 17;
+            relicTrayText.alignment = TextAnchor.MiddleRight;
+            var relicDetails = CreateImage(root, "Relic Details", new Color(0.015f, 0.04f, 0.095f, 0.96f), new Vector2(0.64f, 0.11f), new Vector2(0.97f, 0.43f));
+            var relicOutline = relicDetails.gameObject.AddComponent<Outline>();
+            relicOutline.effectColor = new Color(1f, 0.64f, 0.2f, 0.48f);
+            relicOutline.effectDistance = new Vector2(1.5f, -1.5f);
+            relicDetailsPanel = relicDetails.gameObject;
+            relicDetailsText = CreateText(relicDetails.transform, "Details", 17, TextAnchor.UpperLeft, new Vector2(0.055f, 0.06f), new Vector2(0.945f, 0.94f), new Color(0.86f, 0.89f, 0.97f));
+            relicDetailsPanel.SetActive(false);
 
             moveJoystick = VirtualJoystick.Create(root, "Move Stick", new Vector2(0.12f, 0.18f), new Color(0.2f, 0.9f, 1f));
             moveJoystick.gameObject.SetActive(false);
@@ -297,6 +315,14 @@ namespace NeonArcana
                 else OpenGameMenu();
             }
             if (Input.GetKeyDown(KeyCode.M)) ToggleSound();
+            if (manager != null && manager.IsChoosingUpgrade)
+            {
+                if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) TriggerChoice(0);
+                else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) TriggerChoice(1);
+                else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) TriggerChoice(2);
+                else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) TriggerChoice(3);
+                else if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) TriggerChoice(4);
+            }
             if (damageFlash != null && damageFlash.color.a > 0f)
             {
                 var color = damageFlash.color;
@@ -321,9 +347,12 @@ namespace NeonArcana
             hostileText.text = $"{EnemyController.ActiveCount} HOSTILES";
             hpFill.fillAmount = player.MaxHp <= 0f ? 0f : player.Hp / player.MaxHp;
             xpFill.fillAmount = manager.XpToNext <= 0 ? 0f : manager.Xp / (float)manager.XpToNext;
+            buildTrayText.text = HudBuildSummary();
             relicTrayText.text = manager.Relics.Count == 0
-                ? $"◇ 유물 0/{player.RelicSlots}"
-                : $"◇ {string.Join("  ", RelicLabels())}  [{manager.Relics.Count}/{player.RelicSlots}]";
+                ? $"RELIC LOADOUT  0/{player.RelicSlots}  ▾"
+                : $"{string.Join("  ", RelicLabels())}  [{manager.Relics.Count}/{player.RelicSlots}]  ▾";
+            if (relicDetailsPanel != null && relicDetailsPanel.activeSelf)
+                relicDetailsText.text = RelicDetailsSummary();
             if (manager.ActiveBoss != null)
             {
                 bossFill.fillAmount = manager.ActiveBoss.MaxHp <= 0f ? 0f : manager.ActiveBoss.Hp / manager.ActiveBoss.MaxHp;
@@ -350,6 +379,57 @@ namespace NeonArcana
             foreach (var relic in manager.Relics) yield return $"{relic.Definition.icon}{relic.Level}";
         }
 
+        private string HudBuildSummary()
+        {
+            var labels = new List<string>();
+            foreach (var definition in ContentDatabase.Catalog.upgrades)
+            {
+                var rank = manager.UpgradeRanks.GetValueOrDefault(definition.id);
+                if (rank > 0) labels.Add($"{definition.icon}{rank}");
+            }
+            return labels.Count == 0 ? "BUILD  —" : $"BUILD  {string.Join("  ", labels)}";
+        }
+
+        private string RelicDetailsSummary()
+        {
+            if (manager.Relics.Count == 0)
+                return "장착 유물 없음\n\n보스와 보물 상자를 사냥해 유물을 획득하세요.";
+            var rows = new List<string>();
+            foreach (var relic in manager.Relics)
+            {
+                var rarity = ContentDatabase.RarityName(relic.Definition.rarity);
+                rows.Add($"{relic.Definition.icon} {rarity} · {relic.Definition.name}  LV.{relic.Level}\n{relic.Definition.description}");
+            }
+            return string.Join("\n\n", rows);
+        }
+
+        private void ToggleRelicDetails()
+        {
+            if (relicDetailsPanel == null) return;
+            var show = !relicDetailsPanel.activeSelf;
+            relicDetailsPanel.SetActive(show);
+            if (!show) return;
+            relicDetailsPanel.transform.SetAsLastSibling();
+            relicDetailsText.text = RelicDetailsSummary();
+        }
+
+        private void HideRelicDetails()
+        {
+            if (relicDetailsPanel != null) relicDetailsPanel.SetActive(false);
+        }
+
+        private void TriggerChoice(int index)
+        {
+            List<Button> source = null;
+            if (upgradePanel != null && upgradePanel.activeSelf) source = upgradeButtons;
+            else if (relicPanel != null && relicPanel.activeSelf) source = relicButtons;
+            else if (classPanel != null && classPanel.activeSelf) source = classButtons;
+            if (source == null || index < 0 || index >= source.Count) return;
+            var button = source[index];
+            if (button != null && button.gameObject.activeInHierarchy && button.interactable)
+                button.onClick.Invoke();
+        }
+
         public void FlashDamage()
         {
             damageFlash.color = new Color(1f, 0.05f, 0.2f, 0.08f);
@@ -358,6 +438,7 @@ namespace NeonArcana
 
         public void ShowUpgradeChoices(IReadOnlyList<UpgradeDefinition> choices, Action<UpgradeDefinition> selected)
         {
+            HideRelicDetails();
             upgradePanel.SetActive(true);
             for (var i = 0; i < upgradeButtons.Count; i++)
             {
@@ -382,6 +463,7 @@ namespace NeonArcana
 
         public void ShowClassChoices(IReadOnlyList<ClassContent> choices, Action<ClassContent> selected)
         {
+            HideRelicDetails();
             classPanel.SetActive(true);
             for (var i = 0; i < classButtons.Count; i++)
             {
@@ -401,6 +483,7 @@ namespace NeonArcana
 
         public void ShowRelicChoices(IReadOnlyList<RelicContent> choices, Action<RelicContent> selected)
         {
+            HideRelicDetails();
             relicPanel.SetActive(true);
             for (var i = 0; i < relicButtons.Count; i++)
             {
@@ -468,6 +551,9 @@ namespace NeonArcana
         public string CodexDiagnostics => codexView != null ? codexView.Diagnostics : "missing";
         public bool IsTitleVisible => titlePanel != null && titlePanel.activeSelf;
         public bool IsGameOverVisible => gameOverPanel != null && gameOverPanel.activeSelf;
+        public bool IsRelicDetailsVisible => relicDetailsPanel != null && relicDetailsPanel.activeSelf;
+        public string RelicDetailsText => relicDetailsText != null ? relicDetailsText.text : "";
+        public string BuildTrayText => buildTrayText != null ? buildTrayText.text : "";
         public int ActiveChoicePanelCount =>
             (upgradePanel != null && upgradePanel.activeSelf ? 1 : 0)
             + (classPanel != null && classPanel.activeSelf ? 1 : 0)
@@ -482,6 +568,10 @@ namespace NeonArcana
             Time.timeScale = 0f;
         }
         public void HideGameMenuForTest() => CloseGameMenu();
+        public void ShowRelicDetailsForTest()
+        {
+            if (relicDetailsPanel != null && !relicDetailsPanel.activeSelf) ToggleRelicDetails();
+        }
 
         private void BuildGameMenu(Transform root)
         {
@@ -499,6 +589,7 @@ namespace NeonArcana
         {
             if (manager == null || manager.IsAwaitingStart || manager.IsGameOver || manager.IsChoosingUpgrade) return;
             if (codexPanel != null && codexPanel.activeSelf) return;
+            HideRelicDetails();
             gameMenuPanel.transform.SetAsLastSibling();
             gameMenuPanel.SetActive(true);
             RefreshMenuLabels();

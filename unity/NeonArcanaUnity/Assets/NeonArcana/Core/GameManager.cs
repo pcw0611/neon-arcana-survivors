@@ -516,18 +516,27 @@ namespace NeonArcana
         {
             StartRun();
             Elapsed = 620f;
-            ApplyUpgradeEffect("orbit");
-            ApplyUpgradeEffect("orbit");
-            ApplyUpgradeEffect("saber");
-            ApplyUpgradeEffect("saber");
-            ApplyUpgradeEffect("blast");
-            ApplyUpgradeEffect("chain");
+            ApplyShowcaseUpgrade("orbit");
+            ApplyShowcaseUpgrade("orbit");
+            ApplyShowcaseUpgrade("saber");
+            ApplyShowcaseUpgrade("saber");
+            ApplyShowcaseUpgrade("blast");
+            ApplyShowcaseUpgrade("chain");
             EquipRelic(ContentDatabase.Catalog.relics.Find(item => item.id == "rift_crown"));
             Player.SetClass(ArcanaClass.Thor);
             foreach (EnemyArchetype type in Enum.GetValues(typeof(EnemyArchetype)))
                 EnemyController.Spawn(Player.transform.position + (Vector3)UnityEngine.Random.insideUnitCircle * 4f, GameBalance.DifficultyScale(Elapsed), type);
             EnemyController.SpawnBoss(Player.transform.position + Vector3.right * 4.5f, 2, Elapsed);
             hud?.ShowToast(toast);
+        }
+
+        private void ApplyShowcaseUpgrade(string id)
+        {
+            var definition = upgradePool.Find(item => item.Id == id);
+            if (definition == null || definition.Rank >= definition.MaxRank) return;
+            definition.IncreaseRank();
+            upgradeRanks[id] = definition.Rank;
+            ApplyUpgradeEffect(id);
         }
     }
 
