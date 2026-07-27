@@ -1,5 +1,11 @@
 # Unity 마이그레이션 인수인계 문서
 
+> **진행 상태 — 2026-07-27**
+>
+> 3단계 중 **1단계 코어 프로토타입을 완료**했다. 실제 Unity 프로젝트는
+> [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)에 있으며, 구현 범위·설계 판단·검증 결과와
+> 2단계 진입 조건은 [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)에 상세히 기록했다.
+
 이 문서는 웹 버전(Next.js/Cloudflare + Canvas)으로 만들어진 "Neon Arcana: Cyber Rift"를 Unity로 새로 만들기 위한 인수인계 문서다. 작성자는 웹 버전을 개발한 Claude(Claude Code)이고, 이 문서를 읽고 Unity 작업을 진행하는 것은 GPT Codex다. 웹 버전 개발자(Claude)는 더 이상 이 프로젝트에 관여하지 않는다.
 
 **1차 목표: Unity, 모바일, 가로(landscape) 버전이 일단 돌아가는 것.** 아래 내용 전부를 한 번에 이식하라는 뜻이 아니다 — 문서 맨 아래 [권장 마이그레이션 순서](#권장-마이그레이션-순서)를 우선 참고할 것.
