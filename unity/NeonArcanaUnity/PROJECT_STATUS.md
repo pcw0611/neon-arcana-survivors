@@ -1,17 +1,17 @@
 # Unity 마이그레이션 현황
 
-> 2026-07-27 — 2단계 기술 구현 완료, 웹판 유사도 미승인
+> 2026-07-27 — 3단계 원작 유사도 복구 구현·기술 검증 완료, 사용자 승인 대기
 
-컴파일·시뮬레이션·빌드 기준은 통과했지만 조작, 화면, 프리팹 구조가
-원본 마이그레이션 완료 기준을 충족하지 못했다.
-상세 원인은 `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`를 참고한다.
+2단계 회고에서 확인한 조작, 화면, 프리팹 구조의 이탈을 3단계에서 복구했다.
+상세 구현과 비교 화면은 `docs/UNITY_MIGRATION_PHASE3.md`를 참고한다.
 
 ## 기술 구현 완료
 
 - Unity `6000.5.1f1` 프로젝트와 `Assets/Scenes/Main.unity`
-- 모바일 가로 화면과 듀얼 스틱
-- 키보드 이동과 마우스 조준
-- 자동 공격과 투사체·적·경험치 풀링
+- 모바일 가로 화면과 단일 이동 패드
+- 키보드 이동과 광검 마우스 조준
+- 가장 가까운 적 자동 표적 성좌탄
+- 투사체·적·경험치 풀링
 - 강화 34종
 - 유물 카탈로그 21종, 활성 획득 20종
 - 유물 장착·중첩·교체·분해·도감
@@ -27,6 +27,10 @@
 - Windows 개발 빌드
 - Android ARM64 IL2CPP APK
 - Android 에뮬레이터 설치·실행 스모크
+- 원작 타이틀·HUD·미니맵·강화 선택
+- 핵심 오브젝트 프리팹 9종
+- DOTween UI 모션
+- Phase 3 자동 화면 캡처
 
 ## 최종 검증 표식
 
@@ -34,6 +38,8 @@
 NEON_ARCANA_VALIDATION_OK
 NEON_ARCANA_PHASE2_SIMULATION_OK
 NEON_ARCANA_PHASE2_PLAY_SMOKE_OK
+NEON_ARCANA_PHASE3_VALIDATION_OK
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK
 NEON_ARCANA_WINDOWS_BUILD_OK
 NEON_ARCANA_ANDROID_BUILD_OK
 ```
@@ -53,7 +59,7 @@ bossRarities=2,7,11,4,16
 - 사이버 리바이어던과 내부 던전
 - 조련의 코어와 길들인 보스 동료
 - 오디오
-- 전용 프리팹·애니메이션 폴리싱
+- 전용 셰이더·파티클·애니메이션 최종 폴리싱
 - 세이브 버전 관리
 - 온라인 랭킹
 - Release/AAB 서명과 배포
@@ -62,5 +68,6 @@ bossRarities=2,7,11,4,16
 
 - `docs/UNITY_MIGRATION_PHASE1.md`
 - `docs/UNITY_MIGRATION_PHASE2.md`
+- `docs/UNITY_MIGRATION_PHASE3.md`
 - `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`

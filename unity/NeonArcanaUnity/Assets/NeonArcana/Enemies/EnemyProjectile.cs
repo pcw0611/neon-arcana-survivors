@@ -12,7 +12,7 @@ namespace NeonArcana
         private float life;
         private bool mine;
         private float warmup;
-        private SpriteRenderer renderer;
+        [SerializeField] private SpriteRenderer renderer;
 
         public static void Spawn(Vector3 position, Vector2 direction, float speed, float damage, bool mine = false)
         {
@@ -31,13 +31,38 @@ namespace NeonArcana
 
         private static EnemyProjectile Create()
         {
-            var gameObject = new GameObject("Enemy Projectile", typeof(SpriteRenderer), typeof(EnemyProjectile));
+            var prefab = Resources.Load<GameObject>("Prefabs/EnemyProjectile");
+            var gameObject = prefab != null ? Instantiate(prefab) : CreateTemplate();
+            gameObject.name = "Enemy Projectile";
             var shot = gameObject.GetComponent<EnemyProjectile>();
-            shot.renderer = gameObject.GetComponent<SpriteRenderer>();
-            shot.renderer.sprite = NeonAssets.FullSprite("Art/enemy-missile", 100f) ?? NeonAssets.SolidSprite(Color.white);
-            shot.renderer.sortingOrder = 16;
+            shot.ResolveVisuals();
             gameObject.SetActive(false);
             return shot;
+        }
+
+        public static GameObject CreateTemplate()
+        {
+            var gameObject = new GameObject("EnemyProjectile", typeof(SpriteRenderer), typeof(EnemyProjectile));
+            var shot = gameObject.GetComponent<EnemyProjectile>();
+            shot.renderer = gameObject.GetComponent<SpriteRenderer>();
+            shot.renderer.sprite = NeonAssets.FullSprite("Art/enemy-missile", 100f) ?? NeonAssets.BoltSprite();
+            shot.renderer.sortingOrder = 16;
+            return gameObject;
+        }
+
+        private void Awake()
+        {
+            ResolveVisuals();
+        }
+
+        private void ResolveVisuals()
+        {
+            if (renderer == null) renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+            {
+                if (renderer.sprite == null) renderer.sprite = NeonAssets.FullSprite("Art/enemy-missile", 100f) ?? NeonAssets.BoltSprite();
+                renderer.sortingOrder = 16;
+            }
         }
 
         private void Update()

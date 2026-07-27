@@ -11,6 +11,8 @@
 > Android 설치 특이 사례: [`ANDROID_SETUP_INCIDENT_2026-07-27.md`](ANDROID_SETUP_INCIDENT_2026-07-27.md)
 >
 > 유사도 이탈 회고: [`UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
+>
+> 후속 복구 결과: [`UNITY_MIGRATION_PHASE3.md`](UNITY_MIGRATION_PHASE3.md)
 
 ## 1. 결과 요약
 
@@ -51,7 +53,7 @@
 |---|---|---|
 | 1단계 | 이동·조준·자동 공격·레벨업이 가능한 코어 프로토타입 | 기술 완료 |
 | 2단계 | 강화·유물·적 아키타입·보스·전직·저장 시스템 확장 | 기술 완료, 유사도 미승인 |
-| 새 3단계 | 사용자가 정의할 원작 유사도 복구 | 범위 확정 대기 |
+| 새 3단계 | 원작 조작·화면·프리팹 유사도 복구 | 구현·기술 검증 완료, 사용자 승인 대기 |
 | 4단계 | 기존 3단계의 리바이어던·동료·오디오·온라인·모바일 제품화 | 순연 |
 
 2단계 완료의 의미는 “원본의 모든 기능을 완전히 동일하게 이식했다”가 아니다.

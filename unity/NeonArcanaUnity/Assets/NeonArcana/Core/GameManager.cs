@@ -18,6 +18,7 @@ namespace NeonArcana
         public float Elapsed { get; private set; }
         public bool IsChoosingUpgrade { get; private set; }
         public bool IsGameOver { get; private set; }
+        public bool IsAwaitingStart { get; private set; } = true;
         public int Score => GameBalance.Score(Kills, Level, Elapsed, BossKills);
         public EnemyController ActiveBoss { get; private set; }
         public IReadOnlyList<RelicInstance> Relics => relics;
@@ -51,12 +52,21 @@ namespace NeonArcana
         {
             hud = gameHud;
             hud.Refresh();
+            hud.ShowTitle();
         }
 
         private void Update()
         {
-            if (IsGameOver || IsChoosingUpgrade) return;
+            if (IsGameOver || IsChoosingUpgrade || IsAwaitingStart) return;
             Elapsed += Time.deltaTime;
+            hud?.Refresh();
+        }
+
+        public void StartRun()
+        {
+            if (!IsAwaitingStart) return;
+            IsAwaitingStart = false;
+            hud?.HideTitle();
             hud?.Refresh();
         }
 
@@ -127,6 +137,17 @@ namespace NeonArcana
 
         private List<UpgradeDefinition> WeightedChoices(int count)
         {
+            if (Level == 2 && upgradeRanks.Count == 0)
+            {
+                var openingChoices = new List<UpgradeDefinition>();
+                foreach (var id in new[] { "multishot", "orbit", "saber" })
+                {
+                    var definition = upgradePool.Find(upgrade => upgrade.Id == id);
+                    if (definition != null) openingChoices.Add(definition);
+                }
+                if (openingChoices.Count == count) return openingChoices;
+            }
+
             var available = new List<UpgradeDefinition>();
             foreach (var upgrade in upgradePool)
                 if (upgrade.Rank < upgrade.MaxRank && IsUpgradeEligible(upgrade)) available.Add(upgrade);
@@ -189,7 +210,7 @@ namespace NeonArcana
                 case "orbit_guard": Player.OrbitGuard += 0.06f; break;
                 case "orbit_pulse": Player.OrbitPulse++; break;
                 case "saber": Player.SaberLevel++; Player.SaberDamage *= 1.25f; break;
-                case "saber_reach": Player.SaberRange += 20f; break;
+                case "saber_reach": Player.SaberRange += 20f; Player.SaberArc += 0.14f; break;
                 case "saber_haste": Player.SaberInterval = Mathf.Max(0.22f, Player.SaberInterval * 0.83f); break;
                 case "saber_echo": Player.SaberEcho++; break;
                 case "saber_guard": Player.SaberGuard += 0.07f; break;
@@ -228,7 +249,7 @@ namespace NeonArcana
         private List<RelicContent> RollRelics(int count)
         {
             var available = new List<RelicContent>(ContentDatabase.Catalog.relics);
-            // The companion runtime belongs to phase 3. Keep its catalog entry for
+            // The companion runtime belongs to the deferred release-content phase. Keep its catalog entry for
             // parity, but never offer a relic whose effect is not active yet.
             available.RemoveAll(item => item.id == "tamer_core");
             var choices = new List<RelicContent>();
@@ -381,6 +402,7 @@ namespace NeonArcana
             Elapsed = 0f;
             ActiveBoss = null;
             IsChoosingUpgrade = IsGameOver = false;
+            IsAwaitingStart = false;
             upgradeRanks.Clear();
             relics.Clear();
             relicKillCounters.Clear();
@@ -415,6 +437,17 @@ namespace NeonArcana
 
         public void EnablePhaseTwoShowcase()
         {
+            EnableShowcase("PHASE 2 · CONTENT SHOWCASE");
+        }
+
+        public void EnablePhaseThreeShowcase()
+        {
+            EnableShowcase("PHASE 3 · FIDELITY SHOWCASE");
+        }
+
+        private void EnableShowcase(string toast)
+        {
+            StartRun();
             Elapsed = 620f;
             ApplyUpgradeEffect("orbit");
             ApplyUpgradeEffect("orbit");
@@ -427,7 +460,7 @@ namespace NeonArcana
             foreach (EnemyArchetype type in Enum.GetValues(typeof(EnemyArchetype)))
                 EnemyController.Spawn(Player.transform.position + (Vector3)UnityEngine.Random.insideUnitCircle * 4f, GameBalance.DifficultyScale(Elapsed), type);
             EnemyController.SpawnBoss(Player.transform.position + Vector3.right * 4.5f, 2, Elapsed);
-            hud?.ShowToast("PHASE 2 · CONTENT SHOWCASE");
+            hud?.ShowToast(toast);
         }
     }
 

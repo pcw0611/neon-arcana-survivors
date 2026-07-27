@@ -36,7 +36,9 @@ namespace NeonArcana
         private bool charging;
         private Vector2 chargeDirection;
         private readonly List<BossOptionContent> bossOptions = new();
-        private SpriteRenderer spriteRenderer;
+        [SerializeField] private SpriteRenderer spriteRenderer;
+        private Vector3 baseScale;
+        private float animationSeed;
 
         public static EnemyController Spawn(Vector3 position, float difficulty, EnemyArchetype? forcedType = null, bool isChild = false)
         {
@@ -108,17 +110,58 @@ namespace NeonArcana
         private static EnemyController Create()
         {
             CreatedCount++;
-            var gameObject = new GameObject("Shade", typeof(SpriteRenderer), typeof(EnemyController));
+            var prefab = Resources.Load<GameObject>("Prefabs/Enemy");
+            var gameObject = prefab != null ? Instantiate(prefab) : CreateTemplate();
+            gameObject.name = "Shade";
             var enemy = gameObject.GetComponent<EnemyController>();
-            enemy.spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
-            enemy.spriteRenderer.sortingOrder = 10;
+            enemy.ResolveVisuals();
             gameObject.SetActive(false);
             return enemy;
+        }
+
+        public static GameObject CreateTemplate()
+        {
+            var gameObject = new GameObject("Enemy", typeof(SpriteRenderer), typeof(EnemyController));
+            var enemy = gameObject.GetComponent<EnemyController>();
+            enemy.spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
+            enemy.spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/shade-sd", 0, 0);
+            enemy.spriteRenderer.sortingOrder = 10;
+            var glow = new GameObject("Threat Glow", typeof(SpriteRenderer));
+            glow.transform.SetParent(gameObject.transform, false);
+            glow.transform.localScale = Vector3.one * 1.35f;
+            var glowRenderer = glow.GetComponent<SpriteRenderer>();
+            glowRenderer.sprite = NeonAssets.GlowSprite();
+            glowRenderer.color = new Color(0.9f, 0.1f, 0.75f, 0.12f);
+            glowRenderer.sortingOrder = 9;
+            return gameObject;
+        }
+
+        private void Awake()
+        {
+            ResolveVisuals();
+        }
+
+        private void ResolveVisuals()
+        {
+            if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+            if (spriteRenderer != null)
+            {
+                if (spriteRenderer.sprite == null) spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/shade-sd", 0, 0);
+                spriteRenderer.sortingOrder = 10;
+            }
+            var glow = transform.Find("Threat Glow");
+            if (glow != null)
+            {
+                var renderer = glow.GetComponent<SpriteRenderer>();
+                if (renderer != null && renderer.sprite == null) renderer.sprite = NeonAssets.GlowSprite();
+            }
         }
 
         private void Activate()
         {
             gameObject.name = IsBoss ? $"Boss {BossKind}" : $"Enemy {Archetype}";
+            baseScale = transform.localScale;
+            animationSeed = UnityEngine.Random.value * Mathf.PI * 2f;
             gameObject.SetActive(true);
             Active.Add(this);
         }
@@ -127,7 +170,7 @@ namespace NeonArcana
         {
             var manager = GameManager.Instance;
             var player = manager?.Player;
-            if (player == null || player.IsDead) return;
+            if (player == null || player.IsDead || manager.IsAwaitingStart) return;
             if (IsBoss && manager.Elapsed >= deadline)
             {
                 manager.RegisterBossTimeout(this);
@@ -144,6 +187,7 @@ namespace NeonArcana
             else UpdateArchetype(player, delta, distance);
 
             if (delta.x != 0f) spriteRenderer.flipX = delta.x < 0f;
+            transform.localScale = baseScale * (1f + Mathf.Sin(Time.time * (IsBoss ? 2.1f : 4.2f) + animationSeed) * (IsBoss ? 0.025f : 0.045f));
             if (distance <= (IsBoss ? 0.8f : 0.55f) && contactCooldown <= 0f)
             {
                 contactCooldown = IsBoss ? 0.7f : 0.9f;
@@ -360,6 +404,19 @@ namespace NeonArcana
             }
         }
 
+        public static void FillMinimap(Vector3 center, float range, List<Vector2> results)
+        {
+            results.Clear();
+            var inverseRange = 1f / Mathf.Max(0.01f, range);
+            foreach (var enemy in Active)
+            {
+                var relative = (Vector2)(enemy.transform.position - center) * inverseRange;
+                if (relative.sqrMagnitude > 1.15f) continue;
+                results.Add(Vector2.ClampMagnitude(relative, 1f));
+                if (results.Count >= 96) break;
+            }
+        }
+
         public static void RebuildSpatialHash()
         {
             foreach (var list in Grid.Values)
@@ -450,7 +507,7 @@ namespace NeonArcana
         private void Update()
         {
             var manager = GameManager.Instance;
-            if (manager == null || manager.IsGameOver || manager.IsChoosingUpgrade) return;
+            if (manager == null || manager.IsGameOver || manager.IsChoosingUpgrade || manager.IsAwaitingStart) return;
 
             if (manager.ActiveBoss == null)
             {

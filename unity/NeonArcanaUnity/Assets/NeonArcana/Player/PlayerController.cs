@@ -6,6 +6,8 @@ namespace NeonArcana
 {
     public sealed class PlayerController : MonoBehaviour
     {
+        public const string ConstellationTargetingMode = "NearestEnemyAutomatic";
+
         public event Action Died;
 
         public float MaxHp { get; private set; } = GameBalance.StartingHp;
@@ -36,6 +38,7 @@ namespace NeonArcana
         public float SaberInterval { get; set; } = 1.1f;
         public int SaberEcho { get; set; }
         public float SaberGuard { get; set; }
+        public float SaberArc { get; set; } = 1.38f;
         public float Regen { get; set; }
         public float GuardChance { get; set; }
         public float XpMultiplier { get; set; } = 1f;
@@ -43,14 +46,20 @@ namespace NeonArcana
         public ArcanaClass Class { get; private set; }
         public int RelicSlots { get; set; } = 3;
         public bool IsDead => Hp <= 0f;
+        public Vector2 LastProjectileDirection { get; private set; } = Vector2.right;
 
         public VirtualJoystick MoveJoystick { get; set; }
-        public VirtualJoystick AimJoystick { get; set; }
 
-        private SpriteRenderer spriteRenderer;
+        [SerializeField] private SpriteRenderer spriteRenderer;
+        [SerializeField] private SpriteRenderer classDecoration;
+        [SerializeField] private SpriteRenderer auraRenderer;
+        [SerializeField] private SpriteRenderer hpBackRenderer;
+        [SerializeField] private SpriteRenderer hpFillRenderer;
         private float attackCooldown;
         private float hurtCooldown;
         private Vector2 lastAim = Vector2.right;
+        private Vector2 saberAim = Vector2.right;
+        private Vector2 moveDirection;
         private Vector2 lastMousePosition;
         private bool mouseAimActive;
         private float animationClock;
@@ -60,28 +69,90 @@ namespace NeonArcana
         private float classClock;
         private readonly List<GameObject> orbitalObjects = new();
         private readonly List<EnemyController> targetBuffer = new();
-        private SpriteRenderer classDecoration;
         private int volleyCount;
 
         public static PlayerController Create()
         {
-            var playerObject = new GameObject("Astra", typeof(SpriteRenderer), typeof(PlayerController));
+            var prefab = Resources.Load<GameObject>("Prefabs/Player");
+            var playerObject = prefab != null ? Instantiate(prefab) : CreateTemplate();
+            playerObject.name = "Astra";
+            var controller = playerObject.GetComponent<PlayerController>();
+            controller.ResolveVisuals();
+            return controller;
+        }
+
+        public static GameObject CreateTemplate()
+        {
+            var playerObject = new GameObject("Player", typeof(SpriteRenderer), typeof(PlayerController));
             var controller = playerObject.GetComponent<PlayerController>();
             controller.spriteRenderer = playerObject.GetComponent<SpriteRenderer>();
             controller.spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/astra-sd", 0, 0);
             controller.spriteRenderer.sortingOrder = 20;
-            playerObject.transform.localScale = Vector3.one * 0.72f;
+            playerObject.transform.localScale = Vector3.one * 0.78f;
+
+            var aura = new GameObject("Aura", typeof(SpriteRenderer));
+            aura.transform.SetParent(playerObject.transform, false);
+            aura.transform.localScale = Vector3.one * 1.65f;
+            controller.auraRenderer = aura.GetComponent<SpriteRenderer>();
+            controller.auraRenderer.sprite = NeonAssets.GlowSprite();
+            controller.auraRenderer.color = new Color(0.15f, 0.95f, 1f, 0.22f);
+            controller.auraRenderer.sortingOrder = 19;
+
             var decoration = new GameObject("Class Decoration", typeof(SpriteRenderer));
             decoration.transform.SetParent(playerObject.transform, false);
             controller.classDecoration = decoration.GetComponent<SpriteRenderer>();
             controller.classDecoration.sortingOrder = 21;
             controller.classDecoration.enabled = false;
-            return controller;
+
+            var hpBack = new GameObject("HP Back", typeof(SpriteRenderer));
+            hpBack.transform.SetParent(playerObject.transform, false);
+            hpBack.transform.localPosition = new Vector3(0f, -0.72f, 0f);
+            hpBack.transform.localScale = new Vector3(0.98f, 0.1f, 1f);
+            controller.hpBackRenderer = hpBack.GetComponent<SpriteRenderer>();
+            controller.hpBackRenderer.sprite = NeonAssets.SolidSprite(Color.white);
+            controller.hpBackRenderer.color = new Color(0.015f, 0.025f, 0.055f, 0.94f);
+            controller.hpBackRenderer.sortingOrder = 22;
+
+            var hpFill = new GameObject("HP Fill", typeof(SpriteRenderer));
+            hpFill.transform.SetParent(playerObject.transform, false);
+            hpFill.transform.localPosition = new Vector3(0f, -0.72f, 0f);
+            hpFill.transform.localScale = new Vector3(0.92f, 0.055f, 1f);
+            controller.hpFillRenderer = hpFill.GetComponent<SpriteRenderer>();
+            controller.hpFillRenderer.sprite = NeonAssets.SolidSprite(Color.white);
+            controller.hpFillRenderer.color = new Color(0.24f, 1f, 0.66f, 1f);
+            controller.hpFillRenderer.sortingOrder = 23;
+            return playerObject;
+        }
+
+        private void Awake()
+        {
+            ResolveVisuals();
+        }
+
+        private void ResolveVisuals()
+        {
+            if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+            if (spriteRenderer != null)
+            {
+                if (spriteRenderer.sprite == null) spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/astra-sd", 0, 0);
+                spriteRenderer.sortingOrder = 20;
+            }
+            var decoration = transform.Find("Class Decoration");
+            if (classDecoration == null && decoration != null) classDecoration = decoration.GetComponent<SpriteRenderer>();
+            var aura = transform.Find("Aura");
+            if (auraRenderer == null && aura != null) auraRenderer = aura.GetComponent<SpriteRenderer>();
+            if (auraRenderer != null && auraRenderer.sprite == null) auraRenderer.sprite = NeonAssets.GlowSprite();
+            var hpBack = transform.Find("HP Back");
+            if (hpBackRenderer == null && hpBack != null) hpBackRenderer = hpBack.GetComponent<SpriteRenderer>();
+            if (hpBackRenderer != null && hpBackRenderer.sprite == null) hpBackRenderer.sprite = NeonAssets.SolidSprite(Color.white);
+            var hpFill = transform.Find("HP Fill");
+            if (hpFillRenderer == null && hpFill != null) hpFillRenderer = hpFill.GetComponent<SpriteRenderer>();
+            if (hpFillRenderer != null && hpFillRenderer.sprite == null) hpFillRenderer.sprite = NeonAssets.SolidSprite(Color.white);
         }
 
         private void Update()
         {
-            if (IsDead || GameManager.Instance == null || GameManager.Instance.IsChoosingUpgrade) return;
+            if (IsDead || GameManager.Instance == null || GameManager.Instance.IsChoosingUpgrade || GameManager.Instance.IsAwaitingStart) return;
             Move();
             AimAndFire();
             UpdateSaber();
@@ -89,6 +160,7 @@ namespace NeonArcana
             UpdateAnimation();
             UpdateRegeneration();
             UpdateClassAbility();
+            UpdateHpBar();
             if (hurtCooldown > 0f) hurtCooldown -= Time.deltaTime;
         }
 
@@ -96,6 +168,7 @@ namespace NeonArcana
         {
             var keyboard = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             var input = MoveJoystick != null && MoveJoystick.Value.sqrMagnitude > 0.01f ? MoveJoystick.Value : Vector2.ClampMagnitude(keyboard, 1f);
+            moveDirection = input.sqrMagnitude > 0.01f ? input.normalized : Vector2.zero;
             transform.position += (Vector3)(input * MoveSpeed * Time.deltaTime);
             if (Mathf.Abs(input.x) > 0.05f) spriteRenderer.flipX = input.x < 0f;
             animationClock += input.sqrMagnitude > 0.01f ? Time.deltaTime * 8f : Time.deltaTime * 2f;
@@ -103,27 +176,35 @@ namespace NeonArcana
 
         private void AimAndFire()
         {
-            var aim = AimJoystick != null ? AimJoystick.Value : Vector2.zero;
-            var currentMousePosition = (Vector2)Input.mousePosition;
-            if ((currentMousePosition - lastMousePosition).sqrMagnitude > 1f) mouseAimActive = true;
-            lastMousePosition = currentMousePosition;
-            if (aim.sqrMagnitude < 0.04f && mouseAimActive && Camera.main != null)
-            {
-                var mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-                var mouseAim = (Vector2)(mouseWorld - transform.position);
-                if (mouseAim.sqrMagnitude > 0.25f) aim = mouseAim.normalized;
-            }
-            if (aim.sqrMagnitude < 0.04f)
-            {
-                var target = EnemyController.Nearest(transform.position);
-                if (target != null) aim = (target.transform.position - transform.position).normalized;
-            }
-            if (aim.sqrMagnitude > 0.04f) lastAim = aim.normalized;
+            UpdateSaberAim();
 
             attackCooldown -= Time.deltaTime;
             if (attackCooldown > 0f || EnemyController.ActiveCount == 0) return;
+            var target = EnemyController.Nearest(transform.position);
+            if (target == null) return;
+            var direction = (Vector2)(target.transform.position - transform.position);
+            if (direction.sqrMagnitude < 0.001f) return;
+            lastAim = direction.normalized;
+            LastProjectileDirection = lastAim;
             attackCooldown = Class == ArcanaClass.SilverBullet ? Mathf.Max(0.1f, AttackInterval * 0.4f) : AttackInterval;
             FireVolley(lastAim);
+        }
+
+        private void UpdateSaberAim()
+        {
+            var currentMousePosition = (Vector2)Input.mousePosition;
+            if ((currentMousePosition - lastMousePosition).sqrMagnitude > 1f) mouseAimActive = true;
+            lastMousePosition = currentMousePosition;
+            if (mouseAimActive && Camera.main != null)
+            {
+                var mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                var mouseAim = (Vector2)(mouseWorld - transform.position);
+                if (mouseAim.sqrMagnitude > 0.25f) saberAim = mouseAim.normalized;
+            }
+            else if (moveDirection.sqrMagnitude > 0.04f)
+            {
+                saberAim = moveDirection;
+            }
         }
 
         private void FireVolley(Vector2 direction)
@@ -214,6 +295,12 @@ namespace NeonArcana
             if (next == animationFrame) return;
             animationFrame = next;
             spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/astra-sd", animationFrame, 0);
+            if (auraRenderer != null)
+            {
+                var pulse = 1.55f + Mathf.Sin(Time.time * 3.2f) * 0.12f;
+                auraRenderer.transform.localScale = Vector3.one * pulse;
+                auraRenderer.transform.localRotation = Quaternion.Euler(0f, 0f, Time.time * 9f);
+            }
         }
 
         private void UpdateRegeneration()
@@ -233,10 +320,27 @@ namespace NeonArcana
             saberCooldown = Mathf.Max(0.2f, SaberInterval);
             var range = SaberRange / 100f + 1.6f;
             EnemyController.Nearby(transform.position, range, targetBuffer);
-            var hits = Mathf.Min(targetBuffer.Count, 2 + SaberEcho);
-            for (var i = 0; i < hits; i++)
-                targetBuffer[i].TakeDamage(Damage * DamageMultiplier * SaberDamage * (Class == ArcanaClass.ShadowMaster && targetBuffer[i].IsBoss ? 1.3f : 1f), false);
-            CombatPulse.Spawn(transform.position, range, new Color(0.75f, 0.2f, 1f, 0.7f));
+            var remainingHits = 2 + SaberEcho;
+            var minimumDot = Mathf.Cos(SaberArc * 0.5f);
+            for (var i = 0; i < targetBuffer.Count && remainingHits > 0; i++)
+            {
+                var target = targetBuffer[i];
+                var toTarget = (Vector2)(target.transform.position - transform.position);
+                if (toTarget.sqrMagnitude > 0.08f && Vector2.Dot(saberAim, toTarget.normalized) < minimumDot) continue;
+                target.TakeDamage(Damage * DamageMultiplier * SaberDamage * (Class == ArcanaClass.ShadowMaster && target.IsBoss ? 1.3f : 1f), false);
+                remainingHits--;
+            }
+            CombatPulse.SpawnArc(transform.position, range, saberAim, SaberArc, new Color(0.35f, 0.92f, 1f, 0.78f));
+        }
+
+        private void UpdateHpBar()
+        {
+            if (hpFillRenderer == null) return;
+            var ratio = MaxHp <= 0f ? 0f : Mathf.Clamp01(Hp / MaxHp);
+            var scale = hpFillRenderer.transform.localScale;
+            scale.x = 0.92f * ratio;
+            hpFillRenderer.transform.localScale = scale;
+            hpFillRenderer.transform.localPosition = new Vector3(-0.46f + scale.x * 0.5f, -0.72f, 0f);
         }
 
         private void UpdateOrbitals()
@@ -313,6 +417,7 @@ namespace NeonArcana
             SaberRange = 2.2f;
             SaberInterval = 1.1f;
             SaberGuard = Regen = GuardChance = 0f;
+            SaberArc = 1.38f;
             XpMultiplier = DamageMultiplier = 1f;
             RelicSlots = 3;
             Class = ArcanaClass.None;
@@ -322,8 +427,11 @@ namespace NeonArcana
             attackCooldown = 0f;
             hurtCooldown = 0f;
             mouseAimActive = false;
+            moveDirection = Vector2.zero;
+            saberAim = LastProjectileDirection = lastAim = Vector2.right;
             animationClock = saberCooldown = regenClock = classClock = 0f;
             volleyCount = 0;
+            UpdateHpBar();
         }
     }
 }

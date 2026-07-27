@@ -1,0 +1,457 @@
+# Unity 마이그레이션 3단계 — 원작 유사도 복구 기록
+
+> 기준일: 2026-07-27
+>
+> Unity: `6000.5.1f1`
+>
+> 프로젝트: [`unity/NeonArcanaUnity`](../unity/NeonArcanaUnity)
+>
+> 라이브 기준판: <https://neon-arcana-survivors.pcw0611.workers.dev/>
+>
+> 이전 단계: [`UNITY_MIGRATION_PHASE2.md`](UNITY_MIGRATION_PHASE2.md)
+>
+> 원인 회고: [`UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
+
+## 1. 결과 요약
+
+3단계는 콘텐츠를 더 추가하는 단계가 아니라, 1·2단계에서 벗어난 원작의 조작·화면·프로젝트 구조를 복구하는 단계다.
+
+이번 단계에서 다음 항목을 구현했다.
+
+- 라이브 웹판을 직접 플레이하고 타이틀·전투·레벨업 화면을 기준 이미지로 고정
+- 성좌탄을 가장 가까운 적을 향하는 완전 자동 공격으로 복구
+- 마우스 조준과 이동 방향은 광검 방향에만 사용
+- 승인되지 않은 오른쪽 공격 패드 제거
+- 모바일 입력을 원작처럼 단일 이동 패드로 정리
+- 웹판과 같은 타이틀 화면, 캐릭터 스테이지, 랭킹 패널 구성
+- 사이버 도시 전투 배경과 전체 화면 HUD 재배치
+- 미니맵과 적 수 표시 추가
+- 웹판과 같은 레벨 2 최초 강화 3종 제시
+- 강화 선택 화면을 3장 카드 레이아웃으로 복구
+- 플레이어·적·투사체·HUD 등 핵심 런타임 오브젝트 9종을 실제 프리팹으로 전환
+- DOTween을 도입해 화면·카드 진입과 타이틀 펄스 모션 적용
+- 광검을 조준 방향의 부채꼴 판정과 아크 이펙트로 교정
+- 플레이어 체력 바, 오라, 투사체·경험치·전투 펄스 비주얼 보강
+- 원본/Unity 화면 자동 캡처와 회귀 검증 추가
+
+> **승인 상태**
+>
+> 구현 기준으로는 3단계 범위를 완료했다. 다만 “체감 유사도 80~90%”의 최종 승인은 자동 검사로 결정하지 않는다.
+> 아래 비교 화면을 사용자가 직접 확인한 뒤 승인해야 한다. 문서의 `fidelityContract=80` 표식은 최소 목표 계약을 뜻하며,
+> 사용자 평가를 대신하는 자동 점수는 아니다.
+
+## 2. 기준판 고정
+
+### 2.1 확인한 원본
+
+다음 세 가지를 함께 확인했다.
+
+1. 라이브 웹판의 실제 플레이 흐름
+2. `public/game.html`의 화면 구조와 CSS
+3. `public/game-v4.js`의 입력·공격·선택 규칙
+
+특히 `game-v4.js`의 `fire()`는 발사할 때마다 `findTarget()`을 사용한다.
+마우스는 플레이어가 바라보는 방향과 광검 방향을 바꾸지만 성좌탄의 표적을 덮어쓰지 않는다.
+터치도 하나의 드래그 이동 입력이며 공격용 오른쪽 패드가 없다.
+
+### 2.2 기준 캡처
+
+#### 타이틀
+
+![웹판 타이틀 기준](images/web-phase3-reference-title.png)
+
+#### 전투
+
+![웹판 전투 기준](images/web-phase3-reference-combat.png)
+
+#### 강화 선택
+
+![웹판 강화 선택 기준](images/web-phase3-reference-upgrade.png)
+
+이 세 이미지는 이후 화면 회귀 검토의 기준이다.
+
+## 3. Unity 결과 화면
+
+### 3.1 타이틀
+
+![Unity 3단계 타이틀](images/unity-phase3-title.png)
+
+복구한 요소:
+
+- `NEON ARCANA` 타이틀
+- 원본 `title-bg-v2.png` 배경
+- 보스, 플레이어, 그림자 적, 궤도 링, 광검으로 구성한 오른쪽 스테이지
+- `무한 균열 진입` 버튼
+- 조작 안내
+- 글로벌 랭킹 형식의 패널과 5개 행
+- 청록·보라·남색 중심의 원작 색 체계
+
+현재 랭킹 값은 로컬 정적 표시와 저장된 최고 점수를 사용한다.
+Cloudflare D1 온라인 랭킹 연동은 순연된 4단계 범위다.
+
+### 3.2 전투
+
+![Unity 3단계 전투](images/unity-phase3-gameplay.png)
+
+자동 캡처 시점은 런 시작 후 약 1.67초다.
+캡처 로그에서 웹 기준 화면과 같은 `hostiles=26`을 확인했다.
+
+복구한 요소:
+
+- 사이버 도시 전면 배경
+- 화면 중앙 플레이어
+- 가장자리에서 접근하는 그림자 적 군집
+- 화면 상단 경험치 바
+- 레벨, 체력, 점수, 시간
+- 오른쪽 상단 메뉴와 원형 미니맵
+- 미니맵 적 점과 플레이어 방향 표식
+- 오른쪽 하단 유물 슬롯 표시
+- 모바일에서만 나타나는 단일 이동 패드
+
+### 3.3 레벨업 강화 선택
+
+![Unity 3단계 강화 선택](images/unity-phase3-upgrade.png)
+
+웹판의 레벨 2 첫 선택 규칙을 그대로 적용했다.
+
+1. 쌍성 궤도
+2. 수호 위성
+3. 아스트랄 광검
+
+카드에는 아이콘, 명칭, 효과, 현재/다음 랭크, 숫자 단축키를 표시한다.
+선택 화면은 `Time.timeScale = 0`으로 전투를 멈추고 DOTween은 비스케일 시간으로 재생한다.
+
+## 4. 행동 보존 계약
+
+| 항목 | 웹판 규칙 | 3단계 Unity 규칙 | 상태 |
+|---|---|---|---|
+| 이동 | WASD·방향키·화면 드래그 | 동일 | 완료 |
+| 성좌탄 | 가장 가까운 적 자동 표적 | `EnemyController.Nearest()` 자동 표적 | 완료 |
+| 마우스 | 바라보기·광검 조준 | 광검 부채꼴 방향에만 반영 | 완료 |
+| 터치 | 이동 드래그 하나 | 왼쪽 이동 패드 하나 | 완료 |
+| 오른쪽 공격 패드 | 없음 | 제거, 프리팹·런타임 검사 | 완료 |
+| 레벨 2 첫 선택 | 성좌탄·위성·광검 | 같은 순서의 3장 | 완료 |
+| 레벨업 | 3장 선택 중 일시 정지 | 3장 선택 중 일시 정지 | 완료 |
+| 타이틀 | 배경·스테이지·랭킹·시작 | 같은 정보 구조 | 완료 |
+| HUD | XP·체력·점수·시간·미니맵 | 같은 정보 구조 | 완료 |
+| 온라인 랭킹 | Cloudflare D1 | 로컬 표시만 구현 | 4단계 |
+| 언어 선택 | 4개 언어 | 한국어만 구현 | 4단계 |
+
+### 4.1 성좌탄
+
+`PlayerController.AimAndFire()`는 공격 주기가 끝날 때 다음 순서로 동작한다.
+
+1. 활성 적이 있는지 검사
+2. 플레이어에서 가장 가까운 적 조회
+3. 해당 적까지의 방향을 정규화
+4. 다중 발사 수와 산포 계산
+5. 성좌탄 발사
+
+마우스 위치와 모바일 입력은 이 방향 계산에 참여하지 않는다.
+코드 계약은 `PlayerController.ConstellationTargetingMode = "NearestEnemyAutomatic"`으로 명시했다.
+
+### 4.2 광검
+
+광검은 원작처럼 방향성 공격이다.
+
+- 마우스가 움직였으면 마우스 월드 방향 사용
+- 마우스 조준이 없으면 최근 이동 방향 사용
+- `SaberArc` 각도 안의 적만 피해
+- `월광 검로` 강화 시 사거리와 각도 함께 증가
+- 공격 시 같은 각도의 청록색 아크 이펙트 표시
+
+이 변경으로 “마우스는 광검 조준, 성좌탄은 자동 공격”이라는 경계를 복구했다.
+
+## 5. 프리팹 전환
+
+다음 9개 실제 `.prefab` 파일을 생성했다.
+
+```text
+Assets/Resources/Prefabs/
+├─ Player.prefab
+├─ Enemy.prefab
+├─ Projectile.prefab
+├─ EnemyProjectile.prefab
+├─ ExperienceGem.prefab
+├─ CombatPulse.prefab
+├─ MovePad.prefab
+├─ WorldBackground.prefab
+└─ GameHud.prefab
+```
+
+### 5.1 목적
+
+- Inspector에서 계층과 직렬화 값을 확인 가능
+- 플레이어·적·UI를 코드 전체 재작성 없이 수정 가능
+- 프리팹 단위로 Missing Script 검사 가능
+- 모바일 UI 구조를 화면 계층으로 검토 가능
+- 런타임 풀링 대상의 기본 구성을 한곳에 고정
+
+### 5.2 생성과 재생성
+
+에디터 메뉴:
+
+```text
+Neon Arcana > Phase 3 > Rebuild Authored Prefabs
+```
+
+배치 명령:
+
+```powershell
+Unity.exe -batchmode -nographics -quit `
+  -projectPath "<repo>\unity\NeonArcanaUnity" `
+  -executeMethod NeonArcana.Editor.NeonProjectSetup.Configure
+```
+
+`PhaseThreePrefabBuilder`가 9개 프리팹을 저장한 뒤 다음을 검사한다.
+
+- 필수 프리팹 9개 존재
+- `GameHud` 컴포넌트 존재
+- 모든 프리팹에 Missing MonoBehaviour가 없음
+- `Aim Stick`이라는 오브젝트가 계층 어디에도 없음
+- `VirtualJoystick`가 정확히 1개
+- 타이틀 화면 존재
+
+### 5.3 프리팹과 런타임 생성의 관계
+
+각 `Create()` 함수는 먼저 `Resources/Prefabs`를 로드한다.
+프리팹이 누락된 개발 환경에서만 `CreateTemplate()`로 폴백한다.
+
+따라서 정상 빌드는 프리팹 기반이며, 템플릿 코드는 자동 복구와 프리팹 재생성에만 사용한다.
+
+## 6. DOTween 도입
+
+사용자의 제안에 따라 공식 DOTween Free 배포본 `1.3.030`을 도입했다.
+
+설치 위치:
+
+```text
+Assets/Plugins/Demigiant/DOTween/
+```
+
+현재 사용 범위:
+
+- 타이틀·모달의 알파 페이드 인
+- 타이틀·모달의 짧은 스케일 인
+- 강화 카드의 진입 모션
+- 시작 버튼과 타이틀 스테이지의 미세한 반복 펄스
+- 선택 화면처럼 `Time.timeScale = 0`인 상황에서도 동작하는 비스케일 UI 모션
+
+의도적으로 DOTween을 게임 규칙이나 자동 공격 판정에는 사용하지 않았다.
+모션 라이브러리 업데이트가 전투 결과를 바꾸지 않도록 표현 계층에만 한정했다.
+
+출처와 라이선스는 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)에 기록했다.
+
+## 7. 시각 구현
+
+### 7.1 원본 에셋 재사용
+
+웹판의 다음 리소스를 Unity `Resources/Art`에서 사용한다.
+
+- `title-bg-v2.png`
+- `cyber-city.png`
+- `astra-sd.png`
+- `shade-sd.png`
+- `bosses.png`
+- `saber-blade.png`
+- 기존 2단계의 보스·클래스·VFX 리소스
+
+### 7.2 Unity 절차 생성 리소스
+
+`NeonAssets`는 다음 스프라이트를 런타임에 생성하고 캐시한다.
+
+- 원형 글로우
+- 네온 링
+- 성좌탄 볼트
+- 경험치 다이아몬드
+- 방향성 광검 아크
+
+이 리소스는 흰 사각형 임시 그래픽을 대체한다.
+
+### 7.3 미니맵
+
+`MiniMapGraphic`은 UGUI `Graphic`을 상속한 전용 메시 렌더러다.
+
+- 바깥 원
+- 내부 원
+- 중앙의 플레이어 삼각형
+- 플레이어 주변 적 위치를 정규화한 분홍 점
+- 한 프레임에 최대 96개 점
+
+월드 적 위치는 `EnemyController.FillMinimap()`에서 읽는다.
+
+## 8. 주요 변경 파일
+
+```text
+Assets/NeonArcana/
+├─ Combat/
+│  ├─ CombatPulse.cs
+│  └─ Projectile.cs
+├─ Core/
+│  ├─ GameManager.cs
+│  ├─ NeonAssets.cs
+│  ├─ NeonGameBootstrap.cs
+│  └─ PhaseThreeCaptureDriver.cs
+├─ Editor/
+│  ├─ NeonProjectSetup.cs
+│  └─ PhaseThreePrefabBuilder.cs
+├─ Enemies/
+│  ├─ EnemyController.cs
+│  └─ EnemyProjectile.cs
+├─ Input/
+│  └─ VirtualJoystick.cs
+├─ Player/
+│  └─ PlayerController.cs
+├─ Progression/
+│  └─ ExperienceGem.cs
+└─ UI/
+   ├─ GameHud.cs
+   ├─ MiniMapGraphic.cs
+   ├─ NeonPulse.cs
+   └─ UiMotion.cs
+```
+
+## 9. 검증
+
+### 9.1 정적·시뮬레이션 검증
+
+실행 메서드:
+
+```text
+NeonArcana.Editor.NeonProjectSetup.ValidatePhaseThreeBatch
+```
+
+결과:
+
+```text
+NEON_ARCANA_VALIDATION_OK
+NEON_ARCANA_PHASE2_SIMULATION_OK bosses=13 enemyPeak=190
+NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=9 projectileTargeting=automatic rightAimPad=removed
+```
+
+### 9.2 Play Mode 스모크
+
+실행 메서드:
+
+```text
+NeonArcana.Editor.NeonProjectSetup.PlaySmokeBatch
+```
+
+결과:
+
+```text
+NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies=148 kills=10 class=Thor relics=1 boss=Dragon elapsed=623.63
+NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=9 touchPads=1 targeting=NearestEnemyAutomatic
+```
+
+검사 범위:
+
+- 런타임 부트스트랩
+- 자동 성좌탄으로 실제 적 처치
+- 적 스폰
+- 보스 생성
+- 전직, 유물, 광검, 위성
+- HUD 생성
+- 이동 패드 정확히 1개
+- 자동 표적 방향 생성
+
+Unity 에디터 검색 인덱서가 시작 시 남기는 `ArgumentOutOfRangeException`은
+`UnityEditor.Search.SearchDatabase` 내부 스택이며 게임 런타임 예외가 아니다.
+플레이어 로그에는 Missing Script, `NullReferenceException`, 처리되지 않은 게임 예외가 없었다.
+
+### 9.3 Windows 빌드
+
+결과:
+
+```text
+NEON_ARCANA_WINDOWS_BUILD_OK size=166302280
+```
+
+로컬 출력:
+
+```text
+unity/NeonArcanaUnity/Builds/Windows/NeonArcanaPrototype.exe
+```
+
+`Builds`는 저장소에서 제외되므로 GitHub에는 실행 파일 대신 재현 가능한 프로젝트와 빌드 메서드를 배포한다.
+
+### 9.4 자동 화면 캡처
+
+Windows 플레이어에 다음 인자를 줄 수 있다.
+
+```text
+--capture-phase3-title=<png>
+--capture-phase3-gameplay=<png>
+--capture-phase3-upgrade=<png>
+```
+
+캡처 드라이버는 준비 프레임 이후 비스케일 시간으로 기다린 다음 PNG를 저장하고 종료한다.
+마지막 전투 캡처 표식:
+
+```text
+NEON_ARCANA_PHASE3_CAPTURE_OK mode=Gameplay elapsed=1.67 hostiles=26
+```
+
+## 10. 구현 중 발견한 회귀 위험
+
+### 10.1 파일명과 다른 MonoBehaviour
+
+처음 프리팹을 만든 뒤 `CombatPulse`와 `NeonPulse`가 Missing Script로 직렬화되는 문제가 있었다.
+
+원인:
+
+- `CombatPulse`가 `Projectile.cs` 안에 있었음
+- `NeonPulse`가 `UiMotion.cs` 안에 있었음
+- Unity 프리팹은 파일명과 일치하지 않는 보조 `MonoBehaviour`를 안정적으로 스크립트 에셋에 연결하지 못함
+
+조치:
+
+- `CombatPulse.cs`로 분리
+- `NeonPulse.cs`로 분리
+- 모든 프리팹의 Missing MonoBehaviour 개수를 자동 검사
+- Windows 플레이어 로그에서도 Missing Script 문구 검사
+
+### 10.2 런타임 생성 Sprite의 프리팹 저장
+
+절차 생성 Sprite는 에디터 메모리 오브젝트이므로 프리팹에 영구 에셋 참조로 저장되지 않는다.
+
+조치:
+
+- 플레이어·적·투사체는 `ResolveVisuals()`에서 필요한 Sprite를 다시 연결
+- 타이틀 스테이지는 `GameHud.Bind()`에서 다시 연결
+- 월드 배경은 `NeonGameBootstrap.CreateBackground()`에서 다시 연결
+
+이 규칙을 지키지 않으면 빌드에서 흰 사각형이나 검은 배경이 나타난다.
+
+## 11. 현재 차이와 4단계 이관
+
+다음 항목은 3단계에서 완성했다고 주장하지 않는다.
+
+- Cloudflare D1 온라인 랭킹
+- 한국어 외 언어 선택
+- 사이버 리바이어던과 내부 던전
+- 길들인 보스 동료
+- 웹판 전체 오디오와 음소거
+- 모든 전직 궁극기의 원작 수준 전용 VFX
+- 전용 셰이더, 파티클, 카메라 흔들림 최종 폴리싱
+- 실제 Android 기기의 성능·발열·멀티터치 검증
+- AAB 서명과 스토어 배포
+
+기존 계획의 3단계였던 위 출시·콘텐츠 작업은 사용자의 지시에 따라 4단계로 이동했다.
+
+## 12. 다음 단계 인수인계
+
+4단계를 시작하기 전에 먼저 사용자가 이 문서의 세 Unity 화면을 검토한다.
+
+승인 후 권장 순서:
+
+1. 실제 Android 기기에서 단일 이동 패드와 가로 안전 영역 확인
+2. 사이버 리바이어던과 내부 던전
+3. 조련의 코어와 길들인 보스 동료
+4. 오디오·카메라·파티클 폴리싱
+5. 온라인 랭킹 백엔드 결정
+6. 저장 데이터 버전 관리
+7. Release 빌드, 서명, AAB, 배포
+
+원작과 다른 개선안을 넣을 경우에는 원작 동작을 기본값으로 유지하고,
+변경 이유·장단점·옵션화 여부를 먼저 사용자에게 승인받는다.

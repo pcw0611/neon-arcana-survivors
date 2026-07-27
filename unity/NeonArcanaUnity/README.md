@@ -1,8 +1,8 @@
-# Neon Arcana: Cyber Rift — Unity Phase 2
+# Neon Arcana: Cyber Rift — Unity Phase 3
 
 Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그레이션하는 프로젝트다.
-**2단계 콘텐츠 시스템의 기술 구현은 완료했지만 웹판 유사도는 미승인 상태**다.
-전체 마이그레이션 2단계가 완료된 것으로 해석하면 안 된다.
+**3단계 원작 유사도 복구 구현과 기술 검증을 완료했다.**
+최종 체감 유사도 승인은 사용자 비교 검토 대기다.
 
 ## 열기와 실행
 
@@ -11,10 +11,9 @@ Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그�
 3. `Assets/Scenes/Main.unity`를 연다.
 4. Play 버튼을 누른다.
 
-현재 빌드는 Windows에서 `WASD`/방향키로 이동하고 마우스로 조준한다.
-모바일 입력은 화면 왼쪽 이동 스틱과 오른쪽 조준 스틱을 사용한다.
-공격 주기는 자동이지만 우측 입력으로 성좌탄 방향까지 바뀐다.
-이 조작은 웹판의 성좌탄 자동 표적 규칙과 다르며 새 3단계에서 교정해야 한다.
+현재 빌드는 Windows에서 `WASD`/방향키로 이동한다.
+성좌탄은 가장 가까운 적을 자동 공격하고, 마우스는 광검 방향만 조준한다.
+모바일 입력은 화면 왼쪽의 이동 패드 하나만 사용한다.
 
 ## 구현 범위
 
@@ -33,11 +32,17 @@ Canvas/JavaScript 웹 버전을 Unity 6 모바일 가로 화면으로 마이그�
 - Play Mode 스모크 테스트
 - Windows 개발 빌드
 - Android ARM64 IL2CPP APK 빌드
+- 원작 타이틀·HUD·미니맵·강화 선택 복구
+- 성좌탄 자동 표적과 광검 방향 조준 분리
+- 실제 프리팹 9종
+- DOTween UI 모션
+- Windows 화면 자동 캡처와 유사도 회귀 검증
 
 ## 상세 문서
 
 - 1단계: `docs/UNITY_MIGRATION_PHASE1.md`
 - 2단계: `docs/UNITY_MIGRATION_PHASE2.md`
+- 3단계: `docs/UNITY_MIGRATION_PHASE3.md`
 - 유사도 이탈 회고: `docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`
 - Android 설치 특이 사례: `docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`
 
@@ -59,14 +64,13 @@ Android 반복 테스트와 실제 기기 검증은 이후 단계에서 진행�
 
 ## 후속 단계
 
-사용자가 새로 정의할 3단계에서는 원작 유사도를 복구한다.
-아래 기존 출시 품질 작업은 4단계로 순연됐다.
+아래 출시 품질 작업은 4단계로 순연됐다.
 
 - 실제 Android 기기 성능·발열·멀티터치 검증
 - 사이버 리바이어던과 내부 던전
 - 길들인 보스 동료
 - 오디오
-- 전용 프리팹과 애니메이션 폴리싱
+- 전용 셰이더·파티클·애니메이션 최종 폴리싱
 - 세이브 버전 관리
 - 온라인 랭킹
 - Release/AAB 서명과 배포

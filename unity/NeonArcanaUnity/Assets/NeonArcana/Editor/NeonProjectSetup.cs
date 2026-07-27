@@ -43,6 +43,9 @@ namespace NeonArcana.Editor
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.pcw0611.neonarcana");
 
             EnsureContentAsset();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            PhaseThreePrefabBuilder.BuildAll();
             GameBalance.Validate();
             AssetDatabase.SaveAssets();
             Debug.Log("NEON_ARCANA_SETUP_OK");
@@ -64,6 +67,20 @@ namespace NeonArcana.Editor
             ValidateBatch();
             var report = PhaseTwoSimulation.RunFifteenMinutes();
             Debug.Log($"NEON_ARCANA_PHASE2_SIMULATION_OK bosses={report.BossCount} enemyPeak={report.EnemyPeak} archetypes={string.Join(",", report.Archetypes)} bossRarities={string.Join(",", report.BossOptionRarities)}");
+        }
+
+        public static void ValidatePhaseThreeBatch()
+        {
+            ValidatePhaseTwoBatch();
+            PhaseThreePrefabBuilder.ValidatePrefabs();
+            var titleBackground = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/Art/title-bg-v2.png");
+            if (titleBackground == null) throw new InvalidOperationException("Phase 3 title background is missing.");
+            var playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Prefabs/Player.prefab");
+            if (playerPrefab == null || playerPrefab.GetComponent<PlayerController>() == null)
+                throw new InvalidOperationException("Phase 3 Player prefab is invalid.");
+            if (PlayerController.ConstellationTargetingMode != "NearestEnemyAutomatic")
+                throw new InvalidOperationException("Constellation projectile targeting contract changed.");
+            Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=9 projectileTargeting=automatic rightAimPad=removed");
         }
 
         public static void PlaySmokeBatch()
@@ -105,7 +122,12 @@ namespace NeonArcana.Editor
                 if (!manager.HasRelic("rift_crown")) throw new InvalidOperationException("Relic effect did not apply.");
                 if (manager.Player.Orbitals <= 0 || manager.Player.SaberLevel <= 0) throw new InvalidOperationException("Orbit or saber build did not activate.");
                 if (manager.ActiveBoss == null) throw new InvalidOperationException("Boss runtime did not activate.");
+                if (GameHud.Instance.GetComponentsInChildren<VirtualJoystick>(true).Length != 1)
+                    throw new InvalidOperationException("The runtime HUD contains an unauthorized second touch pad.");
+                if (manager.Player.LastProjectileDirection.sqrMagnitude < 0.9f)
+                    throw new InvalidOperationException("Automatic constellation targeting did not produce a valid direction.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=9 touchPads=1 targeting={PlayerController.ConstellationTargetingMode}");
                 FinishSmoke(0);
             }
             catch (Exception exception)

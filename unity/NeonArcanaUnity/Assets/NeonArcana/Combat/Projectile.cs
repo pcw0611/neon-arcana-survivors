@@ -20,8 +20,8 @@ namespace NeonArcana
         private bool accelerates;
         private readonly HashSet<EnemyController> hitEnemies = new();
         private readonly List<EnemyController> nearby = new();
-        private SpriteRenderer spriteRenderer;
-        private TrailRenderer trail;
+        [SerializeField] private SpriteRenderer spriteRenderer;
+        [SerializeField] private TrailRenderer trail;
 
         public static void Spawn(Vector3 position, Vector2 direction, float damage, bool critical, PlayerController owner = null, bool accelerates = false)
         {
@@ -47,20 +47,47 @@ namespace NeonArcana
 
         private static Projectile Create()
         {
-            var gameObject = new GameObject("Arc Bolt", typeof(SpriteRenderer), typeof(TrailRenderer), typeof(Projectile));
+            var prefab = Resources.Load<GameObject>("Prefabs/Projectile");
+            var gameObject = prefab != null ? Instantiate(prefab) : CreateTemplate();
+            gameObject.name = "Arc Bolt";
+            var projectile = gameObject.GetComponent<Projectile>();
+            projectile.ResolveVisuals();
+            return projectile;
+        }
+
+        public static GameObject CreateTemplate()
+        {
+            var gameObject = new GameObject("Projectile", typeof(SpriteRenderer), typeof(TrailRenderer), typeof(Projectile));
             var projectile = gameObject.GetComponent<Projectile>();
             projectile.spriteRenderer = gameObject.GetComponent<SpriteRenderer>();
-            projectile.spriteRenderer.sprite = NeonAssets.SolidSprite(Color.white);
+            projectile.spriteRenderer.sprite = NeonAssets.BoltSprite();
             projectile.spriteRenderer.sortingOrder = 15;
-            gameObject.transform.localScale = new Vector3(0.28f, 0.1f, 1f);
+            gameObject.transform.localScale = new Vector3(0.32f, 0.14f, 1f);
             projectile.trail = gameObject.GetComponent<TrailRenderer>();
             projectile.trail.time = 0.12f;
             projectile.trail.startWidth = 0.12f;
             projectile.trail.endWidth = 0f;
-            projectile.trail.material = new Material(Shader.Find("Sprites/Default"));
             projectile.trail.startColor = new Color(0.2f, 0.95f, 1f, 0.8f);
             projectile.trail.endColor = new Color(0.8f, 0.2f, 1f, 0f);
-            return projectile;
+            return gameObject;
+        }
+
+        private void Awake()
+        {
+            ResolveVisuals();
+        }
+
+        private void ResolveVisuals()
+        {
+            if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+            if (spriteRenderer != null)
+            {
+                if (spriteRenderer.sprite == null) spriteRenderer.sprite = NeonAssets.BoltSprite();
+                spriteRenderer.sortingOrder = 15;
+            }
+            if (trail == null) trail = GetComponent<TrailRenderer>();
+            if (trail != null && trail.sharedMaterial == null)
+                trail.material = new Material(Shader.Find("Sprites/Default"));
         }
 
         private void Update()
@@ -119,48 +146,4 @@ namespace NeonArcana
         }
     }
 
-    public sealed class CombatPulse : MonoBehaviour
-    {
-        private static readonly Queue<CombatPulse> Pool = new();
-        private float life;
-        private float maximumLife;
-        private float radius;
-        private SpriteRenderer renderer;
-
-        public static void Spawn(Vector3 position, float radius, Color color)
-        {
-            var pulse = Pool.Count > 0 ? Pool.Dequeue() : Create();
-            pulse.transform.position = position;
-            pulse.radius = Mathf.Max(0.15f, radius);
-            pulse.life = pulse.maximumLife = 0.24f;
-            pulse.renderer.color = color;
-            pulse.gameObject.SetActive(true);
-        }
-
-        private static CombatPulse Create()
-        {
-            var gameObject = new GameObject("Combat Pulse", typeof(SpriteRenderer), typeof(CombatPulse));
-            var pulse = gameObject.GetComponent<CombatPulse>();
-            pulse.renderer = gameObject.GetComponent<SpriteRenderer>();
-            pulse.renderer.sprite = NeonAssets.SolidSprite(Color.white);
-            pulse.renderer.sortingOrder = 14;
-            gameObject.SetActive(false);
-            return pulse;
-        }
-
-        private void Update()
-        {
-            life -= Time.deltaTime;
-            var progress = 1f - life / maximumLife;
-            transform.localScale = Vector3.one * Mathf.Lerp(0.15f, radius * 2f, progress);
-            var color = renderer.color;
-            color.a = Mathf.Lerp(0.45f, 0f, progress);
-            renderer.color = color;
-            if (life <= 0f)
-            {
-                gameObject.SetActive(false);
-                Pool.Enqueue(this);
-            }
-        }
-    }
 }

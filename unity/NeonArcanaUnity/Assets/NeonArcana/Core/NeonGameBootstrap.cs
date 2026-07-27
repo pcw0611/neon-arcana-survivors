@@ -39,18 +39,50 @@ namespace NeonArcana
             var hud = GameHud.Create(manager, player);
             manager.AttachHud(hud);
 
-            foreach (var argument in Environment.GetCommandLineArgs())
+            var arguments = Environment.GetCommandLineArgs();
+            foreach (var argument in arguments)
+            {
+                if (argument == "--skip-title") manager.StartRun();
                 if (argument == "--phase2-showcase") root.AddComponent<PhaseTwoShowcase>();
+            }
+            if (Array.Exists(arguments, argument => argument.StartsWith("--capture-phase3-", StringComparison.Ordinal)))
+                root.AddComponent<PhaseThreeCaptureDriver>();
         }
 
         private static void CreateBackground()
         {
+            var prefab = Resources.Load<GameObject>("Prefabs/WorldBackground");
+            if (prefab != null)
+            {
+                var instance = UnityEngine.Object.Instantiate(prefab);
+                instance.name = "Cyber City Background";
+                var renderer = instance.GetComponent<SpriteRenderer>();
+                if (renderer != null) renderer.sprite = NeonAssets.FullSprite("Art/cyber-city", 100f);
+                var glow = instance.transform.Find("Rift Haze");
+                var glowRenderer = glow != null ? glow.GetComponent<SpriteRenderer>() : null;
+                if (glowRenderer != null) glowRenderer.sprite = NeonAssets.GlowSprite();
+                return;
+            }
+            CreateBackgroundTemplate().name = "Cyber City Background";
+        }
+
+        public static GameObject CreateBackgroundTemplate()
+        {
             var background = new GameObject("Cyber City Background");
             var renderer = background.AddComponent<SpriteRenderer>();
             renderer.sprite = NeonAssets.FullSprite("Art/cyber-city", 100f);
-            renderer.color = new Color(0.25f, 0.35f, 0.55f, 0.42f);
+            renderer.color = new Color(0.44f, 0.52f, 0.72f, 0.62f);
             renderer.sortingOrder = -100;
-            background.transform.localScale = Vector3.one * 1.45f;
+            background.transform.localScale = Vector3.one * 2.05f;
+
+            var glow = new GameObject("Rift Haze", typeof(SpriteRenderer));
+            glow.transform.SetParent(background.transform, false);
+            glow.transform.localScale = new Vector3(8f, 5f, 1f);
+            var glowRenderer = glow.GetComponent<SpriteRenderer>();
+            glowRenderer.sprite = NeonAssets.GlowSprite();
+            glowRenderer.color = new Color(0.18f, 0.04f, 0.48f, 0.2f);
+            glowRenderer.sortingOrder = -99;
+            return background;
         }
 
         private static void EnsureEventSystem()

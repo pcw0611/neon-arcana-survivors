@@ -8,20 +8,23 @@
 
 ## Unity 마이그레이션 현황
 
-**2026-07-27 기준 2단계 콘텐츠 시스템의 기술 구현은 완료했지만,
-웹판과의 행동·조작·시각 유사도는 승인되지 않았습니다.**
+**2026-07-27 기준 3단계 원작 유사도 복구 구현과 기술 검증을 완료했습니다.**
 
-현재 상태를 “전체 마이그레이션 2단계 완료”로 해석하면 안 됩니다.
-사용자가 새로 정의할 3단계에서 유사도를 복구하고, 기존 출시 품질 단계는 4단계로 이동합니다.
+성좌탄 자동 표적, 단일 이동 패드, 타이틀·HUD·미니맵·강화 화면,
+핵심 프리팹 9종과 DOTween UI 모션을 적용했습니다.
+체감 유사도 80~90%의 최종 승인은 아래 비교 화면을 사용자가 확인한 뒤 결정합니다.
+기존 출시 품질 단계는 4단계로 이동했습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
 - 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
+- 3단계 원작 유사도 복구 기록: [`docs/UNITY_MIGRATION_PHASE3.md`](docs/UNITY_MIGRATION_PHASE3.md)
 - 유사도 이탈 회고·재발 방지 기준: [`docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md`](docs/UNITY_MIGRATION_FIDELITY_RETROSPECTIVE_2026-07-27.md)
 - Android 설치·사용량 특이 사례: [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)
+- 제3자 라이브러리: [`docs/THIRD_PARTY_NOTICES.md`](docs/THIRD_PARTY_NOTICES.md)
 - 원본 인수인계 문서: [`UNITY_MIGRATION_HANDOFF.md`](UNITY_MIGRATION_HANDOFF.md)
 
-![Unity 2단계 콘텐츠 쇼케이스](docs/images/unity-phase2-gameplay.png)
+![Unity 3단계 원작 유사도 복구](docs/images/unity-phase3-gameplay.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
