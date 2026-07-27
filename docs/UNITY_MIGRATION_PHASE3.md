@@ -666,3 +666,19 @@ NEON_ARCANA_WINDOWS_BUILD_OK size=167332227
 
 중복은 레벨업, 빈 슬롯은 장착, 가득 찬 슬롯은 최약 유물 자동 교체로 처리한다.
 결과 카드는 터치 또는 아무 키를 받기 전까지 다음 FIFO 보상으로 넘어가지 않는다.
+
+## 21. P0 위성 강화 실제 효과
+
+저장만 되고 사용되지 않던 `OrbitShock`, `OrbitGuard`, `OrbitPulse`를 실제 전투 루프에
+연결했다. 위성은 적마다 0.45초 간격으로 타격하고, 방전은 주변 적에게 42% 피해,
+맥동 충격파는 모든 위성에서 65% 피해를 준다. 일반 적탄은 위성 접촉 시 최대 30% 확률로
+소거되며 보스 패턴 탄환은 제외한다.
+
+![Unity 위성 방전과 충격파](images/unity-phase3-orbit-effects.png)
+
+```text
+NEON_ARCANA_ORBIT_EFFECTS_OK shock=1 pulse=1 intercept=1 bossPatternBypass=true
+NEON_ARCANA_WINDOWS_BUILD_OK size=167335063
+```
+
+마스터 성좌포·광검·위성·토르 특수기는 다음 강화 효과 묶음으로 남겨 둔다.

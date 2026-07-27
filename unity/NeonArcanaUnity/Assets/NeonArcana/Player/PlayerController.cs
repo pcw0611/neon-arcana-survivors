@@ -46,6 +46,9 @@ namespace NeonArcana
         public ArcanaClass Class { get; private set; }
         public int RelicSlots { get; set; } = 3;
         public bool IsDead => Hp <= 0f;
+        public int OrbitShockTriggers { get; private set; }
+        public int OrbitPulseTriggers { get; private set; }
+        public int OrbitIntercepts { get; private set; }
         public Vector2 LastProjectileDirection { get; private set; } = Vector2.right;
 
         public VirtualJoystick MoveJoystick { get; set; }
@@ -70,6 +73,9 @@ namespace NeonArcana
         private float classClock;
         private readonly List<GameObject> orbitalObjects = new();
         private readonly List<EnemyController> targetBuffer = new();
+        private readonly Dictionary<ulong, float> orbitHitTimes = new();
+        private float orbitPulseClock = 4f;
+        private bool forceOrbitEffectsForTest;
         private int volleyCount;
 
         public static PlayerController Create()
@@ -382,8 +388,71 @@ namespace NeonArcana
                 orbitalObjects[i].transform.position = transform.position + direction * OrbitRadius;
                 orbitalObjects[i].transform.localScale = Vector3.one * 0.17f * OrbitSize;
                 var target = EnemyController.FirstWithin(orbitalObjects[i].transform.position, 0.28f * OrbitSize);
-                if (target != null) target.TakeDamage(Damage * DamageMultiplier * OrbitDamage * Time.deltaTime * 3f, false);
+                if (target == null) continue;
+                var key = (EntityId.ToULong(target.GetEntityId()) << 8) | (uint)i;
+                if (orbitHitTimes.GetValueOrDefault(key) > Time.time) continue;
+                orbitHitTimes[key] = Time.time + 0.45f;
+                var dealt = Damage * DamageMultiplier * OrbitDamage;
+                target.TakeDamage(dealt, false);
+                if (OrbitShock > 0f && (forceOrbitEffectsForTest || UnityEngine.Random.value < Mathf.Clamp01(OrbitShock)))
+                {
+                    EnemyController.Nearby(target.transform.position, 0.9f, targetBuffer);
+                    foreach (var nearby in targetBuffer)
+                        if (nearby != target) nearby.TakeDamage(dealt * 0.42f, false);
+                    CombatPulse.Spawn(target.transform.position, 0.9f, new Color(0.4f, 0.97f, 1f, 0.7f));
+                    OrbitShockTriggers++;
+                }
             }
+
+            if (OrbitPulse > 0)
+            {
+                orbitPulseClock -= Time.deltaTime;
+                if (orbitPulseClock <= 0f)
+                {
+                    orbitPulseClock = Mathf.Max(1.8f, 5.3f - OrbitPulse * 0.8f);
+                    var pulseDamage = Damage * DamageMultiplier * OrbitDamage * 0.65f;
+                    for (var i = 0; i < Orbitals && i < orbitalObjects.Count; i++)
+                    {
+                        var position = orbitalObjects[i].transform.position;
+                        EnemyController.Nearby(position, 1.15f, targetBuffer);
+                        foreach (var nearby in targetBuffer) nearby.TakeDamage(pulseDamage, false);
+                        CombatPulse.Spawn(position, 1.15f, new Color(0.4f, 0.95f, 1f, 0.62f));
+                    }
+                    OrbitPulseTriggers++;
+                }
+            }
+        }
+
+        public bool TryInterceptProjectile(Vector3 position, float projectileRadius, bool bossPattern, out bool checkedAtOrbit)
+        {
+            checkedAtOrbit = false;
+            if (bossPattern || OrbitGuard <= 0f || Orbitals <= 0) return false;
+            for (var i = 0; i < Orbitals && i < orbitalObjects.Count; i++)
+            {
+                if (!orbitalObjects[i].activeSelf) continue;
+                if (Vector3.Distance(position, orbitalObjects[i].transform.position) > 0.15f * OrbitSize + projectileRadius) continue;
+                checkedAtOrbit = true;
+                if (!forceOrbitEffectsForTest && UnityEngine.Random.value >= Mathf.Min(0.3f, OrbitGuard)) return false;
+                CombatPulse.Spawn(orbitalObjects[i].transform.position, 0.34f * OrbitSize, new Color(0.44f, 1f, 1f, 0.75f));
+                OrbitIntercepts++;
+                return true;
+            }
+            return false;
+        }
+
+        public void EnableOrbitEffectsForSmoke()
+        {
+            OrbitShock = 1f;
+            OrbitGuard = 1f;
+            OrbitPulse = 3;
+            orbitPulseClock = 0f;
+            forceOrbitEffectsForTest = true;
+        }
+
+        public bool VerifyOrbitInterceptForSmoke()
+        {
+            if (orbitalObjects.Count == 0 || !orbitalObjects[0].activeSelf) return false;
+            return TryInterceptProjectile(orbitalObjects[0].transform.position, 0.14f, false, out _);
         }
 
         private void UpdateClassAbility()
@@ -430,6 +499,10 @@ namespace NeonArcana
             OrbitRadius = 1.35f;
             OrbitShock = OrbitGuard = 0f;
             OrbitPulse = 0;
+            OrbitShockTriggers = OrbitPulseTriggers = OrbitIntercepts = 0;
+            orbitPulseClock = 4f;
+            forceOrbitEffectsForTest = false;
+            orbitHitTimes.Clear();
             SaberLevel = SaberEcho = 0;
             SaberDamage = 1f;
             SaberRange = 2.2f;

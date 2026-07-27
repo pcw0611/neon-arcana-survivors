@@ -259,12 +259,12 @@ namespace NeonArcana
             for (var i = 0; i < count; i++)
             {
                 var angle = offset + i * Mathf.PI * 2f / count;
-                EnemyProjectile.Spawn(transform.position, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), HasOption("overclock") ? 5.6f : 4.2f, damage);
+                EnemyProjectile.Spawn(transform.position, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), HasOption("overclock") ? 5.6f : 4.2f, damage, false, true);
             }
             if (HasOption("minefield"))
             {
                 for (var i = 0; i < 3; i++)
-                    EnemyProjectile.Spawn(player.transform.position + (Vector3)UnityEngine.Random.insideUnitCircle * 2.2f, Vector2.zero, 0f, damage * 1.1f, true);
+                    EnemyProjectile.Spawn(player.transform.position + (Vector3)UnityEngine.Random.insideUnitCircle * 2.2f, Vector2.zero, 0f, damage * 1.1f, true, true);
             }
             actionCooldown = BossKind == BossKind.Dragon ? 1.7f : 2.3f;
         }

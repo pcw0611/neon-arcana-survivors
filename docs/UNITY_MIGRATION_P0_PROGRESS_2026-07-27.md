@@ -369,9 +369,33 @@ NEON_ARCANA_RELIC_FLOW_OK source=boss rarity=tiered roulette=18 award=automatic 
 NEON_ARCANA_WINDOWS_BUILD_OK size=167332227
 ```
 
-## 12. 남은 P0
+## 12. 위성 강화 실제 전투 효과
+
+기존 Unity는 `OrbitShock`, `OrbitGuard`, `OrbitPulse` 수치만 올리고 전투에서 읽지 않았다.
+웹판의 `updateOrbitals()`와 `tryOrbitIntercept()`를 기준으로 다음을 연결했다.
+
+- 위성별·적별 0.45초 타격 쿨다운과 단발 피해
+- 초신성 방전: 위성 명중 시 레벨당 12% 확률, 반경 0.9, 주 대상 피해의 42%
+- 성환 요격막: 일반 적 투사체가 위성에 닿을 때 레벨당 6%, 최대 30%로 1회 판정
+- 보스 패턴 탄환과 지뢰는 요격 대상에서 제외
+- 맥동 성환: `max(1.8, 5.3 - 레벨 × 0.8)`초마다 모든 위성이 반경 1.15 충격파
+- 충격파 피해는 기본 위성 피해의 65%
+- 사건의 지평선 유물이 주는 충격파 레벨도 같은 경로 사용
+
+![Unity 위성 방전과 충격파](images/unity-phase3-orbit-effects.png)
+
+자동 검증은 강화 확률을 결정론적으로 고정한 쇼케이스에서 방전·충격파·요격이 각각
+실제로 한 번 이상 발생했는지 검사한다. 일반 적탄 요격 경로와 보스 패턴 제외 플래그도
+분리했다.
+
+```text
+NEON_ARCANA_ORBIT_EFFECTS_OK shock=1 pulse=1 intercept=1 bossPatternBypass=true
+NEON_ARCANA_WINDOWS_BUILD_OK size=167335063
+```
+
+## 13. 남은 P0
 
 - 미니맵의 보물·리바이어던·내부 던전 등 특수 대상 정보
-- 위성 방전·요격·충격파와 마스터 특수기 등 강화 실제 효과 대조
+- 성좌포·광검·위성·토르 마스터 특수기와 한계돌파 실제 효과
 
 위 항목이 끝나기 전에는 P0 완료 또는 3단계 완료로 표시하지 않는다.

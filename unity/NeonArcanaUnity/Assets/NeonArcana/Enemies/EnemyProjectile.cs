@@ -11,10 +11,12 @@ namespace NeonArcana
         private float damage;
         private float life;
         private bool mine;
+        private bool bossPattern;
+        private bool orbitGuardChecked;
         private float warmup;
         [SerializeField] private SpriteRenderer renderer;
 
-        public static void Spawn(Vector3 position, Vector2 direction, float speed, float damage, bool mine = false)
+        public static void Spawn(Vector3 position, Vector2 direction, float speed, float damage, bool mine = false, bool bossPattern = false)
         {
             var shot = Pool.Count > 0 ? Pool.Dequeue() : Create();
             shot.transform.position = position;
@@ -23,6 +25,8 @@ namespace NeonArcana
             shot.life = mine ? 2.1f : 6f;
             shot.warmup = mine ? 1.05f : 0f;
             shot.mine = mine;
+            shot.bossPattern = bossPattern;
+            shot.orbitGuardChecked = false;
             shot.renderer.color = mine ? new Color(1f, 0.2f, 0.38f, 0.45f) : new Color(1f, 0.25f, 0.65f);
             shot.transform.localScale = Vector3.one * (mine ? 0.7f : 0.14f);
             shot.gameObject.SetActive(true);
@@ -72,6 +76,15 @@ namespace NeonArcana
             life -= Time.deltaTime;
             warmup -= Time.deltaTime;
             if (!mine) transform.position += (Vector3)(velocity * Time.deltaTime);
+            if (!mine && !orbitGuardChecked && player.OrbitGuard > 0f && player.Orbitals > 0)
+            {
+                if (player.TryInterceptProjectile(transform.position, 0.14f, bossPattern, out var checkedAtOrbit))
+                {
+                    Recycle();
+                    return;
+                }
+                orbitGuardChecked = checkedAtOrbit;
+            }
             if (mine && warmup <= 0f)
             {
                 if (Vector3.Distance(transform.position, player.transform.position) < 0.85f) player.TakeDamage(damage);

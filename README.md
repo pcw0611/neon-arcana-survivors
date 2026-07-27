@@ -27,6 +27,7 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 터치 드래그를 지원하며, 마우스 광검 조준과 입력 경로를 분리했습니다.
 유물 보상은 시간·출처·보스 티어·빌드 친화도로 결과를 결정하는 18틱 슬롯 룰렛과
 자동 레벨업·장착·최약 교체·결과 확인 흐름으로 최신 웹판에 맞췄습니다.
+위성 강화의 명중 방전, 일반 적탄 요격, 주기 충격파도 실제 전투 판정과 VFX에 연결했습니다.
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
@@ -59,6 +60,8 @@ P0 재작업의 첫 항목으로 Cinemachine 추적 카메라, 5×5 반복 도�
 ![Unity 유물 공명 검색](docs/images/unity-phase3-relic-roulette.png)
 
 ![Unity 유물 획득 결과](docs/images/unity-phase3-relic-result.png)
+
+![Unity 위성 방전과 충격파](docs/images/unity-phase3-orbit-effects.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

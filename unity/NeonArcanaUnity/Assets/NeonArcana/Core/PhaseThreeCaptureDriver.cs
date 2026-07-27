@@ -23,7 +23,8 @@ namespace NeonArcana
             Hud,
             Warning,
             RelicRoulette,
-            RelicResult
+            RelicResult,
+            OrbitEffects
         }
 
         private CaptureMode mode;
@@ -49,6 +50,7 @@ namespace NeonArcana
                 ReadArgument(argument, "--capture-phase3-warning=", CaptureMode.Warning);
                 ReadArgument(argument, "--capture-phase3-relic-roulette=", CaptureMode.RelicRoulette);
                 ReadArgument(argument, "--capture-phase3-relic-result=", CaptureMode.RelicResult);
+                ReadArgument(argument, "--capture-phase3-orbit-effects=", CaptureMode.OrbitEffects);
             }
 
             if (mode == CaptureMode.None || string.IsNullOrWhiteSpace(capturePath))
@@ -92,6 +94,7 @@ namespace NeonArcana
                 : mode == CaptureMode.Warning ? 0.7f
                 : mode == CaptureMode.RelicRoulette ? 0.85f
                 : mode == CaptureMode.RelicResult ? 2.9f
+                : mode == CaptureMode.OrbitEffects ? 0.22f
                 : 1.4f;
             if (preparedClock < captureAt) return;
 
@@ -144,6 +147,10 @@ namespace NeonArcana
                 case CaptureMode.RelicResult:
                     manager.EnablePhaseThreeShowcase();
                     manager.EnableRelicFlowSmoke();
+                    break;
+                case CaptureMode.OrbitEffects:
+                    manager.EnablePhaseThreeShowcase();
+                    manager.Player.EnableOrbitEffectsForSmoke();
                     break;
             }
         }
