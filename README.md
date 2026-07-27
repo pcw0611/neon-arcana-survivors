@@ -1,5 +1,11 @@
 # vinext-starter
 
+> **Neon Arcana: Cyber Rift** lives in this repo. If you're picking this project up —
+> especially for the Unity migration — start with [UNITY_MIGRATION_HANDOFF.md](UNITY_MIGRATION_HANDOFF.md),
+> not this file. [GAME_GUIDE.md](GAME_GUIDE.md) and [ART_STYLE_GUIDE.md](ART_STYLE_GUIDE.md) are
+> the other two docs worth reading. Everything below this line is generic vinext
+> starter boilerplate, unrelated to the game itself.
+
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
 Drizzle support.
