@@ -2,9 +2,12 @@
 
 > **진행 상태 — 2026-07-27**
 >
-> 3단계 중 **1단계 코어 프로토타입을 완료**했다. 실제 Unity 프로젝트는
-> [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)에 있으며, 구현 범위·설계 판단·검증 결과와
-> 2단계 진입 조건은 [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)에 상세히 기록했다.
+> 3단계 중 **2단계 콘텐츠 시스템 확장까지 완료**했다. 실제 Unity 프로젝트는
+> [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)에 있다.
+> 1단계 기록은 [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md),
+> 2단계 구현·검증·3단계 인수인계는 [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md),
+> Android 설치 중 발생한 디스크·Codex 사용량 특이 사례는
+> [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)에 기록했다.
 
 이 문서는 웹 버전(Next.js/Cloudflare + Canvas)으로 만들어진 "Neon Arcana: Cyber Rift"를 Unity로 새로 만들기 위한 인수인계 문서다. 작성자는 웹 버전을 개발한 Claude(Claude Code)이고, 이 문서를 읽고 Unity 작업을 진행하는 것은 GPT Codex다. 웹 버전 개발자(Claude)는 더 이상 이 프로젝트에 관여하지 않는다.
 

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -9,13 +10,13 @@ namespace NeonArcana
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
         {
-            if (Object.FindFirstObjectByType<GameManager>() != null) return;
+            if (UnityEngine.Object.FindFirstObjectByType<GameManager>() != null) return;
 
             Application.targetFrameRate = 60;
             Screen.orientation = ScreenOrientation.LandscapeLeft;
 
             var root = new GameObject("Neon Arcana Runtime");
-            Object.DontDestroyOnLoad(root);
+            UnityEngine.Object.DontDestroyOnLoad(root);
 
             var cameraObject = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener), typeof(CameraFollow));
             cameraObject.tag = "MainCamera";
@@ -37,6 +38,9 @@ namespace NeonArcana
             EnsureEventSystem();
             var hud = GameHud.Create(manager, player);
             manager.AttachHud(hud);
+
+            foreach (var argument in Environment.GetCommandLineArgs())
+                if (argument == "--phase2-showcase") root.AddComponent<PhaseTwoShowcase>();
         }
 
         private static void CreateBackground()
@@ -51,8 +55,54 @@ namespace NeonArcana
 
         private static void EnsureEventSystem()
         {
-            if (Object.FindFirstObjectByType<EventSystem>() != null) return;
+            if (UnityEngine.Object.FindFirstObjectByType<EventSystem>() != null) return;
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        }
+    }
+
+    public sealed class PhaseTwoShowcase : MonoBehaviour
+    {
+        private float delay = 1.2f;
+        private float captureDelay = 2.5f;
+        private string capturePath;
+        private bool showcaseApplied;
+        private bool captureComplete;
+
+        private void Awake()
+        {
+            const string capturePrefix = "--capture-path=";
+            foreach (var argument in Environment.GetCommandLineArgs())
+                if (argument.StartsWith(capturePrefix, StringComparison.Ordinal))
+                    capturePath = argument.Substring(capturePrefix.Length);
+        }
+
+        private void Update()
+        {
+            if (!showcaseApplied)
+            {
+                delay -= Time.deltaTime;
+                if (delay > 0f) return;
+                GameManager.Instance?.EnablePhaseTwoShowcase();
+                showcaseApplied = true;
+                if (string.IsNullOrWhiteSpace(capturePath)) Destroy(this);
+                return;
+            }
+
+            if (captureComplete) return;
+            captureDelay -= Time.deltaTime;
+            if (captureDelay > 0f) return;
+            var directory = System.IO.Path.GetDirectoryName(capturePath);
+            if (!string.IsNullOrWhiteSpace(directory)) System.IO.Directory.CreateDirectory(directory);
+            ScreenCapture.CaptureScreenshot(capturePath);
+            Debug.Log($"NEON_ARCANA_PHASE2_CAPTURE_OK path={capturePath}");
+            capturePath = null;
+            captureComplete = true;
+            Invoke(nameof(QuitAfterCapture), 1f);
+        }
+
+        private void QuitAfterCapture()
+        {
+            Application.Quit();
         }
     }
 

@@ -1,0 +1,537 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d874d3a9dfaf3747b9ec8b1c9956806, type: 3}
+  m_Name: NeonArcanaContent
+  m_EditorClassIdentifier: Assembly-CSharp::NeonArcana.GameContentCatalog
+  upgrades:
+  - id: power
+    icon: "\u25C6"
+    name: "\uB8EC \uC99D\uD3ED"
+    description: "\uBAA8\uB4E0 \uACF5\uACA9 \uD53C\uD574\uB7C9 +12%"
+    maxRank: 10
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: haste
+    icon: "\u2301"
+    name: "\uC601\uCC3D \uAC00\uC18D"
+    description: "\uC131\uC88C\uD0C4 \uACF5\uACA9 \uAC04\uACA9 13% \uAC10\uC18C"
+    maxRank: 7
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: multishot
+    icon: "\u224B"
+    name: "\uC30D\uC131 \uADA4\uB3C4"
+    description: "\uB3D9\uC2DC\uC5D0 \uBC1C\uC0AC\uD558\uB294 \uC131\uC88C\uD0C4
+      +1"
+    maxRank: 7
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: pierce
+    icon: "\u21A0"
+    name: "\uC704\uC0C1 \uAD00\uD1B5"
+    description: "\uC131\uC88C\uD0C4 \uAD00\uD1B5 \uD69F\uC218 +1"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: critical
+    icon: "\u2726"
+    name: "\uC6B4\uBA85 \uAC04\uC12D"
+    description: "\uCE58\uBA85\uD0C0 \uD655\uB960 +8%, \uBC30\uC728 +0.18"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: blast
+    icon: "\u273A"
+    name: "\uBD95\uAD34 \uC794\uD5A5"
+    description: "\uBA85\uC911 \uD3ED\uBC1C \uBC18\uACBD +22, \uC8FC\uBCC0 \uD53C\uD574
+      35%"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: chain
+    icon: "\u03DF"
+    name: "\uC5F0\uC1C4 \uB099\uB8B0"
+    description: "\uBA85\uC911 \uC2DC \uC5F0\uC1C4 \uB300\uC0C1 +1, \uD53C\uD574
+      28%"
+    maxRank: 5
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: size
+    icon: "\u25C9"
+    name: "\uAC70\uB300 \uC131\uD575"
+    description: "\uC131\uC88C\uD0C4 \uD06C\uAE30 +18%, \uD53C\uD574 +10%"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: orbit
+    icon: "\u2604"
+    name: "\uC218\uD638 \uC704\uC131"
+    description: "\uACF5\uACA9 \uC704\uC131 +1, \uC704\uC131 \uBE4C\uB4DC \uAC1C\uBC29"
+    maxRank: 7
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: orbit_speed
+    icon: "\u27F3"
+    name: "\uCD08\uACE0\uC18D \uACF5\uC804"
+    description: "\uC704\uC131 \uD68C\uC804 \uC18D\uB3C4 +24%"
+    maxRank: 5
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: orbit_size
+    icon: "\u229A"
+    name: "\uAC70\uB300 \uC704\uC131\uD575"
+    description: "\uC704\uC131 \uD06C\uAE30 +20%, \uD53C\uD574 +16%"
+    maxRank: 5
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: orbit_range
+    icon: "\u25CE"
+    name: "\uC774\uC911 \uACF5\uC804\uBA74"
+    description: "\uACF5\uC804 \uBC18\uACBD +16, \uC704\uC131 \uD53C\uD574 +10%"
+    maxRank: 4
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: orbit_shock
+    icon: "\u2739"
+    name: "\uCD08\uC2E0\uC131 \uBC29\uC804"
+    description: "\uC704\uC131 \uBA85\uC911 \uC2DC \uBC29\uC804 \uD655\uB960 +12%p"
+    maxRank: 4
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: orbit_guard
+    icon: "\u2B21"
+    name: "\uC131\uD658 \uC694\uACA9\uB9C9"
+    description: "\uC704\uC131\uC758 \uC801 \uD0C4\uD658 \uC694\uACA9 \uD655\uB960
+      +6%p"
+    maxRank: 5
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: orbit_pulse
+    icon: "\u25CC"
+    name: "\uB9E5\uB3D9 \uC131\uD658"
+    description: "\uC8FC\uAE30\uC801\uC73C\uB85C \uBAA8\uB4E0 \uC704\uC131\uC774
+      \uCDA9\uACA9\uD30C \uBC29\uCD9C"
+    maxRank: 3
+    weight: 1
+    prerequisite: orbit
+    unlockLevel: 0
+  - id: saber
+    icon: "\u2571"
+    name: "\uC544\uC2A4\uD2B8\uB784 \uAD11\uAC80"
+    description: "\uAD11\uAC80 \uB808\uBCA8 +1, \uD53C\uD574 +25%"
+    maxRank: 7
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: saber_reach
+    icon: "\u2312"
+    name: "\uC6D4\uAD11 \uAC80\uB85C"
+    description: "\uAD11\uAC80 \uC0AC\uAC70\uB9AC +20, \uBCA0\uAE30 \uAC01\uB3C4
+      \uD655\uB300"
+    maxRank: 5
+    weight: 1
+    prerequisite: saber
+    unlockLevel: 0
+  - id: saber_haste
+    icon: "\u226A"
+    name: "\uCC30\uB098 \uBC1C\uB3C4"
+    description: "\uAD11\uAC80 \uACF5\uACA9 \uAC04\uACA9 17% \uAC10\uC18C"
+    maxRank: 5
+    weight: 1
+    prerequisite: saber
+    unlockLevel: 0
+  - id: saber_echo
+    icon: "\u303D"
+    name: "\uC794\uC0C1 \uC5F0\uACA9"
+    description: "\uAD11\uAC80 \uCD94\uAC00 \uC794\uC0C1 \uBCA0\uAE30 +1"
+    maxRank: 3
+    weight: 1
+    prerequisite: saber
+    unlockLevel: 0
+  - id: saber_guard
+    icon: "\u25C7"
+    name: "\uAC80\uB9C9 \uBC18\uC0AC"
+    description: "\uAD11\uAC80 \uC0AC\uC6A9 \uC911 \uBC29\uC5B4 \uD655\uB960 +7%p"
+    maxRank: 4
+    weight: 1
+    prerequisite: saber
+    unlockLevel: 0
+  - id: speed
+    icon: "\u226B"
+    name: "\uACF5\uAC04 \uB3C4\uC57D"
+    description: "\uC774\uB3D9 \uC18D\uB3C4 +11%"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: magnet
+    icon: "\u233E"
+    name: "\uC911\uB825 \uC6B0\uBB3C"
+    description: "\uACBD\uD5D8\uCE58 \uD761\uC218 \uBC94\uC704 +85"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: vital
+    icon: "\u2665"
+    name: "\uC0DD\uBA85 \uACB0\uACC4"
+    description: "\uCD5C\uB300 \uCCB4\uB825 +8, \uCCB4\uB825 10 \uD68C\uBCF5"
+    maxRank: 7
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: regen
+    icon: "\u2667"
+    name: "\uC7AC\uC0DD \uC220\uC2DD"
+    description: "\uCD08\uB2F9 \uCCB4\uB825 \uD68C\uBCF5 +0.35"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: guard
+    icon: "\u2B21"
+    name: "\uC131\uC88C \uBC29\uBCBD"
+    description: "\uD53C\uACA9 \uBB34\uD6A8 \uD655\uB960 +6%p"
+    maxRank: 6
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: fortune
+    icon: "\u2662"
+    name: "\uB9C8\uB825 \uC815\uC81C"
+    description: "\uD68D\uB4DD \uACBD\uD5D8\uCE58 +22%"
+    maxRank: 5
+    weight: 1
+    prerequisite:
+    unlockLevel: 0
+  - id: relic_slot
+    icon: "\u25A3"
+    name: "\uCC28\uC6D0 \uC218\uB0A9 \uD655\uC7A5"
+    description: "\uC720\uBB3C \uC2AC\uB86F +1 (\uCD5C\uB300 7)"
+    maxRank: 4
+    weight: 2.4
+    prerequisite:
+    unlockLevel: 8
+  - id: limit_master_projectile
+    icon: "\u221E"
+    name: "\uC131\uC88C\uD3EC \uD55C\uACC4\uB3CC\uD30C"
+    description: "\uB9C8\uC2A4\uD130 \uC131\uC88C\uD3EC \uD53C\uD574\uC640 \uBC94\uC704
+      \uAC15\uD654"
+    maxRank: 999
+    weight: 0.9
+    prerequisite: projectile
+    unlockLevel: 30
+  - id: limit_master_saber
+    icon: "\u221E"
+    name: "\uAD11\uAC80 \uD55C\uACC4\uB3CC\uD30C"
+    description: "\uB9C8\uC2A4\uD130 \uAD11\uAC80 \uD53C\uD574\uC640 \uBC94\uC704
+      \uAC15\uD654"
+    maxRank: 999
+    weight: 0.9
+    prerequisite: saber
+    unlockLevel: 30
+  - id: limit_master_orbit
+    icon: "\u221E"
+    name: "\uC704\uC131 \uD55C\uACC4\uB3CC\uD30C"
+    description: "\uB9C8\uC2A4\uD130 \uC704\uC131 \uD53C\uD574\uC640 \uBC94\uC704
+      \uAC15\uD654"
+    maxRank: 999
+    weight: 0.9
+    prerequisite: orbit
+    unlockLevel: 30
+  - id: limit_master_thor
+    icon: "\u221E"
+    name: "\uD1A0\uB974\uC758 \uB9DD\uCE58 \uD55C\uACC4\uB3CC\uD30C"
+    description: "\uB9DD\uCE58 \uD53C\uD574\uC640 \uBC94\uC704 \uAC15\uD654"
+    maxRank: 999
+    weight: 0.9
+    prerequisite:
+    unlockLevel: 30
+  - id: limit_power
+    icon: "\u221E"
+    name: "\uD55C\uACC4 \uB3CC\uD30C \xB7 \uD798"
+    description: "\uBAA8\uB4E0 \uACF5\uACA9 \uD53C\uD574\uB7C9 \uC810\uC9C4 \uC99D\uAC00"
+    maxRank: 999
+    weight: 0.12
+    prerequisite:
+    unlockLevel: 35
+  - id: limit_vital
+    icon: "\u221E"
+    name: "\uD55C\uACC4 \uB3CC\uD30C \xB7 \uC0DD\uBA85"
+    description: "\uCD5C\uB300 \uCCB4\uB825 +5, \uCCB4\uB825 5 \uD68C\uBCF5"
+    maxRank: 999
+    weight: 0.12
+    prerequisite:
+    unlockLevel: 35
+  - id: limit_growth
+    icon: "\u221E"
+    name: "\uD55C\uACC4 \uB3CC\uD30C \xB7 \uACF5\uBA85"
+    description: "\uACBD\uD5D8\uCE58 +7%, \uD761\uC218 \uBC94\uC704 +20"
+    maxRank: 999
+    weight: 0.1
+    prerequisite:
+    unlockLevel: 35
+  relics:
+  - id: arc_cell
+    icon: "\u25C6"
+    name: "\uC99D\uD3ED \uC544\uD06C \uC140"
+    description: "\uBAA8\uB4E0 \uACF5\uACA9 \uD53C\uD574 +10%"
+    rarity: 0
+  - id: blood_cap
+    icon: "\u2665"
+    name: "\uD608\uB958 \uCD95\uC804\uC9C0"
+    description: "\uCD5C\uB300 \uCCB4\uB825 +12, \uCD5C\uCD08 \uD68D\uB4DD \uC2DC
+      12 \uD68C\uBCF5"
+    rarity: 0
+  - id: magnet_prism
+    icon: "\u233E"
+    name: "\uC790\uB825 \uD504\uB9AC\uC998"
+    description: "\uD761\uC218 \uBC94\uC704 +30%, \uACBD\uD5D8\uCE58 +10%"
+    rarity: 0
+  - id: hunter_lens
+    icon: "\u2726"
+    name: "\uC0AC\uB0E5\uAFBC\uC758 \uB80C\uC988"
+    description: "\uCE58\uBA85\uD0C0 +8%, \uCE58\uBA85 \uD53C\uD574 +0.2"
+    rarity: 0
+  - id: split_core
+    icon: "\u224B"
+    name: "\uBD84\uC5F4 \uCF54\uC5B4"
+    description: "4\uBC88\uC9F8 \uC131\uC88C\uD0C4 \uC77C\uC81C\uC0AC\uACA9\uB9C8\uB2E4
+      \uD22C\uC0AC\uCCB4 +2"
+    rarity: 1
+  - id: orbit_gear
+    icon: "\u27F3"
+    name: "\uC131\uD658 \uAC00\uC18D\uAE30"
+    description: "\uC704\uC131 +1, \uC18D\uB3C4 +30%, \uD53C\uD574 +30%"
+    rarity: 1
+  - id: edge_lens
+    icon: "\u2571"
+    name: "\uADFC\uC811 \uCD08\uC810 \uB80C\uC988"
+    description: "\uAD11\uAC80 \uD53C\uD574 +45%, \uC0AC\uAC70\uB9AC +18"
+    rarity: 1
+  - id: nano_shunt
+    icon: "\u2667"
+    name: "\uB098\uB178 \uD68C\uBCF5 \uBD84\uAE30\uAE30"
+    description: "\uC7AC\uC0DD +0.45, 20\uD0AC\uB9C8\uB2E4 \uCCB4\uB825 3 \uD68C\uBCF5"
+    rarity: 1
+  - id: execution
+    icon: "\u2020"
+    name: "\uCC98\uD615 \uD504\uB85C\uD1A0\uCF5C"
+    description: "\uC77C\uBC18 \uC801 \uCCB4\uB825 15% \uBBF8\uB9CC \uC989\uC2DC
+      \uCC98\uD615"
+    rarity: 2
+  - id: echo_chamber
+    icon: "\u303D"
+    name: "\uACF5\uBA85 \uD0C4\uC2E4"
+    description: "6\uBC88\uC9F8 \uC77C\uC81C\uC0AC\uACA9\uC774 70% \uD53C\uD574\uB85C
+      \uBC18\uBCF5"
+    rarity: 2
+  - id: gravity_halo
+    icon: "\u25C9"
+    name: "\uC911\uB825 \uD6C4\uAD11"
+    description: "\uC8FC\uBCC0 \uC77C\uBC18 \uC801 \uC774\uB3D9 \uC18D\uB3C4 24%
+      \uAC10\uC18C"
+    rarity: 2
+  - id: soul_battery
+    icon: "\u2660"
+    name: "\uC601\uD63C \uBC30\uD130\uB9AC"
+    description: "12\uD0AC\uB9C8\uB2E4 \uCCB4\uB825 2 \uD68C\uBCF5, \uBAA8\uB4E0
+      \uD53C\uD574 +8%"
+    rarity: 2
+  - id: event_horizon
+    icon: "\u25CE"
+    name: "\uC0AC\uAC74\uC758 \uC9C0\uD3C9\uC120"
+    description: "\uC704\uC131 +2, \uD06C\uAE30 +45%, \uD53C\uD574 +40%, \uCDA9\uACA9\uD30C"
+    rarity: 3
+  - id: zero_edge
+    icon: "\u2301"
+    name: "\uC81C\uB85C \uC5E3\uC9C0"
+    description: "\uAD11\uAC80 \uD53C\uD574 +50%, \uC18D\uB3C4 +33%, \uC794\uC0C1
+      +1"
+    rarity: 3
+  - id: phoenix
+    icon: "\u2668"
+    name: "\uBD88\uC0AC\uC870 \uCEE4\uB110"
+    description: "\uCE58\uBA85\uC0C1 1\uD68C \uBB34\uC2DC, \uCCB4\uB825 40% \uBD80\uD65C"
+    rarity: 3
+  - id: rift_crown
+    icon: "\u265B"
+    name: "\uADE0\uC5F4 \uC655\uAD00"
+    description: "\uBAA8\uB4E0 \uD53C\uD574 +22%, \uACBD\uD5D8\uCE58 +25%"
+    rarity: 3
+  - id: chain_detonator
+    icon: "\u2622"
+    name: "\uC5F0\uC1C4 \uAE30\uD3ED \uCF54\uC5B4"
+    description: "\uC790\uD3ED \uD3ED\uBC1C\uC774 \uC8FC\uBCC0 \uC801\uC5D0\uAC8C
+      \uD53C\uD574"
+    rarity: 3
+  - id: tamer_core
+    icon: "\u26D3"
+    name: "\uC870\uB828\uC758 \uCF54\uC5B4"
+    description: "\uBCF4\uC2A4 \uCC98\uCE58 \uC2DC \uD655\uB960\uC801\uC73C\uB85C
+      \uC544\uAD70\uD654"
+    rarity: 3
+  - id: singularity
+    icon: "\u273A"
+    name: "\uC544\uB974\uCE74\uB098 \uD2B9\uC774\uC810"
+    description: "\uBAA8\uB4E0 \uD53C\uD574 +35%, \uBE4C\uB4DC\uBCC4 \uD53C\uD574
+      +15%"
+    rarity: 4
+  - id: immortal
+    icon: "\u221E"
+    name: "\uBD88\uBA78 \uD68C\uB85C"
+    description: "\uCD5C\uB300 \uCCB4\uB825 +30, \uC7AC\uC0DD +1, 8\uD0AC\uB9C8\uB2E4
+      \uD68C\uBCF5"
+    rarity: 4
+  - id: godspeed
+    icon: "\xBB"
+    name: "\uC2E0\uC18D \uC5F0\uC0B0\uAE30\uAD00"
+    description: "\uC774\uB3D9\xB7\uC131\uC88C\uD0C4\xB7\uAD11\uAC80\xB7\uC704\uC131
+      \uC18D\uB3C4 \uC99D\uAC00"
+    rarity: 4
+  enemies:
+  - archetype: 0
+    koreanName: "\uCD94\uC801\uC790"
+    unlockTime: 0
+    maximumChance: 1
+    hpMultiplier: 1
+    speedMultiplier: 1
+    color: {r: 0.9, g: 0.24, b: 1, a: 1}
+  - archetype: 1
+    koreanName: "\uC0AC\uC218"
+    unlockTime: 45
+    maximumChance: 0.13
+    hpMultiplier: 1.25
+    speedMultiplier: 1
+    color: {r: 0.27, g: 0.87, b: 1, a: 1}
+  - archetype: 2
+    koreanName: "\uB3CC\uACA9\uBCD1"
+    unlockTime: 110
+    maximumChance: 0.12
+    hpMultiplier: 1.45
+    speedMultiplier: 1
+    color: {r: 1, g: 0.7, b: 0.26, a: 1}
+  - archetype: 3
+    koreanName: "\uBC29\uBCBD\uBCD1"
+    unlockTime: 230
+    maximumChance: 0.08
+    hpMultiplier: 1.35
+    speedMultiplier: 0.82
+    color: {r: 0.39, g: 0.96, b: 1, a: 1}
+  - archetype: 4
+    koreanName: "\uC790\uD3ED \uB4DC\uB860"
+    unlockTime: 340
+    maximumChance: 0.09
+    hpMultiplier: 1.08
+    speedMultiplier: 1.52
+    color: {r: 1, g: 0.27, b: 0.43, a: 1}
+  - archetype: 5
+    koreanName: "\uBD84\uC5F4\uCCB4"
+    unlockTime: 440
+    maximumChance: 0.08
+    hpMultiplier: 1.6
+    speedMultiplier: 1
+    color: {r: 0.6, g: 0.45, b: 1, a: 1}
+  bosses:
+  - kind: 0
+    koreanName: "\uC624\uB2C8"
+    spriteColumn: 0
+    spriteRow: 0
+    color: {r: 1, g: 0.25, b: 0.42, a: 1}
+  - kind: 1
+    koreanName: "\uC138\uB77C\uD504"
+    spriteColumn: 1
+    spriteRow: 0
+    color: {r: 0.35, g: 0.9, b: 1, a: 1}
+  - kind: 2
+    koreanName: "\uADE0\uC5F4 \uB9C8\uB140"
+    spriteColumn: 0
+    spriteRow: 1
+    color: {r: 0.75, g: 0.35, b: 1, a: 1}
+  - kind: 3
+    koreanName: "\uC0AC\uC774\uBC84 \uB4DC\uB798\uACE4"
+    spriteColumn: 1
+    spriteRow: 1
+    color: {r: 1, g: 0.72, b: 0.2, a: 1}
+  bossOptions:
+  - id: swift
+    koreanName: "\uC2E0\uC18D"
+    rarity: 0
+  - id: unstable
+    koreanName: "\uBD88\uC548\uC815"
+    rarity: 0
+  - id: hunter
+    koreanName: "\uCD94\uC801\uC790"
+    rarity: 1
+  - id: echo
+    koreanName: "\uBA54\uC544\uB9AC"
+    rarity: 1
+  - id: armored
+    koreanName: "\uC911\uC7A5\uAC11"
+    rarity: 2
+  - id: overclock
+    koreanName: "\uACFC\uBD80\uD558"
+    rarity: 2
+  - id: minefield
+    koreanName: "\uC9C0\uB8B0\uBC2D"
+    rarity: 3
+  - id: regen
+    koreanName: "\uC7AC\uC0DD"
+    rarity: 4
+  - id: shock_aura
+    koreanName: "\uAC10\uC804 \uC624\uB77C"
+    rarity: 4
+  classes:
+  - classId: 1
+    icon: "\U0001F52B"
+    koreanName: "\uC2E4\uBC84\uBD88\uB81B"
+    difficulty: 2
+    description: "\uAC00\uC7A5 \uAC00\uAE4C\uC6B4 \uC801\uC744 \uD5A5\uD574 \uAC00\uC18D
+      \uC740\uD0C4\uC744 \uC5F0\uC0AC\uD569\uB2C8\uB2E4."
+  - classId: 2
+    icon: "\U0001F977"
+    koreanName: "\uC250\uB3C4\uC6B0\uB9C8\uC2A4\uD130"
+    difficulty: 2
+    description: "\uC5B4\uB460\uC758 \uC30D\uAC80\uACFC \uC8FC\uAE30\uC801 \uC740\uC2E0\uC744
+      \uC0AC\uC6A9\uD569\uB2C8\uB2E4."
+  - classId: 3
+    icon: "\U0001F6F0"
+    koreanName: "\uBA54\uCE74\uB2C9"
+    difficulty: 4
+    description: "\uC704\uC131\uC774 \uBCF4\uC2A4\uB97C \uC6B0\uC120 \uCD94\uC801\uD574
+      \uB808\uC774\uC800\uB97C \uBC1C\uC0AC\uD569\uB2C8\uB2E4."
+  - classId: 4
+    icon: "\u26A1"
+    koreanName: "\uD1A0\uB974"
+    difficulty: 4
+    description: "\uBAA8\uB4E0 \uACF5\uACA9\uC5D0 \uAC15\uD654\uB41C \uC5F0\uC1C4
+      \uB099\uB8B0\uAC00 \uC801\uC6A9\uB429\uB2C8\uB2E4."
+  - classId: 5
+    icon: "\u2B1B"
+    koreanName: "\uBC29\uB791\uC790"
+    difficulty: 5
+    description: "\uAE30\uC874 \uBE4C\uB4DC\uB97C \uC720\uC9C0\uD558\uACE0 \uCD5C\uB300
+      \uCCB4\uB825 +5\uB97C \uC5BB\uC2B5\uB2C8\uB2E4."

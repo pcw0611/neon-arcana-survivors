@@ -8,13 +8,15 @@
 
 ## Unity 마이그레이션 현황
 
-**2026-07-27 기준 3단계 중 1단계인 코어 프로토타입이 완료되었습니다.**
+**2026-07-27 기준 3단계 중 2단계인 콘텐츠 시스템 확장까지 완료되었습니다.**
 
 - Unity 프로젝트: [`unity/NeonArcanaUnity`](unity/NeonArcanaUnity)
 - 1단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE1.md`](docs/UNITY_MIGRATION_PHASE1.md)
+- 2단계 상세 개발 기록: [`docs/UNITY_MIGRATION_PHASE2.md`](docs/UNITY_MIGRATION_PHASE2.md)
+- Android 설치·사용량 특이 사례: [`docs/ANDROID_SETUP_INCIDENT_2026-07-27.md`](docs/ANDROID_SETUP_INCIDENT_2026-07-27.md)
 - 원본 인수인계 문서: [`UNITY_MIGRATION_HANDOFF.md`](UNITY_MIGRATION_HANDOFF.md)
 
-![Unity 1단계 프로토타입 실행 화면](docs/images/unity-phase1-gameplay.png)
+![Unity 2단계 콘텐츠 쇼케이스](docs/images/unity-phase2-gameplay.png)
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

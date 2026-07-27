@@ -18,9 +18,20 @@ namespace NeonArcana
         private Image xpFill;
         private Image damageFlash;
         private GameObject upgradePanel;
+        private GameObject classPanel;
+        private GameObject relicPanel;
+        private GameObject codexPanel;
         private GameObject gameOverPanel;
         private Text gameOverText;
+        private Text bossText;
+        private Image bossFill;
+        private GameObject bossPanel;
+        private Text relicTrayText;
+        private Text toastText;
+        private float toastClock;
         private readonly List<Button> upgradeButtons = new();
+        private readonly List<Button> classButtons = new();
+        private readonly List<Button> relicButtons = new();
 
         public static GameHud Create(GameManager manager, PlayerController player)
         {
@@ -49,6 +60,7 @@ namespace NeonArcana
             statsText = CreateText(root, "Stats", 32, TextAnchor.MiddleLeft, new Vector2(0.02f, 0.94f), new Vector2(0.46f, 0.99f), new Color(0.85f, 0.95f, 1f));
             timerText = CreateText(root, "Timer", 36, TextAnchor.MiddleCenter, new Vector2(0.43f, 0.92f), new Vector2(0.57f, 0.99f), Color.white);
             hostileText = CreateText(root, "Hostiles", 26, TextAnchor.MiddleRight, new Vector2(0.72f, 0.92f), new Vector2(0.98f, 0.99f), new Color(1f, 0.5f, 0.8f));
+            relicTrayText = CreateText(root, "Relics", 22, TextAnchor.MiddleLeft, new Vector2(0.02f, 0.84f), new Vector2(0.48f, 0.9f), new Color(1f, 0.78f, 0.3f));
             CreateText(root, "Hint", 22, TextAnchor.MiddleCenter, new Vector2(0.3f, 0.02f), new Vector2(0.7f, 0.08f), new Color(0.65f, 0.8f, 0.9f)).text = "왼쪽: 이동  ·  오른쪽: 조준  ·  자동 공격";
 
             player.MoveJoystick = VirtualJoystick.Create(root, "Move Stick", new Vector2(0.11f, 0.2f), new Color(0.2f, 0.9f, 1f));
@@ -59,6 +71,44 @@ namespace NeonArcana
             upgradePanel = CreateModal(root, "LEVEL UP · 균열 강화 선택", out var upgradeBody);
             for (var i = 0; i < 3; i++) upgradeButtons.Add(CreateButton(upgradeBody, $"Upgrade {i + 1}", ""));
             upgradePanel.SetActive(false);
+
+            classPanel = CreateModal(root, "LEVEL 30 · 전직 선택", out var classBody);
+            for (var i = 0; i < 5; i++) classButtons.Add(CreateChoiceButton(classBody, $"Class {i + 1}", i, 5));
+            classPanel.SetActive(false);
+
+            relicPanel = CreateModal(root, "RELIC CACHE · 유물 공명", out var relicBody);
+            for (var i = 0; i < 3; i++) relicButtons.Add(CreateButton(relicBody, $"Relic {i + 1}", ""));
+            relicPanel.SetActive(false);
+
+            codexPanel = CreateModal(root, "CODEX · 균열 도감", out var codexBody);
+            var codexText = CreateText(codexBody, "Codex Summary", 32, TextAnchor.MiddleCenter, new Vector2(0.08f, 0.3f), new Vector2(0.92f, 0.74f), Color.white);
+            var closeCodex = CreateButton(codexBody, "Restart", "닫기");
+            closeCodex.onClick.AddListener(() =>
+            {
+                codexPanel.SetActive(false);
+                if (!manager.IsGameOver && !manager.IsChoosingUpgrade) Time.timeScale = 1f;
+            });
+            var codexOpen = CreateFixedButton(root, "Codex", "도감", new Vector2(0.87f, 0.84f), new Vector2(0.98f, 0.9f));
+            codexOpen.onClick.AddListener(() =>
+            {
+                codexText.text = manager.CodexSummary() + $"\n\n최근 런\n{SaveProgress.LastRun}";
+                codexPanel.SetActive(true);
+                Time.timeScale = 0f;
+            });
+            codexPanel.SetActive(false);
+
+            bossPanel = new GameObject("Boss HUD", typeof(RectTransform));
+            bossPanel.transform.SetParent(root, false);
+            var bossRect = bossPanel.GetComponent<RectTransform>();
+            bossRect.anchorMin = new Vector2(0.28f, 0.82f);
+            bossRect.anchorMax = new Vector2(0.72f, 0.9f);
+            bossRect.offsetMin = bossRect.offsetMax = Vector2.zero;
+            bossFill = CreateBar(bossPanel.transform, "Boss HP", new Color(1f, 0.2f, 0.48f), new Vector2(0f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 16f));
+            bossText = CreateText(bossPanel.transform, "Boss Name", 25, TextAnchor.MiddleCenter, new Vector2(0f, 0.2f), new Vector2(1f, 1f), Color.white);
+            bossPanel.SetActive(false);
+
+            toastText = CreateText(root, "Toast", 32, TextAnchor.MiddleCenter, new Vector2(0.25f, 0.72f), new Vector2(0.75f, 0.8f), new Color(1f, 0.82f, 0.3f));
+            toastText.gameObject.SetActive(false);
 
             gameOverPanel = CreateModal(root, "RIFT COLLAPSED", out var gameOverBody);
             gameOverText = CreateText(gameOverBody, "Result", 34, TextAnchor.MiddleCenter, new Vector2(0.08f, 0.35f), new Vector2(0.92f, 0.7f), Color.white);
@@ -75,18 +125,37 @@ namespace NeonArcana
                 color.a = Mathf.MoveTowards(color.a, 0f, Time.unscaledDeltaTime * 2.8f);
                 damageFlash.color = color;
             }
+            if (toastClock > 0f)
+            {
+                toastClock -= Time.unscaledDeltaTime;
+                if (toastClock <= 0f) toastText.gameObject.SetActive(false);
+            }
         }
 
         public void Refresh()
         {
             if (manager == null || player == null) return;
-            statsText.text = $"LV.{manager.Level}    ♥ {Mathf.CeilToInt(player.Hp)}/{Mathf.CeilToInt(player.MaxHp)}    ✦ {manager.Score:N0}";
+            var className = player.Class == ArcanaClass.None ? "" : $" · {player.Class}";
+            statsText.text = $"LV.{manager.Level}{className}    ♥ {Mathf.CeilToInt(player.Hp)}/{Mathf.CeilToInt(player.MaxHp)}    ✦ {manager.Score:N0}";
             var minutes = Mathf.FloorToInt(manager.Elapsed / 60f);
             var seconds = Mathf.FloorToInt(manager.Elapsed % 60f);
             timerText.text = $"{minutes:00}:{seconds:00}";
             hostileText.text = $"{EnemyController.ActiveCount} HOSTILES";
             hpFill.fillAmount = player.MaxHp <= 0f ? 0f : player.Hp / player.MaxHp;
             xpFill.fillAmount = manager.XpToNext <= 0 ? 0f : manager.Xp / (float)manager.XpToNext;
+            relicTrayText.text = manager.Relics.Count == 0
+                ? $"◇ 유물 0/{player.RelicSlots}"
+                : $"◇ {string.Join("  ", RelicLabels())}  [{manager.Relics.Count}/{player.RelicSlots}]";
+            if (manager.ActiveBoss != null)
+            {
+                bossFill.fillAmount = manager.ActiveBoss.MaxHp <= 0f ? 0f : manager.ActiveBoss.Hp / manager.ActiveBoss.MaxHp;
+                bossText.text = $"{manager.ActiveBoss.BossKind} · {manager.ActiveBoss.BossTimeRemaining:0}s";
+            }
+        }
+
+        private IEnumerable<string> RelicLabels()
+        {
+            foreach (var relic in manager.Relics) yield return $"{relic.Definition.icon}{relic.Level}";
         }
 
         public void FlashDamage()
@@ -116,9 +185,78 @@ namespace NeonArcana
 
         public void HideUpgradeChoices() => upgradePanel.SetActive(false);
 
+        public void ShowClassChoices(IReadOnlyList<ClassContent> choices, Action<ClassContent> selected)
+        {
+            classPanel.SetActive(true);
+            for (var i = 0; i < classButtons.Count; i++)
+            {
+                var button = classButtons[i];
+                button.onClick.RemoveAllListeners();
+                if (i >= choices.Count)
+                {
+                    button.gameObject.SetActive(false);
+                    continue;
+                }
+                button.gameObject.SetActive(true);
+                var choice = choices[i];
+                button.GetComponentInChildren<Text>().text = $"{choice.icon}\n{choice.koreanName}\n<size=18>{new string('★', choice.difficulty)}{new string('☆', 5 - choice.difficulty)}\n{choice.description}</size>";
+                button.onClick.AddListener(() => selected(choice));
+            }
+        }
+
+        public void ShowRelicChoices(IReadOnlyList<RelicContent> choices, Action<RelicContent> selected)
+        {
+            relicPanel.SetActive(true);
+            for (var i = 0; i < relicButtons.Count; i++)
+            {
+                var button = relicButtons[i];
+                button.onClick.RemoveAllListeners();
+                var choice = choices[i];
+                button.gameObject.SetActive(true);
+                button.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(choice.rarity), 0.35f);
+                button.GetComponentInChildren<Text>().text = $"{choice.icon} {choice.name}\n<size=21>{ContentDatabase.RarityName(choice.rarity)} · {choice.description}</size>";
+                button.onClick.AddListener(() => selected(choice));
+            }
+        }
+
+        public void ShowRelicDecision(RelicContent candidate, RelicInstance weakest, Action replace, Action salvage)
+        {
+            for (var i = 0; i < relicButtons.Count; i++)
+            {
+                relicButtons[i].onClick.RemoveAllListeners();
+                relicButtons[i].gameObject.SetActive(i < 2);
+            }
+            relicButtons[0].GetComponentInChildren<Text>().text = $"교체\n<size=21>{weakest.Definition.name} → {candidate.name}</size>";
+            relicButtons[0].onClick.AddListener(() => replace());
+            relicButtons[1].GetComponentInChildren<Text>().text = $"분해\n<size=21>XP {ContentDatabase.RelicSalvageRatio(candidate.rarity) * 100f:0}% + 체력 회복</size>";
+            relicButtons[1].onClick.AddListener(() => salvage());
+        }
+
+        public void HideAllChoices()
+        {
+            upgradePanel.SetActive(false);
+            classPanel.SetActive(false);
+            relicPanel.SetActive(false);
+        }
+
+        public void ShowBoss(EnemyController boss)
+        {
+            bossPanel.SetActive(true);
+            ShowToast($"ANOMALY BOSS · {boss.BossKind}");
+        }
+
+        public void HideBoss() => bossPanel.SetActive(false);
+
+        public void ShowToast(string message)
+        {
+            toastText.text = message;
+            toastText.gameObject.SetActive(true);
+            toastClock = 2.8f;
+        }
+
         public void ShowGameOver()
         {
-            gameOverText.text = $"생존 {Mathf.FloorToInt(manager.Elapsed / 60f):00}:{Mathf.FloorToInt(manager.Elapsed % 60f):00}\n처치 {manager.Kills:N0} · 레벨 {manager.Level}\n점수 {manager.Score:N0}";
+            gameOverText.text = $"생존 {Mathf.FloorToInt(manager.Elapsed / 60f):00}:{Mathf.FloorToInt(manager.Elapsed % 60f):00}\n처치 {manager.Kills:N0} · 보스 {manager.BossKills} · 레벨 {manager.Level}\n전직 {player.Class} · 유물 {manager.Relics.Count}\n점수 {manager.Score:N0}";
             gameOverPanel.SetActive(true);
         }
 
@@ -172,6 +310,37 @@ namespace NeonArcana
             colors.pressedColor = new Color(0.4f, 0.18f, 0.55f);
             buttonObject.GetComponent<Button>().colors = colors;
             CreateText(buttonObject.transform, "Label", 31, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = label;
+            return buttonObject.GetComponent<Button>();
+        }
+
+        private static Button CreateChoiceButton(Transform parent, string name, int index, int count)
+        {
+            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(parent, false);
+            var rect = buttonObject.GetComponent<RectTransform>();
+            var width = 0.17f;
+            var spacing = 0.18f;
+            var center = 0.5f + (index - (count - 1) * 0.5f) * spacing;
+            rect.anchorMin = new Vector2(center - width * 0.5f, 0.12f);
+            rect.anchorMax = new Vector2(center + width * 0.5f, 0.74f);
+            rect.offsetMin = new Vector2(5f, 5f);
+            rect.offsetMax = new Vector2(-5f, -5f);
+            buttonObject.GetComponent<Image>().color = new Color(0.08f, 0.2f, 0.34f, 0.98f);
+            CreateText(buttonObject.transform, "Label", 26, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = "";
+            return buttonObject.GetComponent<Button>();
+        }
+
+        private static Button CreateFixedButton(Transform parent, string name, string label, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(parent, false);
+            var rect = buttonObject.GetComponent<RectTransform>();
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = new Vector2(4f, 4f);
+            rect.offsetMax = new Vector2(-4f, -4f);
+            buttonObject.GetComponent<Image>().color = new Color(0.08f, 0.18f, 0.32f, 0.92f);
+            CreateText(buttonObject.transform, "Label", 24, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = label;
             return buttonObject.GetComponent<Button>();
         }
 
