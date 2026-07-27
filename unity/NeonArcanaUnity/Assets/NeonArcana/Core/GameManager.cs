@@ -6,6 +6,13 @@ namespace NeonArcana
 {
     public sealed class GameManager : MonoBehaviour
     {
+        private enum RewardType
+        {
+            Upgrade,
+            Class,
+            Relic
+        }
+
         public static GameManager Instance { get; private set; }
 
         public PlayerController Player { get; private set; }
@@ -18,11 +25,14 @@ namespace NeonArcana
         public float Elapsed { get; private set; }
         public bool IsChoosingUpgrade { get; private set; }
         public bool IsGameOver { get; private set; }
+        public bool WasAbandoned { get; private set; }
         public bool IsAwaitingStart { get; private set; } = true;
         public int Score => GameBalance.Score(Kills, Level, Elapsed, BossKills);
         public EnemyController ActiveBoss { get; private set; }
         public IReadOnlyList<RelicInstance> Relics => relics;
         public IReadOnlyDictionary<string, int> UpgradeRanks => upgradeRanks;
+        public int PendingRewardCount => rewardQueue.Count;
+        public string ActiveRewardType => activeReward?.ToString() ?? "None";
 
         private GameHud hud;
         private readonly List<UpgradeDefinition> upgradePool = new();
@@ -30,8 +40,10 @@ namespace NeonArcana
         private readonly Dictionary<string, int> upgradeRanks = new();
         private readonly Dictionary<string, int> relicKillCounters = new();
         private readonly HashSet<string> discoveredRelics = new();
+        private readonly Queue<RewardType> rewardQueue = new();
         private readonly System.Random random = new(61061);
         private bool phoenixUsed;
+        private RewardType? activeReward;
 
         private void Awake()
         {
@@ -92,7 +104,7 @@ namespace NeonArcana
             Player.Heal(8f);
             ActiveBoss = null;
             hud?.HideBoss();
-            OpenRelicChoice();
+            EnqueueReward(RewardType.Relic);
         }
 
         public void RegisterBossTimeout(EnemyController boss)
@@ -114,25 +126,41 @@ namespace NeonArcana
                 Xp -= XpToNext;
                 Level++;
                 XpToNext = GameBalance.XpForNextLevel(Level);
-                if (Level == 30 && Player.Class == ArcanaClass.None) OpenClassChoice();
-                else OpenUpgradeChoice();
-                break;
+                EnqueueReward(Level == 30 && Player.Class == ArcanaClass.None ? RewardType.Class : RewardType.Upgrade);
             }
             hud?.Refresh();
         }
 
-        private void OpenUpgradeChoice()
+        private void EnqueueReward(RewardType reward)
         {
-            IsChoosingUpgrade = true;
-            Time.timeScale = 0f;
-            hud.ShowUpgradeChoices(WeightedChoices(3), ApplyUpgrade);
+            rewardQueue.Enqueue(reward);
+            ProcessNextReward();
         }
 
-        private void OpenClassChoice()
+        private void ProcessNextReward()
         {
+            if (IsGameOver || IsAwaitingStart || activeReward.HasValue || rewardQueue.Count == 0) return;
+            activeReward = rewardQueue.Dequeue();
             IsChoosingUpgrade = true;
             Time.timeScale = 0f;
-            hud.ShowClassChoices(ContentDatabase.Catalog.classes, ApplyClass);
+            switch (activeReward.Value)
+            {
+                case RewardType.Upgrade:
+                    var choices = WeightedChoices(3);
+                    if (choices.Count == 0)
+                    {
+                        CompleteReward();
+                        return;
+                    }
+                    hud.ShowUpgradeChoices(choices, ApplyUpgrade);
+                    break;
+                case RewardType.Class:
+                    hud.ShowClassChoices(ContentDatabase.Catalog.classes, ApplyClass);
+                    break;
+                case RewardType.Relic:
+                    hud.ShowRelicChoices(RollRelics(3), SelectRelic);
+                    break;
+            }
         }
 
         private List<UpgradeDefinition> WeightedChoices(int count)
@@ -187,7 +215,7 @@ namespace NeonArcana
             upgrade.IncreaseRank();
             upgradeRanks[upgrade.Id] = upgrade.Rank;
             ApplyUpgradeEffect(upgrade.Id);
-            ResumePlay();
+            CompleteReward();
         }
 
         private void ApplyUpgradeEffect(string id)
@@ -234,16 +262,8 @@ namespace NeonArcana
         {
             Player.SetClass(definition.classId);
             SaveProgress.RecordClass(definition.classId);
-            ResumePlay();
+            CompleteReward();
             hud.ShowToast($"전직 완료 · {definition.koreanName}");
-        }
-
-        private void OpenRelicChoice()
-        {
-            IsChoosingUpgrade = true;
-            Time.timeScale = 0f;
-            var choices = RollRelics(3);
-            hud.ShowRelicChoices(choices, SelectRelic);
         }
 
         private List<RelicContent> RollRelics(int count)
@@ -273,14 +293,14 @@ namespace NeonArcana
                 existing.Level++;
                 ApplyRelicEffect(relic, true, false);
                 Discover(relic.id);
-                ResumePlay();
+                CompleteReward();
                 hud.ShowToast($"{relic.name} · LV.{existing.Level}");
                 return;
             }
             if (relics.Count < Player.RelicSlots)
             {
                 EquipRelic(relic);
-                ResumePlay();
+                CompleteReward();
                 return;
             }
             var weakest = 0;
@@ -304,7 +324,7 @@ namespace NeonArcana
             relics[index] = new RelicInstance(definition);
             ApplyRelicEffect(definition, true, true);
             Discover(definition.id);
-            ResumePlay();
+            CompleteReward();
             hud.ShowToast($"{old.Definition.name} → {definition.name}");
         }
 
@@ -312,7 +332,7 @@ namespace NeonArcana
         {
             Xp += Mathf.RoundToInt(XpToNext * ContentDatabase.RelicSalvageRatio(definition.rarity));
             Player.Heal(new[] { 2f, 3f, 5f, 9f, Player.MaxHp }[definition.rarity]);
-            ResumePlay();
+            CompleteReward();
             hud.ShowToast($"{definition.name} 분해 · 공명 에너지 회수");
         }
 
@@ -372,19 +392,35 @@ namespace NeonArcana
             SaveCodex();
         }
 
-        private void ResumePlay()
+        private void CompleteReward()
         {
-            IsChoosingUpgrade = false;
-            Time.timeScale = 1f;
+            activeReward = null;
             hud.HideAllChoices();
             hud.Refresh();
+            if (rewardQueue.Count > 0)
+            {
+                ProcessNextReward();
+                return;
+            }
+            IsChoosingUpgrade = false;
+            Time.timeScale = 1f;
         }
 
         private void HandleGameOver()
         {
+            WasAbandoned = false;
+            FinishGameOver();
+        }
+
+        private void FinishGameOver()
+        {
             if (IsGameOver) return;
             IsGameOver = true;
             Time.timeScale = 0f;
+            activeReward = null;
+            rewardQueue.Clear();
+            IsChoosingUpgrade = false;
+            hud.HideAllChoices();
             SaveProgress.RecordRun(Score, Kills, BossKills, Level, Elapsed, Player.Class, relics);
             hud.ShowGameOver();
         }
@@ -392,7 +428,8 @@ namespace NeonArcana
         public void AbandonRun()
         {
             if (IsAwaitingStart || IsGameOver) return;
-            HandleGameOver();
+            WasAbandoned = true;
+            FinishGameOver();
         }
 
         public void Restart()
@@ -409,6 +446,9 @@ namespace NeonArcana
             Elapsed = 0f;
             ActiveBoss = null;
             IsChoosingUpgrade = IsGameOver = false;
+            WasAbandoned = false;
+            activeReward = null;
+            rewardQueue.Clear();
             IsAwaitingStart = false;
             upgradeRanks.Clear();
             relics.Clear();
@@ -420,6 +460,24 @@ namespace NeonArcana
             hud.HideGameOver();
             hud.HideBoss();
             hud.Refresh();
+        }
+
+        public void ReturnToTitle()
+        {
+            Restart();
+            IsAwaitingStart = true;
+            hud.ShowTitle();
+        }
+
+        public void EnableRewardQueueSmoke()
+        {
+            activeReward = null;
+            rewardQueue.Clear();
+            IsChoosingUpgrade = false;
+            hud.HideAllChoices();
+            EnqueueReward(RewardType.Upgrade);
+            EnqueueReward(RewardType.Relic);
+            EnqueueReward(RewardType.Class);
         }
 
         private void BuildUpgradePool()

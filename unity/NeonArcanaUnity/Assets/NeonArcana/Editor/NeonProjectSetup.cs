@@ -165,8 +165,19 @@ namespace NeonArcana.Editor
                     throw new InvalidOperationException("Cinemachine did not follow the moved player.");
                 if (world.TileAnchor.sqrMagnitude < 1f || world.GridAnchor.sqrMagnitude < 1f)
                     throw new InvalidOperationException("World tile and grid anchors did not advance after movement.");
+                manager.EnableRewardQueueSmoke();
+                if (manager.ActiveRewardType != "Upgrade" || manager.PendingRewardCount != 2
+                    || GameHud.Instance.ActiveChoicePanelCount != 1 || Time.timeScale != 0f)
+                    throw new InvalidOperationException($"Reward queue overlap: active={manager.ActiveRewardType}, pending={manager.PendingRewardCount}, panels={GameHud.Instance.ActiveChoicePanelCount}, timeScale={Time.timeScale}.");
                 Debug.Log($"NEON_ARCANA_PHASE2_PLAY_SMOKE_OK enemies={EnemyController.ActiveCount} kills={manager.Kills} class={manager.Player.Class} relics={manager.Relics.Count} boss={manager.ActiveBoss.BossKind} elapsed={manager.Elapsed:F2}");
-                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume");
+                Debug.Log($"NEON_ARCANA_PHASE3_PLAY_SMOKE_OK prefabs=10 touchPads=1 targeting={PlayerController.ConstellationTargetingMode} worldTiles={world.ActiveTileCount} tileAnchor={world.TileAnchor} gridAnchor={world.GridAnchor} codexTabs=27/21/5 gameMenu=pauseResume rewardQueue=1+2");
+                manager.AbandonRun();
+                if (!manager.IsGameOver || !GameHud.Instance.IsGameOverVisible || Time.timeScale != 0f)
+                    throw new InvalidOperationException("Abandon run did not enter the result state.");
+                manager.ReturnToTitle();
+                if (!manager.IsAwaitingStart || manager.IsGameOver || !GameHud.Instance.IsTitleVisible || Time.timeScale != 1f)
+                    throw new InvalidOperationException("Return to title did not reset the run.");
+                Debug.Log("NEON_ARCANA_P0_FLOW_OK rewards=queued abandon=result return=title");
                 FinishSmoke(0);
             }
             catch (Exception exception)

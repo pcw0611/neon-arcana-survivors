@@ -552,3 +552,25 @@ NEON_ARCANA_PHASE3_PLAY_SMOKE_OK ... codexTabs=27/21/5 gameMenu=pauseResume
 
 필수 프리팹은 `CodexCard.prefab` 추가로 10개가 됐다.
 도감과 메뉴 역시 기술 검증 통과 상태이며 사용자 체감 승인 전에는 3단계 완료로 표시하지 않는다.
+
+## 15. P0 보상 큐·게임 종료 흐름
+
+기존 `IsChoosingUpgrade` 하나에 레벨업, 전직, 유물 선택이 각각 직접 접근하던 구조를
+FIFO 보상 큐로 교체했다. 보상은 `Upgrade`, `Class`, `Relic` 세 유형이며,
+활성 보상이 끝날 때까지 다음 패널을 열지 않는다.
+
+Play Mode에서 세 보상을 연속 등록하고 `활성 1 + 대기 2`, 선택 패널 한 개,
+시간 정지를 검사했다. 보스 처치 XP와 유물 보상이 겹치거나 다중 레벨업 보상이
+유실되는 문제를 막는다.
+
+게임 종료 화면에는 빌드·유물 요약, 다시 출격, 메인 화면 버튼을 추가했다.
+작전 포기는 일반 사망과 구분해 기록하고, 메인 화면 복귀 시 적·투사체·보석·진행 상태를
+초기화한 뒤 타이틀 대기 상태로 돌아간다.
+
+![Unity 작전 결과](images/unity-phase3-result.png)
+
+```text
+NEON_ARCANA_P0_FLOW_OK rewards=queued abandon=result return=title
+```
+
+상세 내용은 P0 진행 기록의 6장을 참고한다.

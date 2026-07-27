@@ -39,6 +39,7 @@ namespace NeonArcana
         [SerializeField] private Button menuHitboxButton;
         [SerializeField] private Button menuAbandonButton;
         [SerializeField] private Button restartButton;
+        [SerializeField] private Button mainMenuButton;
         [SerializeField] private VirtualJoystick moveJoystick;
         [SerializeField] private MiniMapGraphic miniMap;
         private float toastClock;
@@ -127,6 +128,8 @@ namespace NeonArcana
             }
             restartButton?.onClick.RemoveAllListeners();
             restartButton?.onClick.AddListener(manager.Restart);
+            mainMenuButton?.onClick.RemoveAllListeners();
+            mainMenuButton?.onClick.AddListener(manager.ReturnToTitle);
         }
 
         private void SetTitleStageSprite(string objectName, Sprite sprite)
@@ -209,8 +212,9 @@ namespace NeonArcana
             toastText.gameObject.SetActive(false);
 
             gameOverPanel = CreateModal(root, "RIFT COLLAPSED", out var gameOverBody);
-            gameOverText = CreateText(gameOverBody, "Result", 34, TextAnchor.MiddleCenter, new Vector2(0.08f, 0.35f), new Vector2(0.92f, 0.7f), Color.white);
-            restartButton = CreateButton(gameOverBody, "Restart", "다시 진입");
+            gameOverText = CreateText(gameOverBody, "Result", 29, TextAnchor.MiddleCenter, new Vector2(0.06f, 0.28f), new Vector2(0.94f, 0.73f), Color.white);
+            restartButton = CreateFixedButton(gameOverBody, "Restart", "다시 출격", new Vector2(0.22f, 0.12f), new Vector2(0.48f, 0.24f));
+            mainMenuButton = CreateFixedButton(gameOverBody, "Main Menu", "메인 화면", new Vector2(0.52f, 0.12f), new Vector2(0.78f, 0.24f));
             gameOverPanel.SetActive(false);
         }
 
@@ -447,7 +451,13 @@ namespace NeonArcana
 
         public void ShowGameOver()
         {
-            gameOverText.text = $"생존 {Mathf.FloorToInt(manager.Elapsed / 60f):00}:{Mathf.FloorToInt(manager.Elapsed % 60f):00}\n처치 {manager.Kills:N0} · 보스 {manager.BossKills} · 레벨 {manager.Level}\n전직 {player.Class} · 유물 {manager.Relics.Count}\n점수 {manager.Score:N0}";
+            gameOverPanel.transform.SetAsLastSibling();
+            gameOverText.text =
+                $"{(manager.WasAbandoned ? "작전 포기" : "작전 종료")}\n"
+                + $"생존 {Mathf.FloorToInt(manager.Elapsed / 60f):00}:{Mathf.FloorToInt(manager.Elapsed % 60f):00}   ·   처치 {manager.Kills:N0}   ·   보스 {manager.BossKills}   ·   LV.{manager.Level}\n"
+                + $"전직 {(player.Class == ArcanaClass.None ? "미전직" : player.Class.ToString())}   ·   점수 {manager.Score:N0}\n\n"
+                + $"술식  {BuildSummary()}\n"
+                + $"유물  {RelicSummary()}";
             gameOverPanel.SetActive(true);
         }
 
@@ -456,6 +466,12 @@ namespace NeonArcana
         public bool IsGameMenuOpen => gameMenuPanel != null && gameMenuPanel.activeSelf;
         public bool IsHitboxVisible => hitboxVisible;
         public string CodexDiagnostics => codexView != null ? codexView.Diagnostics : "missing";
+        public bool IsTitleVisible => titlePanel != null && titlePanel.activeSelf;
+        public bool IsGameOverVisible => gameOverPanel != null && gameOverPanel.activeSelf;
+        public int ActiveChoicePanelCount =>
+            (upgradePanel != null && upgradePanel.activeSelf ? 1 : 0)
+            + (classPanel != null && classPanel.activeSelf ? 1 : 0)
+            + (relicPanel != null && relicPanel.activeSelf ? 1 : 0);
 
         public void ShowGameMenuForTest()
         {
@@ -529,6 +545,27 @@ namespace NeonArcana
         {
             CloseGameMenu();
             manager.AbandonRun();
+        }
+
+        private string BuildSummary()
+        {
+            var labels = new List<string>();
+            foreach (var definition in ContentDatabase.Catalog.upgrades)
+            {
+                var rank = manager.UpgradeRanks.GetValueOrDefault(definition.id);
+                if (rank <= 0) continue;
+                labels.Add($"{definition.icon}{definition.name} {rank}");
+                if (labels.Count >= 6) break;
+            }
+            return labels.Count == 0 ? "획득 술식 없음" : string.Join("  ·  ", labels);
+        }
+
+        private string RelicSummary()
+        {
+            var labels = new List<string>();
+            foreach (var relic in manager.Relics)
+                labels.Add($"{relic.Definition.icon}{relic.Definition.name} LV.{relic.Level}");
+            return labels.Count == 0 ? "획득 유물 없음" : string.Join("  ·  ", labels);
         }
 
         private static void SetButtonLabel(Button button, string label)
