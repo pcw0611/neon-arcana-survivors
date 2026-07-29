@@ -26,6 +26,7 @@ namespace NeonArcana
         private float hp;
         private float maxHp;
         private float shield;
+        private float maxShield;
         private float speed;
         private float damage;
         private float contactCooldown;
@@ -36,12 +37,26 @@ namespace NeonArcana
         private float shockTimer;
         private int tier;
         private bool child;
+        private bool elite;
         private bool charging;
         private Vector2 chargeDirection;
         private readonly List<BossOptionContent> bossOptions = new();
         [SerializeField] private SpriteRenderer spriteRenderer;
         private Vector3 baseScale;
         private float animationSeed;
+        private SpriteRenderer hpBackRenderer;
+        private SpriteRenderer hpFillRenderer;
+        private SpriteRenderer shieldBackRenderer;
+        private SpriteRenderer shieldFillRenderer;
+        private SpriteRenderer archetypeIconRenderer;
+        private SpriteRenderer glowRenderer;
+        private float visualRadius;
+
+        /// <summary>
+        /// 웹 원본은 캔버스 픽셀 좌표로 그린다. 카메라 orthographicSize 5.6은 세로 11.2유닛이고
+        /// 원본 기준 해상도는 1080px이므로 1유닛 = 96.4px이다. 원본의 픽셀 수치를 그대로 옮기기 위한 환산 상수.
+        /// </summary>
+        public const float WebPixelsPerUnit = 96.4f;
 
         public static EnemyController Spawn(Vector3 position, float difficulty, EnemyArchetype? forcedType = null, bool isChild = false)
         {
@@ -52,9 +67,13 @@ namespace NeonArcana
             enemy.Archetype = type;
             enemy.child = isChild;
             enemy.transform.position = position;
-            enemy.maxHp = Mathf.Ceil(Mathf.Max(2f, 3.2f * difficulty) * content.hpMultiplier * (isChild ? 0.42f : 1f));
+            // 웹 원본: 20초 이후 서서히 엘리트 등장 확률 상승(최대 48%), 엘리트는 체력 2.8배
+            var eliteChance = Mathf.Clamp(((GameManager.Instance?.Elapsed ?? 0f) - 20f) / 620f, 0f, 0.48f);
+            var elite = !isChild && UnityEngine.Random.value < eliteChance;
+            enemy.maxHp = Mathf.Ceil(Mathf.Max(2f, 3.2f * difficulty) * content.hpMultiplier * (elite ? 2.8f : 1f) * (isChild ? 0.42f : 1f));
             enemy.hp = enemy.maxHp;
             enemy.shield = type == EnemyArchetype.Warder ? Mathf.Ceil(enemy.maxHp * 0.75f) : 0f;
+            enemy.maxShield = enemy.shield;
             enemy.stunTimer = enemy.shockTimer = 0f;
             var elapsed = GameManager.Instance?.Elapsed ?? 0f;
             var baseSpeed = Mathf.Min(3f, 1.22f + elapsed * 0.0015f);
@@ -67,7 +86,12 @@ namespace NeonArcana
                 ? NeonAssets.FullSprite("Art/bomber-drone", 120f)
                 : NeonAssets.SpriteFrame("Art/shade-sd", (int)type % 2, (int)type / 2 % 2);
             enemy.spriteRenderer.color = content.color;
-            enemy.transform.localScale = Vector3.one * (isChild ? 0.38f : type == EnemyArchetype.Bomber ? 0.46f : 0.56f);
+            enemy.ApplyArchetypeIcon(type);
+            // 웹 원본: r = 자식 13 / 엘리트 28 / 일반 18~23, 그리는 크기 = r * (엘리트 4.2 : 3.8)
+            enemy.visualRadius = isChild ? 13f : elite ? 28f : UnityEngine.Random.Range(18f, 23f);
+            var webSize = enemy.visualRadius * (elite ? 4.2f : 3.8f);
+            enemy.transform.localScale = Vector3.one * (webSize / WebPixelsPerUnit);
+            enemy.elite = elite;
             enemy.Activate();
             return enemy;
         }
@@ -91,6 +115,7 @@ namespace NeonArcana
             enemy.maxHp = Mathf.Round(baseHp * Mathf.Pow(1.42f, cycle) * (1f + elapsed / 900f) * lateBoss * (enemy.HasOption("armored") ? 1.25f : 1f));
             enemy.hp = enemy.maxHp;
             enemy.shield = 0f;
+            enemy.maxShield = 0f;
             enemy.stunTimer = enemy.shockTimer = 0f;
             enemy.speed = (enemy.tier == 3 ? 1.02f : 1.16f) * (enemy.HasOption("swift") ? 1.18f : 1f) * Mathf.Min(1.35f, 1f + cycle * 0.05f);
             enemy.damage = Mathf.Max(2f + Mathf.Floor((bossIndex + 1) / 2f), GameBalance.EnemyDamageScale(elapsed) * 0.75f);
@@ -101,7 +126,11 @@ namespace NeonArcana
             enemy.transform.position = position;
             enemy.spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/bosses", content.spriteColumn, content.spriteRow, 2, 2, 260f);
             enemy.spriteRenderer.color = Color.white;
-            enemy.transform.localScale = Vector3.one * (enemy.tier == 3 ? 0.9f : 0.72f);
+            if (enemy.archetypeIconRenderer != null) enemy.archetypeIconRenderer.enabled = false;
+            // 웹 원본 보스 크기: 3티어 245px, 그 외 178px
+            enemy.visualRadius = enemy.tier == 3 ? 122f : 89f;
+            enemy.elite = false;
+            enemy.transform.localScale = Vector3.one * ((enemy.tier == 3 ? 245f : 178f) / WebPixelsPerUnit);
             enemy.Activate();
             GameManager.Instance?.RegisterBossSpawn(enemy);
             return enemy;
@@ -133,12 +162,35 @@ namespace NeonArcana
             enemy.spriteRenderer.sortingOrder = 10;
             var glow = new GameObject("Threat Glow", typeof(SpriteRenderer));
             glow.transform.SetParent(gameObject.transform, false);
-            glow.transform.localScale = Vector3.one * 1.35f;
+            // 웹 원본은 적마다 두꺼운 마젠타 오라가 넓게 번진다. 기존 1.35배는 너무 좁아 실루엣에 묻혔다.
+            glow.transform.localScale = Vector3.one * 2.1f;
             var glowRenderer = glow.GetComponent<SpriteRenderer>();
             glowRenderer.sprite = NeonAssets.GlowSprite();
-            glowRenderer.color = new Color(0.9f, 0.1f, 0.75f, 0.12f);
+            glowRenderer.color = new Color(0.9f, 0.1f, 0.75f, 0.3f);
             glowRenderer.sortingOrder = 9;
+
+            // 웹 원본의 적 상단 HP 바(배경 + 채움)와 쉴드 바, 그리고 종류 아이콘.
+            CreateBarPiece(gameObject.transform, "HP Back", new Color(0.09f, 0.075f, 0.157f, 0.94f), 24);
+            CreateBarPiece(gameObject.transform, "HP Fill", new Color(1f, 0.404f, 0.6f), 25);
+            CreateBarPiece(gameObject.transform, "Shield Back", new Color(0.043f, 0.137f, 0.2f, 0.94f), 24);
+            CreateBarPiece(gameObject.transform, "Shield Fill", new Color(0.396f, 0.965f, 1f), 25);
+
+            var icon = new GameObject("Archetype Icon", typeof(SpriteRenderer));
+            icon.transform.SetParent(gameObject.transform, false);
+            var iconRenderer = icon.GetComponent<SpriteRenderer>();
+            iconRenderer.sortingOrder = 26;
+            iconRenderer.enabled = false;
             return gameObject;
+        }
+
+        private static void CreateBarPiece(Transform parent, string name, Color color, int sortingOrder)
+        {
+            var piece = new GameObject(name, typeof(SpriteRenderer));
+            piece.transform.SetParent(parent, false);
+            var renderer = piece.GetComponent<SpriteRenderer>();
+            renderer.sprite = NeonAssets.SolidSprite(Color.white);
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
         }
 
         private void Awake()
@@ -157,8 +209,113 @@ namespace NeonArcana
             var glow = transform.Find("Threat Glow");
             if (glow != null)
             {
-                var renderer = glow.GetComponent<SpriteRenderer>();
-                if (renderer != null && renderer.sprite == null) renderer.sprite = NeonAssets.GlowSprite();
+                glowRenderer = glow.GetComponent<SpriteRenderer>();
+                if (glowRenderer != null && glowRenderer.sprite == null) glowRenderer.sprite = NeonAssets.GlowSprite();
+            }
+
+            hpBackRenderer = ResolveBar("HP Back", new Color(0.09f, 0.075f, 0.157f, 0.94f), 24);
+            hpFillRenderer = ResolveBar("HP Fill", new Color(1f, 0.404f, 0.6f), 25);
+            shieldBackRenderer = ResolveBar("Shield Back", new Color(0.043f, 0.137f, 0.2f, 0.94f), 24);
+            shieldFillRenderer = ResolveBar("Shield Fill", new Color(0.396f, 0.965f, 1f), 25);
+
+            var icon = transform.Find("Archetype Icon");
+            if (icon == null)
+            {
+                var created = new GameObject("Archetype Icon", typeof(SpriteRenderer));
+                created.transform.SetParent(transform, false);
+                icon = created.transform;
+            }
+            archetypeIconRenderer = icon.GetComponent<SpriteRenderer>();
+            archetypeIconRenderer.sortingOrder = 26;
+        }
+
+        /// <summary>
+        /// 웹 원본은 스토커를 제외한 몹 머리 위에 종류 아이콘을 띄운다.
+        /// 아이콘 시트는 2×2 그리드이며 거너/차저/워더가 각각 다른 칸을 쓴다.
+        /// </summary>
+        private void ApplyArchetypeIcon(EnemyArchetype type)
+        {
+            if (archetypeIconRenderer == null) return;
+            if (type == EnemyArchetype.Stalker)
+            {
+                archetypeIconRenderer.enabled = false;
+                return;
+            }
+            var column = 1;
+            var row = 1;
+            if (type == EnemyArchetype.Gunner) { column = 0; row = 0; }
+            else if (type == EnemyArchetype.Charger) { column = 1; row = 0; }
+            else if (type == EnemyArchetype.Warder) { column = 0; row = 1; }
+            archetypeIconRenderer.sprite = NeonAssets.SpriteFrame("Art/archetype-icons", column, row, 2, 2);
+            archetypeIconRenderer.enabled = true;
+        }
+
+        private SpriteRenderer ResolveBar(string name, Color color, int sortingOrder)
+        {
+            var found = transform.Find(name);
+            if (found == null)
+            {
+                CreateBarPiece(transform, name, color, sortingOrder);
+                found = transform.Find(name);
+            }
+            var renderer = found.GetComponent<SpriteRenderer>();
+            if (renderer.sprite == null) renderer.sprite = NeonAssets.SolidSprite(Color.white);
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
+            return renderer;
+        }
+
+        /// <summary>
+        /// 웹 원본 drawMob()의 체력/쉴드 바와 종류 아이콘을 그대로 옮긴다.
+        /// 부모 스케일이 적 종류마다 다르므로, 바는 월드 크기가 일정하도록 부모 스케일로 나눠 보정한다.
+        /// </summary>
+        private void UpdateStatusBars()
+        {
+            if (hpFillRenderer == null) return;
+
+            var parentScale = Mathf.Max(0.0001f, transform.localScale.x);
+            var barHalf = (IsBoss ? Mathf.Max(54f, visualRadius) : visualRadius) / WebPixelsPerUnit;
+            var barHeight = 4f / WebPixelsPerUnit;
+            // 웹 캔버스는 Y가 아래로 증가하므로 원본의 '-'는 위쪽을 뜻한다. Unity는 반대라 부호를 뒤집는다.
+            var barY = (IsBoss ? visualRadius + 34f : visualRadius + 13f) / WebPixelsPerUnit;
+
+            // 부모가 flipX로 뒤집혀도 바는 영향받지 않도록 로컬 스케일로만 제어한다.
+            var localHalf = barHalf / parentScale;
+            var localHeight = barHeight / parentScale;
+            var localY = barY / parentScale;
+
+            var ratio = maxHp <= 0f ? 0f : Mathf.Clamp01(hp / maxHp);
+            hpBackRenderer.transform.localPosition = new Vector3(0f, localY, 0f);
+            hpBackRenderer.transform.localScale = new Vector3(localHalf * 2f, localHeight, 1f);
+            hpFillRenderer.transform.localPosition = new Vector3(-localHalf * (1f - ratio), localY, 0f);
+            hpFillRenderer.transform.localScale = new Vector3(localHalf * 2f * ratio, localHeight, 1f);
+            // 웹 원본 색: 보스 #ff4f9d, 엘리트 #c977ff, 일반 #ff6799
+            hpFillRenderer.color = IsBoss
+                ? new Color(1f, 0.31f, 0.616f)
+                : elite
+                    ? new Color(0.788f, 0.467f, 1f)
+                    : new Color(1f, 0.404f, 0.6f);
+
+            var hasShield = maxShield > 0f && shield > 0f;
+            shieldBackRenderer.enabled = hasShield;
+            shieldFillRenderer.enabled = hasShield;
+            if (hasShield)
+            {
+                var shieldRatio = Mathf.Clamp01(shield / maxShield);
+                var shieldY = localY + 5f / WebPixelsPerUnit / parentScale;  // 쉴드 바는 HP 바 바로 위
+                var shieldHeight = 3f / WebPixelsPerUnit / parentScale;
+                shieldBackRenderer.transform.localPosition = new Vector3(0f, shieldY, 0f);
+                shieldBackRenderer.transform.localScale = new Vector3(localHalf * 2f, shieldHeight, 1f);
+                shieldFillRenderer.transform.localPosition = new Vector3(-localHalf * (1f - shieldRatio), shieldY, 0f);
+                shieldFillRenderer.transform.localScale = new Vector3(localHalf * 2f * shieldRatio, shieldHeight, 1f);
+            }
+
+            if (archetypeIconRenderer != null && archetypeIconRenderer.enabled)
+            {
+                var iconSize = 22f / WebPixelsPerUnit / parentScale;
+                archetypeIconRenderer.transform.localPosition =
+                    new Vector3(0f, (visualRadius + 17f) / WebPixelsPerUnit / parentScale, 0f);
+                archetypeIconRenderer.transform.localScale = Vector3.one * iconSize;
             }
         }
 
@@ -202,6 +359,7 @@ namespace NeonArcana
 
             if (delta.x != 0f) spriteRenderer.flipX = delta.x < 0f;
             transform.localScale = baseScale * (1f + Mathf.Sin(Time.time * (IsBoss ? 2.1f : 4.2f) + animationSeed) * (IsBoss ? 0.025f : 0.045f));
+            UpdateStatusBars();
             if (distance <= (IsBoss ? 0.8f : 0.55f) && contactCooldown <= 0f)
             {
                 contactCooldown = IsBoss ? 0.7f : 0.9f;

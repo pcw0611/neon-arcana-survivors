@@ -97,7 +97,8 @@ namespace NeonArcana
             controller.spriteRenderer = playerObject.GetComponent<SpriteRenderer>();
             controller.spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/astra-sd", 0, 0);
             controller.spriteRenderer.sortingOrder = 20;
-            playerObject.transform.localScale = Vector3.one * 0.78f;
+            // 웹 원본은 플레이어를 112px로 그린다. 1유닛 = 96.4px 기준으로 환산한 값.
+            playerObject.transform.localScale = Vector3.one * (112f / EnemyController.WebPixelsPerUnit);
 
             var aura = new GameObject("Aura", typeof(SpriteRenderer));
             aura.transform.SetParent(playerObject.transform, false);
