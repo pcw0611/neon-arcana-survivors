@@ -60,8 +60,8 @@ namespace NeonArcana
         [SerializeField] private SpriteRenderer hpFillRenderer;
         [SerializeField] private SpriteRenderer hitboxRenderer;
         [SerializeField] private SpriteRenderer idleRingRenderer;
-        [SerializeField] private UnityEngine.UI.Text hpText;
-        [SerializeField] private UnityEngine.UI.Text hpTextShadow;
+        [SerializeField] private TMPro.TextMeshPro hpText;
+        [SerializeField] private TMPro.TextMeshPro hpTextShadow;
         private float attackCooldown;
         private float hurtCooldown;
         private Vector2 lastAim = Vector2.right;
@@ -154,7 +154,6 @@ namespace NeonArcana
 
             // 웹 원본: HP 바 안에 "27 / 31" 흰 글씨 + 검은 외곽선.
             // HP 바 채움이 sortingOrder 23이므로 텍스트는 반드시 그 위여야 가려지지 않는다.
-            controller.hpTextShadow = CreateHpText(playerObject.transform, "HP Text Shadow", new Color(0f, 0f, 0f, 0.85f), 29, new Vector3(0.014f, -0.014f, 0f));
             controller.hpText = CreateHpText(playerObject.transform, "HP Text", Color.white, 30, Vector3.zero);
             return playerObject;
         }
@@ -186,6 +185,25 @@ namespace NeonArcana
             var hitbox = transform.Find("Hitbox Debug");
             if (hitboxRenderer == null && hitbox != null) hitboxRenderer = hitbox.GetComponent<SpriteRenderer>();
             if (hitboxRenderer != null && hitboxRenderer.sprite == null) hitboxRenderer.sprite = NeonAssets.RingSprite(128);
+
+            // 런타임에는 Resources의 Player 프리팹이 사용되므로 CreateTemplate()는 호출되지 않는다.
+            // 프리팹에 없는 신규 연출 오브젝트는 여기서 직접 만들어 붙여야 한다.
+            var idleRing = transform.Find("Idle Ring");
+            if (idleRing == null)
+            {
+                var created = new GameObject("Idle Ring", typeof(SpriteRenderer));
+                created.transform.SetParent(transform, false);
+                idleRing = created.transform;
+            }
+            idleRingRenderer = idleRing.GetComponent<SpriteRenderer>();
+            if (idleRingRenderer.sprite == null) idleRingRenderer.sprite = NeonAssets.RingSprite(128);
+            idleRingRenderer.color = new Color(0.396f, 0.937f, 1f, 0.75f);
+            idleRingRenderer.sortingOrder = 18;
+
+            var existingHpText = transform.Find("HP Text");
+            hpText = existingHpText != null
+                ? existingHpText.GetComponent<TMPro.TextMeshPro>()
+                : CreateHpText(transform, "HP Text", Color.white, 30, Vector3.zero);
         }
 
         public void SetHitboxVisible(bool visible)
@@ -425,32 +443,28 @@ namespace NeonArcana
         }
 
         /// <summary>
-        /// 월드 스페이스 캔버스 + uGUI Text로 HP 숫자를 그린다.
-        /// 레거시 TextMesh는 URP에서 전용 셰이더가 호환되지 않아 보이지 않는다.
+        /// TextMeshPro로 HP 숫자를 그린다. 외곽선은 TMP 자체 기능을 쓰므로 그림자 오브젝트가 필요 없다.
+        /// 한글이 포함될 수 있으므로 한글 글리프가 있는 폰트 에셋을 쓴다.
         /// </summary>
-        private static UnityEngine.UI.Text CreateHpText(Transform parent, string name, Color color, int sortingOrder, Vector3 offset)
+        private static TMPro.TextMeshPro CreateHpText(Transform parent, string name, Color color, int sortingOrder, Vector3 offset)
         {
-            var canvasObject = new GameObject(name, typeof(Canvas));
-            canvasObject.transform.SetParent(parent, false);
-            canvasObject.transform.localPosition = new Vector3(offset.x, -0.72f + offset.y, 0f);
-            canvasObject.transform.localScale = Vector3.one * 0.0032f;
-            var canvas = canvasObject.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.sortingOrder = sortingOrder;
-
-            var textObject = new GameObject("Label", typeof(UnityEngine.UI.Text));
-            textObject.transform.SetParent(canvasObject.transform, false);
-            var text = textObject.GetComponent<UnityEngine.UI.Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 40;
-            text.fontStyle = FontStyle.Bold;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
+            var textObject = new GameObject(name, typeof(TMPro.TextMeshPro));
+            textObject.transform.SetParent(parent, false);
+            textObject.transform.localPosition = new Vector3(offset.x, -0.72f + offset.y, -0.1f);
+            var text = textObject.GetComponent<TMPro.TextMeshPro>();
+            var font = NeonFonts.Primary();
+            if (font != null) text.font = font;
+            text.fontSize = 2.6f;
+            text.fontStyle = TMPro.FontStyles.Bold;
+            text.alignment = TMPro.TextAlignmentOptions.Center;
+            text.enableWordWrapping = false;
             text.color = color;
-            var rect = text.rectTransform;
-            rect.sizeDelta = new Vector2(400f, 60f);
-            rect.anchoredPosition = Vector2.zero;
+            // 웹 원본은 흰 글씨에 검은 외곽선을 둘러 배경과 상관없이 읽히게 한다.
+            text.outlineWidth = 0.22f;
+            text.outlineColor = new Color32(0, 0, 0, 220);
+            text.rectTransform.sizeDelta = new Vector2(4f, 1f);
+            var meshRenderer = textObject.GetComponent<MeshRenderer>();
+            meshRenderer.sortingOrder = sortingOrder;
             return text;
         }
 
@@ -461,7 +475,6 @@ namespace NeonArcana
             {
                 var label = $"{Mathf.Ceil(Hp)} / {Mathf.Ceil(MaxHp)}";
                 hpText.text = label;
-                if (hpTextShadow != null) hpTextShadow.text = label;
             }
             if (idleRingRenderer != null)
             {
