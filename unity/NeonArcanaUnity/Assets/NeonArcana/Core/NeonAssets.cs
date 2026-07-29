@@ -75,6 +75,34 @@ namespace NeonArcana
             return sprite;
         }
 
+        /// <summary>
+        /// 세로 그라디언트 스프라이트. 웹 원본의 선택 카드는 CSS 그라디언트 배경이라
+        /// 단색 사각형으로는 그 질감이 나오지 않는다.
+        /// </summary>
+        public static Sprite VerticalGradientSprite(Color top, Color bottom, int height = 128)
+        {
+            var key = $"procedural:gradient:{top}:{bottom}:{height}";
+            if (Cache.TryGetValue(key, out var cached)) return cached;
+            var texture = new Texture2D(4, height, TextureFormat.RGBA32, false)
+            {
+                name = key,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var pixels = new Color[4 * height];
+            for (var y = 0; y < height; y++)
+            {
+                var color = Color.Lerp(bottom, top, y / (float)(height - 1));
+                for (var x = 0; x < 4; x++) pixels[y * 4 + x] = color;
+            }
+            texture.SetPixels(pixels);
+            texture.Apply();
+            var sprite = Sprite.Create(texture, new Rect(0f, 0f, 4f, height), new Vector2(0.5f, 0.5f), 100f, 0u, SpriteMeshType.FullRect);
+            sprite.name = key;
+            Cache[key] = sprite;
+            return sprite;
+        }
+
         public static Sprite RingSprite(int size = 96)
         {
             var key = $"procedural:ring:{size}";

@@ -818,11 +818,16 @@ namespace NeonArcana
             overlayRect.offsetMin = overlayRect.offsetMax = Vector2.zero;
             overlay.GetComponent<Image>().color = new Color(0.005f, 0.008f, 0.035f, 0.9f);
 
-            var card = CreateImage(overlay.transform, "Card", new Color(0.018f, 0.035f, 0.1f, 0.72f), new Vector2(0.07f, 0.15f), new Vector2(0.93f, 0.84f));
+            var card = CreateImage(overlay.transform, "Card", Color.white, new Vector2(0.07f, 0.15f), new Vector2(0.93f, 0.84f));
+            card.sprite = NeonAssets.VerticalGradientSprite(
+                new Color(0.075f, 0.055f, 0.176f, 0.86f),
+                new Color(0.012f, 0.02f, 0.063f, 0.9f));
             var outline = card.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.25f, 0.65f, 1f, 0.32f);
             outline.effectDistance = new Vector2(1.5f, -1.5f);
-            CreateText(card.transform, "Title", 42, TextAnchor.MiddleCenter, new Vector2(0.05f, 0.78f), new Vector2(0.95f, 0.91f), new Color(0.92f, 0.96f, 1f)).text = title;
+            // 웹 원본 제목은 자간이 넓게 벌어져 있다. 레거시 Text에는 자간 옵션이 없어
+            // 글자 사이에 얇은 공백을 넣어 같은 인상을 만든다.
+            CreateText(card.transform, "Title", 42, TextAnchor.MiddleCenter, new Vector2(0.05f, 0.78f), new Vector2(0.95f, 0.91f), new Color(0.92f, 0.96f, 1f)).text = LetterSpaced(title);
             body = card.transform;
             return overlay;
         }
@@ -893,9 +898,28 @@ namespace NeonArcana
             rect.anchorMax = new Vector2(center + width * 0.5f, 0.74f);
             rect.offsetMin = new Vector2(5f, 5f);
             rect.offsetMax = new Vector2(-5f, -5f);
-            buttonObject.GetComponent<Image>().color = new Color(0.08f, 0.2f, 0.34f, 0.98f);
+            // 웹 원본의 선택 카드는 위에서 아래로 어두워지는 보라-남색 그라디언트에
+            // 옅게 빛나는 테두리를 두른 형태다. 단색 사각형으로는 그 질감이 나오지 않는다.
+            var image = buttonObject.GetComponent<Image>();
+            image.sprite = NeonAssets.VerticalGradientSprite(
+                new Color(0.239f, 0.176f, 0.451f, 0.96f),
+                new Color(0.055f, 0.055f, 0.157f, 0.96f));
+            image.type = Image.Type.Simple;
+            image.color = Color.white;
+
+            var outline = buttonObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.45f, 0.55f, 1f, 0.5f);
+            outline.effectDistance = new Vector2(1.6f, -1.6f);
+
+            var button = buttonObject.GetComponent<Button>();
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.12f, 1.12f, 1.25f);
+            colors.pressedColor = new Color(0.82f, 0.75f, 1f);
+            button.colors = colors;
+
             CreateText(buttonObject.transform, "Label", 26, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = "";
-            return buttonObject.GetComponent<Button>();
+            return button;
         }
 
         private static Button CreateMenuButton(Transform parent, string name, string label, int index, bool danger = false)
@@ -957,6 +981,13 @@ namespace NeonArcana
             image.preserveAspect = true;
             image.raycastTarget = false;
             return image;
+        }
+
+        /// <summary>글자 사이에 헤어스페이스를 넣어 웹 원본의 넓은 자간을 흉내낸다.</summary>
+        private static string LetterSpaced(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return value;
+            return string.Join(" ", value.ToCharArray());
         }
 
         private static Text CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
