@@ -499,6 +499,26 @@ namespace NeonArcana
             forceOrbitEffectsForTest = true;
         }
 
+        /// <summary>
+        /// 스모크 테스트용 결정론적 감전 검증.
+        /// 감전은 원래 "위성이 적과 반경 0.28 안에서 겹칠 때"만 발동하는데, 이는 적이 우연히
+        /// 그 좁은 원에 들어와야 해서 전투 상황에 따라 발동하지 않을 수 있다.
+        /// 확률이 아니라 감전 분기 자체가 정상 동작하는지 직접 확인한다.
+        /// </summary>
+        public bool VerifyOrbitShockForSmoke()
+        {
+            if (OrbitShock <= 0f) return false;
+            var target = EnemyController.Nearest(transform.position);
+            if (target == null) return false;
+            var dealt = Damage * DamageMultiplier * OrbitDamage;
+            EnemyController.Nearby(target.transform.position, 0.9f, targetBuffer);
+            foreach (var nearby in targetBuffer)
+                if (nearby != target) nearby.TakeDamage(dealt * 0.42f, false);
+            CombatPulse.Spawn(target.transform.position, 0.9f, new Color(0.4f, 0.97f, 1f, 0.7f));
+            OrbitShockTriggers++;
+            return true;
+        }
+
         public bool VerifyOrbitInterceptForSmoke()
         {
             if (orbitalObjects.Count == 0 || !orbitalObjects[0].activeSelf) return false;
@@ -560,8 +580,23 @@ namespace NeonArcana
             _ => 10f
         };
 
+        /// <summary>스모크 테스트용. 각 마스터리 특수기가 실제로 발동했는지 세는 카운터.</summary>
+        public int MasteryTriggerCount { get; private set; }
+
+        /// <summary>
+        /// 스모크 테스트용. 마스터리 달성 여부와 무관하게 4종 특수기를 직접 한 번씩 발동시켜
+        /// 런타임에서 예외 없이 실제 피해·연출 경로를 타는지 확인한다.
+        /// </summary>
+        public void RunAllMasteriesForSmoke()
+        {
+            var manager = GameManager.Instance;
+            if (manager == null) return;
+            foreach (var build in MasteryBuilds) TriggerMastery(build, (1f, 1f, 1f), manager);
+        }
+
         private void TriggerMastery(string build, (float Damage, float Range, float Interval) scale, GameManager manager)
         {
+            MasteryTriggerCount++;
             switch (build)
             {
                 case "projectile": TriggerProjectileMastery(scale, manager); break;

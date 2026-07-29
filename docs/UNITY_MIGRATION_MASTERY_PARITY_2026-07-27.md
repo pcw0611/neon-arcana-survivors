@@ -93,7 +93,23 @@
 - 오디오 (원본은 절차적 합성이라 Unity에서는 실제 음원으로 새로 설계 필요)
 - 연출(파티클·셰이더) 밀도 — 현재는 원본 캔버스 이펙트를 `CombatPulse` 기반으로 근사
 
-## 6. 이 작업에서 지킨 원칙
+## 6. 로컬 개발 환경 메모
+
+- Unity 버전: `6000.5.1f1`
+- 화면: **1920×1080 가로 고정**(세로 회전 비활성화). Game 뷰도 `16:9` 또는 `1920x1080`으로 두고 확인한다.
+  UI 캔버스 기준 해상도도 동일하게 1920×1080이다.
+- Unity Hub 목록에서 이 프로젝트가 자꾸 빠지면
+  `%APPDATA%\UnityHub\projects-v1.json`의 `data`에 프로젝트 경로 키로 항목을 추가하면 된다
+  (Hub 실행 중에 수정하면 종료 시 덮어쓸 수 있으니 확인 필요).
+- 배치 검증 명령:
+  ```
+  Unity.exe -batchmode -quit -nographics -projectPath <프로젝트> \
+    -executeMethod NeonArcana.Editor.NeonProjectSetup.<메서드> -logFile <로그>
+  ```
+  주요 메서드: `ValidateMasteryParityBatch`(이번에 추가), `ValidatePhaseThreeBatch`, `PlaySmokeBatch`
+- 배치 실행은 프로젝트를 단독 점유하므로, 에디터를 열어둔 채로는 돌아가지 않는다. 에디터를 닫고 실행할 것.
+
+## 7. 이 작업에서 지킨 원칙
 
 1. 원본 코드의 **수치와 판정 기하를 그대로** 옮긴다. "Unity답게" 재해석하지 않는다.
 2. 눈에 보이는 무기 위치와 실제 타격 판정 각도는 반드시 일치시킨다.

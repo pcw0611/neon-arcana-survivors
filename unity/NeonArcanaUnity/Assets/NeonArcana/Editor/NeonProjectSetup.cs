@@ -201,7 +201,11 @@ namespace NeonArcana.Editor
                 if (manager.Player.Class != ArcanaClass.Thor) throw new InvalidOperationException("Class change did not apply.");
                 if (!manager.HasRelic("rift_crown")) throw new InvalidOperationException("Relic effect did not apply.");
                 if (manager.Player.Orbitals <= 0 || manager.Player.SaberLevel <= 0) throw new InvalidOperationException("Orbit or saber build did not activate.");
+                // 감전은 요격과 마찬가지로 결정론적으로 검증한다.
+                // 광검이 웹 원본대로 부채꼴 안 모든 적을 매 스윕 타격하게 되면서 플레이어 주변이 빠르게
+                // 정리되어, 적이 위성의 좁은 충돌 반경(0.28)에 우연히 들어오길 기다리는 방식은 불안정하다.
                 if (!manager.Player.VerifyOrbitInterceptForSmoke()
+                    || !manager.Player.VerifyOrbitShockForSmoke()
                     || manager.Player.OrbitShockTriggers <= 0 || manager.Player.OrbitPulseTriggers <= 0)
                     throw new InvalidOperationException($"Orbit upgrade effects did not activate: shock={manager.Player.OrbitShockTriggers}, pulse={manager.Player.OrbitPulseTriggers}, intercept={manager.Player.OrbitIntercepts}.");
                 var upgradeRules = manager.ValidateUpgradeParityRules();
@@ -233,6 +237,12 @@ namespace NeonArcana.Editor
                 GameHud.Instance.HideGameMenuForTest();
                 if (manager.Player.LastProjectileDirection.sqrMagnitude < 0.9f)
                     throw new InvalidOperationException("Automatic constellation targeting did not produce a valid direction.");
+                // 마스터리 특수기 4종이 런타임에서 실제로 발동 경로를 타는지 확인한다.
+                var masteryBefore = manager.Player.MasteryTriggerCount;
+                manager.Player.RunAllMasteriesForSmoke();
+                if (manager.Player.MasteryTriggerCount - masteryBefore != 4)
+                    throw new InvalidOperationException(
+                        $"Mastery ultimates did not all fire: {manager.Player.MasteryTriggerCount - masteryBefore}/4.");
                 var world = UnityEngine.Object.FindFirstObjectByType<InfiniteWorldBackground>();
                 if (world == null || !world.IsReady || world.ActiveTileCount != InfiniteWorldBackground.TileColumns * InfiniteWorldBackground.TileRows)
                     throw new InvalidOperationException("Infinite world tiles or grid were not created.");
