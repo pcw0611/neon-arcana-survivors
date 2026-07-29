@@ -93,6 +93,56 @@ namespace NeonArcana.Editor
             Debug.Log("NEON_ARCANA_PHASE3_VALIDATION_OK fidelityContract=80 prefabs=10 projectileTargeting=automatic rightAimPad=removed infiniteWorld=authored codex=threeTabs");
         }
 
+        /// <summary>
+        /// 마스터리 특수기와 광검 스윕 기하가 웹 원본과 일치하는지 검증한다.
+        /// 기대값은 실제 웹 버전(game-v4.js)을 브라우저에서 실행해 측정한 수치다.
+        /// </summary>
+        public static void ValidateMasteryParityBatch()
+        {
+            const float arcWidth = 1.38f * 0.72f;
+            const float sweepGap = 0.34f;
+            var maxOffset = Mathf.Max(0f, 0.85f - arcWidth * 0.5f);
+
+            // 웹 원본 측정값: 조준 0도일 때 쌍검은 정확히 ±28.65도에서 베어나간다.
+            var front = PlayerController.SaberSweepAngle(0, 2, 0f, true, sweepGap, maxOffset) * Mathf.Rad2Deg;
+            var back = PlayerController.SaberSweepAngle(1, 2, 0f, true, sweepGap, maxOffset) * Mathf.Rad2Deg;
+            if (Mathf.Abs(front - 28.65f) > 0.05f || Mathf.Abs(back + 28.65f) > 0.05f)
+                throw new InvalidOperationException($"Dual saber sweep angles diverged: {front}/{back}");
+
+            // 잔상이 아무리 쌓여도 한쪽으로만 몰리지 않고, 총 커버리지가 반원을 크게 넘지 않아야 한다.
+            var maximumAbsolute = 0f;
+            var positives = 0;
+            var negatives = 0;
+            const int sweeps = 10;
+            for (var sweep = 0; sweep < sweeps; sweep++)
+            {
+                var angle = PlayerController.SaberSweepAngle(sweep, sweeps, 0f, true, sweepGap, maxOffset);
+                if (angle > 0f) positives++; else negatives++;
+                maximumAbsolute = Mathf.Max(maximumAbsolute, Mathf.Abs(angle));
+            }
+            if (positives != negatives)
+                throw new InvalidOperationException($"Echo sweeps are not balanced across both blades: +{positives}/-{negatives}");
+            var coverageDegrees = (maximumAbsolute + arcWidth * 0.5f) * 2f * Mathf.Rad2Deg;
+            if (coverageDegrees > 200f)
+                throw new InvalidOperationException($"Saber coverage exceeded the 200 degree cap: {coverageDegrees}");
+
+            // 마스터리 주기는 웹 원본 masterySpecs 값과 같아야 한다.
+            var intervals = new[] { 9.5f, 7.5f, 10.5f, 8.5f };
+            var builds = new[] { "projectile", "saber", "orbit", "thor" };
+            for (var i = 0; i < builds.Length; i++)
+            {
+                var method = typeof(PlayerController).GetMethod(
+                    "MasteryInterval",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                if (method == null) throw new InvalidOperationException("MasteryInterval lookup failed.");
+                var actual = method.Invoke(null, new object[] { builds[i] });
+                if (actual is not float value || Mathf.Abs(value - intervals[i]) > 0.001f)
+                    throw new InvalidOperationException($"Mastery interval for {builds[i]} diverged: {actual}");
+            }
+
+            Debug.Log($"NEON_ARCANA_MASTERY_PARITY_OK dualSaber={front:F2}/{back:F2} coverage={coverageDegrees:F1} balanced={positives}v{negatives} intervals=9.5/7.5/10.5/8.5");
+        }
+
         public static void PlaySmokeBatch()
         {
             EditorSceneManager.OpenScene("Assets/Scenes/Main.unity", OpenSceneMode.Single);

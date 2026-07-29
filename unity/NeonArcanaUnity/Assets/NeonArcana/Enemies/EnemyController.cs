@@ -32,6 +32,8 @@ namespace NeonArcana
         private float actionCooldown;
         private float deadline;
         private float regenCooldown;
+        private float stunTimer;
+        private float shockTimer;
         private int tier;
         private bool child;
         private bool charging;
@@ -53,6 +55,7 @@ namespace NeonArcana
             enemy.maxHp = Mathf.Ceil(Mathf.Max(2f, 3.2f * difficulty) * content.hpMultiplier * (isChild ? 0.42f : 1f));
             enemy.hp = enemy.maxHp;
             enemy.shield = type == EnemyArchetype.Warder ? Mathf.Ceil(enemy.maxHp * 0.75f) : 0f;
+            enemy.stunTimer = enemy.shockTimer = 0f;
             var elapsed = GameManager.Instance?.Elapsed ?? 0f;
             var baseSpeed = Mathf.Min(3f, 1.22f + elapsed * 0.0015f);
             enemy.speed = baseSpeed * content.speedMultiplier * (isChild ? 1.18f : 1f);
@@ -88,6 +91,7 @@ namespace NeonArcana
             enemy.maxHp = Mathf.Round(baseHp * Mathf.Pow(1.42f, cycle) * (1f + elapsed / 900f) * lateBoss * (enemy.HasOption("armored") ? 1.25f : 1f));
             enemy.hp = enemy.maxHp;
             enemy.shield = 0f;
+            enemy.stunTimer = enemy.shockTimer = 0f;
             enemy.speed = (enemy.tier == 3 ? 1.02f : 1.16f) * (enemy.HasOption("swift") ? 1.18f : 1f) * Mathf.Min(1.35f, 1f + cycle * 0.05f);
             enemy.damage = Mathf.Max(2f + Mathf.Floor((bossIndex + 1) / 2f), GameBalance.EnemyDamageScale(elapsed) * 0.75f);
             enemy.deadline = elapsed + Mathf.Max(30f, new[] { 0f, 45f, 52f, 60f }[enemy.tier] - cycle * 2f);
@@ -183,6 +187,15 @@ namespace NeonArcana
             var distance = delta.magnitude;
             actionCooldown -= Time.deltaTime;
             contactCooldown -= Time.deltaTime;
+
+            // 웹 원본의 stunned/shocked 상태. 기절 중에는 이동·행동이 모두 멈춘다.
+            if (shockTimer > 0f) shockTimer -= Time.deltaTime;
+            if (stunTimer > 0f)
+            {
+                stunTimer -= Time.deltaTime;
+                spriteRenderer.color = new Color(1f, 0.95f, 0.35f);
+                return;
+            }
 
             if (IsBoss) UpdateBoss(player, delta, distance);
             else UpdateArchetype(player, delta, distance);
@@ -291,10 +304,24 @@ namespace NeonArcana
             Die();
         }
 
-        public void TakeDamage(float amount, bool critical)
+        /// <summary>웹 원본의 <c>mob.stunned</c>/<c>mob.shocked</c> 대응 상태 부여.</summary>
+        public void ApplyStunAndShock(float seconds)
+        {
+            stunTimer = Mathf.Max(stunTimer, seconds);
+            shockTimer = Mathf.Max(shockTimer, seconds);
+        }
+
+        public bool IsStunned => stunTimer > 0f;
+
+        public void TakeDamage(float amount, bool critical) => TakeDamage(amount, critical, false);
+
+        /// <summary>
+        /// <paramref name="ignoreShield"/>가 true면 웹 원본의 토르의 망치처럼 쉴드를 통과해 본체에 피해를 준다.
+        /// </summary>
+        public void TakeDamage(float amount, bool critical, bool ignoreShield)
         {
             if (!gameObject.activeSelf) return;
-            if (shield > 0f)
+            if (shield > 0f && !ignoreShield)
             {
                 var absorbed = Mathf.Min(shield, amount);
                 shield -= absorbed;

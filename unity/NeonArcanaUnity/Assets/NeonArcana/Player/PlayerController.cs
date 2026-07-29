@@ -77,6 +77,8 @@ namespace NeonArcana
         private float orbitPulseClock = 4f;
         private bool forceOrbitEffectsForTest;
         private int volleyCount;
+        private static readonly string[] MasteryBuilds = { "projectile", "saber", "orbit", "thor" };
+        private readonly Dictionary<string, float> masteryClocks = new();
 
         public static PlayerController Create()
         {
@@ -236,12 +238,13 @@ namespace NeonArcana
             volleyCount++;
             var bonus = GameManager.Instance.HasRelic("split_core") && volleyCount % 4 == 0 ? 2 : 0;
             var count = Mathf.Max(1, Multishot + bonus);
-            if (Class == ArcanaClass.SilverBullet) count = Mathf.Max(2, count * 2);
-            var totalSpread = Mathf.Min(38f, 8f * (count - 1));
+            // 웹 원본: 실버불렛은 탄 수를 늘리지 않고, 부채꼴 없이(spread 0) 한 방향으로만 연사한다.
+            var silver = Class == ArcanaClass.SilverBullet;
+            var totalSpread = silver ? 0f : Mathf.Min(38f, 8f * (count - 1));
             for (var i = 0; i < count; i++)
             {
                 var t = count == 1 ? 0.5f : i / (float)(count - 1);
-                var angle = Class == ArcanaClass.SilverBullet ? UnityEngine.Random.Range(-2.5f, 2.5f) : Mathf.Lerp(-totalSpread * 0.5f, totalSpread * 0.5f, t);
+                var angle = silver ? 0f : Mathf.Lerp(-totalSpread * 0.5f, totalSpread * 0.5f, t);
                 var rotated = Quaternion.Euler(0f, 0f, angle) * direction;
                 var critical = UnityEngine.Random.value < CritChance;
                 var shotDamage = Damage * DamageMultiplier * ProjectileMultiplier * (critical ? CritMultiplier : 1f);
@@ -295,9 +298,10 @@ namespace NeonArcana
                     break;
                 case ArcanaClass.ShadowMaster:
                     classDecoration.sprite = NeonAssets.FullSprite("Art/dark-blade", 160f);
+                    // 웹 원본은 전직 시 광검 스탯을 건드리지 않는다.
+                    // 좁아지는 것은 사거리가 아니라 베기 "각도"(UpdateSaber의 SaberArc * 0.72)이고,
+                    // 피해 증가(1.35배)도 스윕 단위로 적용되므로 여기서 중복 적용하지 않는다.
                     SaberLevel = Mathf.Max(1, SaberLevel);
-                    SaberDamage *= 1.3f;
-                    SaberRange *= 0.8f;
                     break;
                 case ArcanaClass.Mechanic:
                     classDecoration.sprite = NeonAssets.FullSprite("Art/mecha-orbital", 120f);
@@ -344,17 +348,63 @@ namespace NeonArcana
             saberCooldown = Mathf.Max(0.2f, SaberInterval);
             var range = SaberRange / 100f + 1.6f;
             EnemyController.Nearby(transform.position, range, targetBuffer);
-            var remainingHits = 2 + SaberEcho;
-            var minimumDot = Mathf.Cos(SaberArc * 0.5f);
-            for (var i = 0; i < targetBuffer.Count && remainingHits > 0; i++)
+
+            // 웹 원본 saberSlash() 동등 구현.
+            // 쉐도우마스터는 실제로 들고 있는 쌍검 각도(정면 ±0.5rad)에서 각각 베고,
+            // 잔상(echo)은 두 검에 번갈아 분배되며 총 커버리지가 반원을 넘지 않도록 상한을 둔다.
+            var dual = Class == ArcanaClass.ShadowMaster;
+            const float dualSpread = 0.5f;
+            const float maxClusterHalf = 0.85f;
+            var sweeps = (dual ? 2 : 1) + SaberEcho;
+            var arcWidth = dual ? SaberArc * 0.72f : SaberArc;
+            var sweepGap = dual ? 0.34f : 0.48f;
+            var damageMultiplier = dual ? 1.35f : 1f;
+            var baseAngle = Mathf.Atan2(saberAim.y, saberAim.x);
+            var minimumDot = Mathf.Cos(arcWidth * 0.5f);
+            var maxOffset = Mathf.Max(0f, maxClusterHalf - arcWidth * 0.5f);
+
+            for (var sweep = 0; sweep < sweeps; sweep++)
             {
-                var target = targetBuffer[i];
-                var toTarget = (Vector2)(target.transform.position - transform.position);
-                if (toTarget.sqrMagnitude > 0.08f && Vector2.Dot(saberAim, toTarget.normalized) < minimumDot) continue;
-                target.TakeDamage(Damage * DamageMultiplier * SaberDamage * (Class == ArcanaClass.ShadowMaster && target.IsBoss ? 1.3f : 1f), false);
-                remainingHits--;
+                var angle = SaberSweepAngle(sweep, sweeps, baseAngle, dual, sweepGap, maxOffset);
+                var sweepAim = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                for (var i = 0; i < targetBuffer.Count; i++)
+                {
+                    var target = targetBuffer[i];
+                    if (target == null || !target.gameObject.activeSelf) continue;
+                    var toTarget = (Vector2)(target.transform.position - transform.position);
+                    if (toTarget.sqrMagnitude > 0.08f && Vector2.Dot(sweepAim, toTarget.normalized) < minimumDot) continue;
+                    var bossBonus = dual && target.IsBoss ? 1.3f : 1f;
+                    target.TakeDamage(Damage * DamageMultiplier * SaberDamage * damageMultiplier * bossBonus, false);
+                }
+                CombatPulse.SpawnArc(
+                    transform.position,
+                    range,
+                    sweepAim,
+                    arcWidth,
+                    dual ? new Color(0.61f, 0.30f, 1f, 0.8f) : new Color(0.35f, 0.92f, 1f, 0.78f));
             }
-            CombatPulse.SpawnArc(transform.position, range, saberAim, SaberArc, new Color(0.35f, 0.92f, 1f, 0.78f));
+        }
+
+        /// <summary>
+        /// 웹 원본 <c>saberSlash()</c>의 스윕 각도 분배를 그대로 옮긴 순수 함수.
+        /// 쉐도우마스터(<paramref name="dual"/>)는 좌우 검 각도에서 시작해 잔상을 두 검에 번갈아 분배하고,
+        /// 각 검에서 벌어질 수 있는 최대 각도(<paramref name="maxOffset"/>)로 총 커버리지를 제한한다.
+        /// 검증 가능하도록 분리해 두었다.
+        /// </summary>
+        public static float SaberSweepAngle(int sweep, int sweeps, float baseAngle, bool dual, float sweepGap, float maxOffset)
+        {
+            const float dualSpread = 0.5f;
+            if (dual && sweep == 0) return baseAngle + dualSpread;
+            if (dual && sweep == 1) return baseAngle - dualSpread;
+            if (dual)
+            {
+                var echoIndex = sweep - 2;
+                var cluster = echoIndex / 2;
+                var side = echoIndex % 2 == 0 ? baseAngle + dualSpread : baseAngle - dualSpread;
+                var direction = cluster % 2 == 0 ? 1f : -1f;
+                return side + direction * Mathf.Min((cluster + 1) * sweepGap, maxOffset);
+            }
+            return baseAngle + (sweep - (sweeps - 1) * 0.5f) * sweepGap;
         }
 
         private void UpdateHpBar()
@@ -458,25 +508,209 @@ namespace NeonArcana
         private void UpdateClassAbility()
         {
             classClock += Time.deltaTime;
+
+            // 쉐도우마스터 그림자 은신: 웹 원본은 9초 주기로 2.5초간 은신한다.
             if (Class == ArcanaClass.ShadowMaster)
             {
-                var hidden = classClock % 7f > 5.8f;
+                var phase = classClock % 9f;
+                var hidden = phase > 6.5f;
                 spriteRenderer.color = hidden ? new Color(0.5f, 0.25f, 0.8f, 0.35f) : Color.white;
             }
             else
             {
                 spriteRenderer.color = Color.white;
             }
-            if (Class == ArcanaClass.Thor && classClock >= 6f)
+
+            UpdateMasteries();
+        }
+
+        /// <summary>
+        /// 웹 원본 <c>updateMasteries()</c> 대응. 각 빌드의 핵심 강화를 최대치까지 찍어
+        /// "마스터리"를 달성했을 때만 해당 특수기가 주기적으로 발동한다.
+        /// 전직한 클래스에 따라 같은 빌드라도 연출과 효과가 달라진다.
+        /// </summary>
+        private void UpdateMasteries()
+        {
+            var manager = GameManager.Instance;
+            if (manager == null) return;
+
+            foreach (var build in MasteryBuilds)
             {
-                classClock = 0f;
-                var target = EnemyController.HighestHp();
-                if (target != null)
+                if (!manager.IsMastered(build)) continue;
+                var scale = manager.MasteryScale(build);
+                var interval = MasteryInterval(build) * scale.Interval;
+                if (!masteryClocks.TryGetValue(build, out var clock)) clock = interval;
+                clock -= Time.deltaTime;
+                if (clock > 0f)
                 {
-                    target.TakeDamage(Damage * DamageMultiplier * 15f, true);
-                    CombatPulse.Spawn(target.transform.position, 1.2f, Color.yellow);
+                    masteryClocks[build] = clock;
+                    continue;
                 }
+                masteryClocks[build] = interval;
+                TriggerMastery(build, scale, manager);
             }
+        }
+
+        private static float MasteryInterval(string build) => build switch
+        {
+            "projectile" => 9.5f,
+            "saber" => 7.5f,
+            "orbit" => 10.5f,
+            "thor" => 8.5f,
+            _ => 10f
+        };
+
+        private void TriggerMastery(string build, (float Damage, float Range, float Interval) scale, GameManager manager)
+        {
+            switch (build)
+            {
+                case "projectile": TriggerProjectileMastery(scale, manager); break;
+                case "saber": TriggerSaberMastery(scale); break;
+                case "orbit": TriggerOrbitMastery(scale); break;
+                case "thor": TriggerThorHammer(scale); break;
+            }
+        }
+
+        /// <summary>
+        /// 실버불렛이면 자신을 중심으로 사방 무작위 난사(한계돌파할수록 탄 수 증가),
+        /// 그 외에는 가장 가까운 적 방향으로 화면을 가르는 관통 성좌 레이저.
+        /// </summary>
+        private void TriggerProjectileMastery((float Damage, float Range, float Interval) scale, GameManager manager)
+        {
+            if (Class == ArcanaClass.SilverBullet)
+            {
+                var rays = 26 + manager.LimitBreakLevel("projectile") * 3;
+                for (var i = 0; i < rays; i++)
+                {
+                    var angle = UnityEngine.Random.value * Mathf.PI * 2f;
+                    var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                    Projectile.Spawn(
+                        transform.position,
+                        direction,
+                        Damage * DamageMultiplier * 2.4f * scale.Damage,
+                        true,
+                        this,
+                        true);
+                }
+                CombatPulse.Spawn(transform.position, 1.6f * scale.Range, new Color(0.93f, 0.96f, 1f, 0.85f));
+                return;
+            }
+
+            var target = EnemyController.Nearest(transform.position);
+            var aim = target != null
+                ? ((Vector2)(target.transform.position - transform.position)).normalized
+                : lastAim;
+            var length = 12.5f * scale.Range;
+            var width = 0.48f * scale.Range;
+            var hit = 0;
+            EnemyController.Nearby(transform.position + (Vector3)(aim * length * 0.5f), length * 0.5f + width + 1f, targetBuffer);
+            foreach (var enemy in targetBuffer)
+            {
+                if (enemy == null || !enemy.gameObject.activeSelf) continue;
+                var toEnemy = (Vector2)(enemy.transform.position - transform.position);
+                var along = Vector2.Dot(toEnemy, aim);
+                if (along < 0f || along > length) continue;
+                if (Mathf.Abs(toEnemy.x * aim.y - toEnemy.y * aim.x) > width) continue;
+                enemy.TakeDamage(Damage * DamageMultiplier * 9f * scale.Damage, false);
+                hit++;
+            }
+            CombatPulse.SpawnArc(transform.position, length, aim, 0.12f, new Color(0.42f, 0.97f, 1f, 0.9f));
+            if (hit > 0) CombatPulse.Spawn(transform.position + (Vector3)(aim * length * 0.4f), width * 2f, new Color(0.55f, 0.98f, 1f, 0.5f));
+        }
+
+        /// <summary>
+        /// 쉐도우마스터면 전방으로 뻗는 거대한 어둠의 검기(직선 판정),
+        /// 그 외에는 자신을 중심으로 전방위를 베는 황금 휠윈드.
+        /// </summary>
+        private void TriggerSaberMastery((float Damage, float Range, float Interval) scale)
+        {
+            if (Class == ArcanaClass.ShadowMaster)
+            {
+                var target = EnemyController.Nearest(transform.position);
+                var aim = target != null
+                    ? ((Vector2)(target.transform.position - transform.position)).normalized
+                    : saberAim;
+                var length = 6.4f * scale.Range;
+                var width = 1.5f * scale.Range;
+                EnemyController.Nearby(transform.position + (Vector3)(aim * length * 0.5f), length * 0.5f + width + 1f, targetBuffer);
+                foreach (var enemy in targetBuffer)
+                {
+                    if (enemy == null || !enemy.gameObject.activeSelf) continue;
+                    var toEnemy = (Vector2)(enemy.transform.position - transform.position);
+                    var along = Vector2.Dot(toEnemy, aim);
+                    if (along < 0f || along > length) continue;
+                    if (Mathf.Abs(toEnemy.x * aim.y - toEnemy.y * aim.x) > width) continue;
+                    enemy.TakeDamage(Damage * DamageMultiplier * SaberDamage * 3f * scale.Damage, false);
+                }
+                CombatPulse.SpawnArc(transform.position, length, aim, 0.5f, new Color(0.64f, 0.36f, 1f, 0.85f));
+                return;
+            }
+
+            var radius = Mathf.Max(2.2f, SaberRange / 100f + 1.75f) * scale.Range;
+            EnemyController.Nearby(transform.position, radius, targetBuffer);
+            foreach (var enemy in targetBuffer)
+            {
+                if (enemy == null || !enemy.gameObject.activeSelf) continue;
+                enemy.TakeDamage(Damage * DamageMultiplier * SaberDamage * 2.4f * scale.Damage, false);
+            }
+            CombatPulse.Spawn(transform.position, radius, new Color(1f, 0.85f, 0.36f, 0.8f));
+        }
+
+        /// <summary>
+        /// 메카닉이면 모든 위성이 표적에 집결해 융합 레이저를 동시 발사하는 폭발,
+        /// 그 외에는 위성들이 적을 추격해 폭발한 뒤 복귀한다.
+        /// </summary>
+        private void TriggerOrbitMastery((float Damage, float Range, float Interval) scale)
+        {
+            var priority = EnemyController.HighestHp();
+            var target = priority != null ? priority : EnemyController.Nearest(transform.position);
+            var center = target != null
+                ? target.transform.position
+                : transform.position + (Vector3)(lastAim * 2f);
+
+            var burstRadius = (Class == ArcanaClass.Mechanic ? 1.6f : 1.25f) * scale.Range;
+            var multiplier = Class == ArcanaClass.Mechanic ? 4.2f : 3.2f;
+            EnemyController.Nearby(center, burstRadius, targetBuffer);
+            foreach (var enemy in targetBuffer)
+            {
+                if (enemy == null || !enemy.gameObject.activeSelf) continue;
+                enemy.TakeDamage(Damage * DamageMultiplier * OrbitDamage * multiplier * scale.Damage, false);
+            }
+
+            // 위성이 표적으로 모였다가 터지는 연출.
+            foreach (var orbital in orbitalObjects)
+            {
+                if (orbital == null || !orbital.activeSelf) continue;
+                CombatPulse.SpawnArc(
+                    orbital.transform.position,
+                    Vector3.Distance(orbital.transform.position, center),
+                    ((Vector2)(center - orbital.transform.position)).normalized,
+                    0.1f,
+                    new Color(0.56f, 0.96f, 1f, 0.9f));
+            }
+            CombatPulse.Spawn(center, burstRadius, new Color(0.56f, 0.96f, 1f, 0.85f));
+        }
+
+        /// <summary>
+        /// 토르의 망치. 화면 안에서 체력이 가장 높은 적에게 낙뢰를 떨어뜨려
+        /// 쉴드를 무시하고 피해를 주고 3초간 기절·감전시킨다.
+        /// </summary>
+        private void TriggerThorHammer((float Damage, float Range, float Interval) scale)
+        {
+            var target = EnemyController.HighestHp();
+            if (target == null) return;
+            var radius = 2f * scale.Range;
+            target.TakeDamage(Damage * DamageMultiplier * 15f * scale.Damage, true, true);
+            target.ApplyStunAndShock(3f);
+            EnemyController.Nearby(target.transform.position, radius, targetBuffer);
+            foreach (var enemy in targetBuffer)
+            {
+                if (enemy == null || enemy == target || !enemy.gameObject.activeSelf) continue;
+                enemy.TakeDamage(Damage * DamageMultiplier * 15f * 0.35f * scale.Damage, false, true);
+                enemy.ApplyStunAndShock(3f);
+            }
+            CombatPulse.Spawn(target.transform.position, radius, new Color(1f, 0.95f, 0.35f, 0.9f));
+            CombatPulse.Spawn(target.transform.position, radius * 0.55f, Color.white);
         }
 
         public void ResetForRun()
@@ -503,6 +737,9 @@ namespace NeonArcana
             orbitPulseClock = 4f;
             forceOrbitEffectsForTest = false;
             orbitHitTimes.Clear();
+            masteryClocks.Clear();
+            classClock = 0f;
+            volleyCount = 0;
             SaberLevel = SaberEcho = 0;
             SaberDamage = 1f;
             SaberRange = 2.2f;

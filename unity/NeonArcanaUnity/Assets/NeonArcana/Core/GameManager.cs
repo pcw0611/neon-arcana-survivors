@@ -276,6 +276,47 @@ namespace NeonArcana
             };
         }
 
+        /// <summary>
+        /// 웹 원본 <c>isMastered(build)</c> 대응. 해당 빌드의 핵심 강화가 최대 랭크에 도달했는지 판정한다.
+        /// </summary>
+        public bool IsMastered(string build)
+        {
+            var limitId = build switch
+            {
+                "projectile" => "limit_master_projectile",
+                "saber" => "limit_master_saber",
+                "orbit" => "limit_master_orbit",
+                "thor" => "limit_master_thor",
+                _ => null
+            };
+            return limitId != null
+                && MasteryRequirementSatisfied(limitId, upgradeRanks, Player != null ? Player.Class : ArcanaClass.None);
+        }
+
+        /// <summary>웹 원본 <c>limitBreakLevel(build)</c> 대응. 한계돌파 강화를 몇 번 찍었는지 반환한다.</summary>
+        public int LimitBreakLevel(string build)
+        {
+            var limitId = build switch
+            {
+                "projectile" => "limit_master_projectile",
+                "saber" => "limit_master_saber",
+                "orbit" => "limit_master_orbit",
+                "thor" => "limit_master_thor",
+                _ => null
+            };
+            return limitId == null ? 0 : upgradeRanks.GetValueOrDefault(limitId);
+        }
+
+        /// <summary>웹 원본 <c>masteryScale(build)</c> 대응.</summary>
+        public (float Damage, float Range, float Interval) MasteryScale(string build)
+        {
+            var level = LimitBreakLevel(build);
+            return (
+                1f + level * 0.04f,
+                1f + Mathf.Min(20, level) * 0.02f,
+                1f - Mathf.Min(20, level) * 0.01f);
+        }
+
         public int EffectiveMaxRank(UpgradeDefinition definition)
         {
             return definition.Id == "chain" && Player != null && Player.Class == ArcanaClass.Thor
