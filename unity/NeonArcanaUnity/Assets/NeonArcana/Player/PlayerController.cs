@@ -59,6 +59,9 @@ namespace NeonArcana
         [SerializeField] private SpriteRenderer hpBackRenderer;
         [SerializeField] private SpriteRenderer hpFillRenderer;
         [SerializeField] private SpriteRenderer hitboxRenderer;
+        [SerializeField] private SpriteRenderer idleRingRenderer;
+        [SerializeField] private UnityEngine.UI.Text hpText;
+        [SerializeField] private UnityEngine.UI.Text hpTextShadow;
         private float attackCooldown;
         private float hurtCooldown;
         private Vector2 lastAim = Vector2.right;
@@ -140,6 +143,19 @@ namespace NeonArcana
             controller.hitboxRenderer.color = new Color(1f, 0.2f, 0.32f, 0.9f);
             controller.hitboxRenderer.sortingOrder = 24;
             controller.hitboxRenderer.enabled = false;
+
+            // 웹 원본: 정지 상태에서 발밑에 시안 에너지 링이 반경 27±3px로 맥동한다.
+            var idleRing = new GameObject("Idle Ring", typeof(SpriteRenderer));
+            idleRing.transform.SetParent(playerObject.transform, false);
+            controller.idleRingRenderer = idleRing.GetComponent<SpriteRenderer>();
+            controller.idleRingRenderer.sprite = NeonAssets.RingSprite(128);
+            controller.idleRingRenderer.color = new Color(0.396f, 0.937f, 1f, 0.75f);
+            controller.idleRingRenderer.sortingOrder = 18;
+
+            // 웹 원본: HP 바 안에 "27 / 31" 흰 글씨 + 검은 외곽선.
+            // HP 바 채움이 sortingOrder 23이므로 텍스트는 반드시 그 위여야 가려지지 않는다.
+            controller.hpTextShadow = CreateHpText(playerObject.transform, "HP Text Shadow", new Color(0f, 0f, 0f, 0.85f), 29, new Vector3(0.014f, -0.014f, 0f));
+            controller.hpText = CreateHpText(playerObject.transform, "HP Text", Color.white, 30, Vector3.zero);
             return playerObject;
         }
 
@@ -408,9 +424,58 @@ namespace NeonArcana
             return baseAngle + (sweep - (sweeps - 1) * 0.5f) * sweepGap;
         }
 
+        /// <summary>
+        /// 월드 스페이스 캔버스 + uGUI Text로 HP 숫자를 그린다.
+        /// 레거시 TextMesh는 URP에서 전용 셰이더가 호환되지 않아 보이지 않는다.
+        /// </summary>
+        private static UnityEngine.UI.Text CreateHpText(Transform parent, string name, Color color, int sortingOrder, Vector3 offset)
+        {
+            var canvasObject = new GameObject(name, typeof(Canvas));
+            canvasObject.transform.SetParent(parent, false);
+            canvasObject.transform.localPosition = new Vector3(offset.x, -0.72f + offset.y, 0f);
+            canvasObject.transform.localScale = Vector3.one * 0.0032f;
+            var canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = sortingOrder;
+
+            var textObject = new GameObject("Label", typeof(UnityEngine.UI.Text));
+            textObject.transform.SetParent(canvasObject.transform, false);
+            var text = textObject.GetComponent<UnityEngine.UI.Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 40;
+            text.fontStyle = FontStyle.Bold;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.color = color;
+            var rect = text.rectTransform;
+            rect.sizeDelta = new Vector2(400f, 60f);
+            rect.anchoredPosition = Vector2.zero;
+            return text;
+        }
+
         private void UpdateHpBar()
         {
             if (hpFillRenderer == null) return;
+            if (hpText != null)
+            {
+                var label = $"{Mathf.Ceil(Hp)} / {Mathf.Ceil(MaxHp)}";
+                hpText.text = label;
+                if (hpTextShadow != null) hpTextShadow.text = label;
+            }
+            if (idleRingRenderer != null)
+            {
+                var idle = moveDirection.sqrMagnitude <= 0.01f;
+                idleRingRenderer.enabled = idle && !hitboxRenderer.enabled;
+                if (idle)
+                {
+                    // 원본 기준 반경 27±3px, 중심은 캐릭터보다 18px 아래.
+                    var radius = (27f + Mathf.Sin(Time.time * 4f) * 3f) / EnemyController.WebPixelsPerUnit;
+                    var parentScale = Mathf.Max(0.0001f, transform.localScale.x);
+                    idleRingRenderer.transform.localScale = Vector3.one * (radius * 2f / parentScale);
+                    idleRingRenderer.transform.localPosition = new Vector3(0f, -18f / EnemyController.WebPixelsPerUnit / parentScale, 0f);
+                }
+            }
             var ratio = MaxHp <= 0f ? 0f : Mathf.Clamp01(Hp / MaxHp);
             var scale = hpFillRenderer.transform.localScale;
             scale.x = 0.92f * ratio;

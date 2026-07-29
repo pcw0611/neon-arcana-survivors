@@ -85,7 +85,15 @@ namespace NeonArcana
             enemy.spriteRenderer.sprite = type == EnemyArchetype.Bomber
                 ? NeonAssets.FullSprite("Art/bomber-drone", 120f)
                 : NeonAssets.SpriteFrame("Art/shade-sd", (int)type % 2, (int)type / 2 % 2);
-            enemy.spriteRenderer.color = content.color;
+            // 웹 원본은 스프라이트를 틴트하지 않는다. 어두운 원본을 그대로 두고 발광만 종류별 색을 입혀
+            // "어두운 몸체 + 컬러 림라이트"로 보이게 한다. 스프라이트를 물들이면 통짜 실루엣이 되어 입체감이 사라진다.
+            enemy.spriteRenderer.color = Color.white;
+            if (enemy.glowRenderer != null)
+            {
+                var glowColor = content.color;
+                glowColor.a = 0.45f;
+                enemy.glowRenderer.color = glowColor;
+            }
             enemy.ApplyArchetypeIcon(type);
             // 웹 원본: r = 자식 13 / 엘리트 28 / 일반 18~23, 그리는 크기 = r * (엘리트 4.2 : 3.8)
             enemy.visualRadius = isChild ? 13f : elite ? 28f : UnityEngine.Random.Range(18f, 23f);
@@ -126,6 +134,7 @@ namespace NeonArcana
             enemy.transform.position = position;
             enemy.spriteRenderer.sprite = NeonAssets.SpriteFrame("Art/bosses", content.spriteColumn, content.spriteRow, 2, 2, 260f);
             enemy.spriteRenderer.color = Color.white;
+            if (enemy.glowRenderer != null) enemy.glowRenderer.color = new Color(0.94f, 0.23f, 1f, 0.5f);
             if (enemy.archetypeIconRenderer != null) enemy.archetypeIconRenderer.enabled = false;
             // 웹 원본 보스 크기: 3티어 245px, 그 외 178px
             enemy.visualRadius = enemy.tier == 3 ? 122f : 89f;
