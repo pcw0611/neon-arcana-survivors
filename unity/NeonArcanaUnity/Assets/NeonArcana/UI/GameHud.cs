@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,9 +13,9 @@ namespace NeonArcana
 
         private GameManager manager;
         private PlayerController player;
-        [SerializeField] private Text statsText;
-        [SerializeField] private Text timerText;
-        [SerializeField] private Text hostileText;
+        [SerializeField] private TMP_Text statsText;
+        [SerializeField] private TMP_Text timerText;
+        [SerializeField] private TMP_Text hostileText;
         [SerializeField] private Image hpFill;
         [SerializeField] private Image xpFill;
         [SerializeField] private Image damageFlash;
@@ -25,16 +26,16 @@ namespace NeonArcana
         [SerializeField] private GameObject codexPanel;
         [SerializeField] private GameObject gameMenuPanel;
         [SerializeField] private GameObject gameOverPanel;
-        [SerializeField] private Text gameOverText;
-        [SerializeField] private Text bossText;
+        [SerializeField] private TMP_Text gameOverText;
+        [SerializeField] private TMP_Text bossText;
         [SerializeField] private Image bossFill;
         [SerializeField] private GameObject bossPanel;
-        [SerializeField] private Text buildTrayText;
-        [SerializeField] private Text relicTrayText;
+        [SerializeField] private TMP_Text buildTrayText;
+        [SerializeField] private TMP_Text relicTrayText;
         [SerializeField] private GameObject relicDetailsPanel;
-        [SerializeField] private Text relicDetailsText;
-        [SerializeField] private Text toastText;
-        [SerializeField] private Text bossWarningText;
+        [SerializeField] private TMP_Text relicDetailsText;
+        [SerializeField] private TMP_Text toastText;
+        [SerializeField] private TMP_Text bossWarningText;
         [SerializeField] private CodexView codexView;
         [SerializeField] private Button startButton;
         [SerializeField] private Button codexOpenButton;
@@ -185,9 +186,9 @@ namespace NeonArcana
             hostileText = CreateText(root, "Hostiles", 14, TextAnchor.UpperCenter, new Vector2(0.86f, 0.69f), new Vector2(0.97f, 0.74f), new Color(0.65f, 0.72f, 0.86f));
             buildTrayText = CreateText(root, "Build Tray", 17, TextAnchor.MiddleLeft, new Vector2(0.02f, 0.02f), new Vector2(0.62f, 0.1f), new Color(0.55f, 0.92f, 1f));
             relicTrayToggleButton = CreateFixedButton(root, "Relic Tray Toggle", "RELIC LOADOUT", new Vector2(0.72f, 0.02f), new Vector2(0.97f, 0.1f));
-            relicTrayText = relicTrayToggleButton.GetComponentInChildren<Text>();
+            relicTrayText = relicTrayToggleButton.GetComponentInChildren<TMP_Text>();
             relicTrayText.fontSize = 17;
-            relicTrayText.alignment = TextAnchor.MiddleRight;
+            relicTrayText.alignment = TextAlignmentOptions.Right;
             var relicDetails = CreateImage(root, "Relic Details", new Color(0.015f, 0.04f, 0.095f, 0.96f), new Vector2(0.64f, 0.11f), new Vector2(0.97f, 0.43f));
             var relicOutline = relicDetails.gameObject.AddComponent<Outline>();
             relicOutline.effectColor = new Color(1f, 0.64f, 0.2f, 0.48f);
@@ -291,13 +292,19 @@ namespace NeonArcana
 
             var neon = CreateText(titlePanel.transform, "Neon", 124, TextAnchor.MiddleLeft, new Vector2(0.06f, 0.52f), new Vector2(0.46f, 0.73f), Color.white);
             neon.text = "NEON";
-            neon.resizeTextMinSize = 78;
+            neon.fontSizeMin = 78f;
+            neon.fontStyle = FontStyles.Bold;
+            neon.characterSpacing = 12f;
+            neon.gameObject.AddComponent<NeonTextGlow>().Configure(new Color(0.35f, 0.92f, 1f), 0.5f, 0.75f);
+
             var arcana = CreateText(titlePanel.transform, "Arcana", 112, TextAnchor.MiddleLeft, new Vector2(0.075f, 0.38f), new Vector2(0.49f, 0.58f), new Color(0.09f, 0.01f, 0.13f, 0.34f));
             arcana.text = "ARCANA";
-            arcana.resizeTextMinSize = 70;
-            var arcanaOutline = arcana.gameObject.AddComponent<Outline>();
-            arcanaOutline.effectColor = new Color(1f, 0.3f, 0.9f, 0.95f);
-            arcanaOutline.effectDistance = new Vector2(2f, -2f);
+            arcana.fontSizeMin = 70f;
+            arcana.fontStyle = FontStyles.Bold;
+            arcana.characterSpacing = 10f;
+            // 웹 원본의 ARCANA는 속이 비고 마젠타 테두리만 있는 글자다. TMP는 이걸 셰이더로 바로 낸다.
+            arcana.gameObject.AddComponent<NeonTextGlow>().Configure(
+                new Color(1f, 0.3f, 0.9f), 0.45f, 0.7f, 0.22f, new Color32(255, 77, 230, 255));
 
             var description = CreateText(titlePanel.transform, "Description", 22, TextAnchor.MiddleLeft, new Vector2(0.06f, 0.29f), new Vector2(0.5f, 0.38f), new Color(0.74f, 0.79f, 0.92f));
             description.text = "끝없이 증폭되는 도시 균열. 빌드와 유물을 완성하고 쓰러지는 순간까지 살아남아라.";
@@ -485,11 +492,11 @@ namespace NeonArcana
                 }
                 button.gameObject.SetActive(true);
                 var choice = choices[i];
-                button.transform.Find("Icon").GetComponent<Text>().text = choice.Icon;
-                button.transform.Find("Name").GetComponent<Text>().text = choice.Name;
-                button.transform.Find("Description").GetComponent<Text>().text =
+                button.transform.Find("Icon").GetComponent<TMP_Text>().text = choice.Icon;
+                button.transform.Find("Name").GetComponent<TMP_Text>().text = choice.Name;
+                button.transform.Find("Description").GetComponent<TMP_Text>().text =
                     GameManager.Instance != null ? GameManager.Instance.UpgradeChoiceDescription(choice) : choice.Description;
-                button.transform.Find("Rank").GetComponent<Text>().text =
+                button.transform.Find("Rank").GetComponent<TMP_Text>().text =
                     GameManager.Instance != null
                         ? GameManager.Instance.UpgradeChoiceRank(choice, i + 1)
                         : $"RANK {choice.Rank} → {choice.Rank + 1} · [{i + 1}]";
@@ -514,7 +521,7 @@ namespace NeonArcana
                 }
                 button.gameObject.SetActive(true);
                 var choice = choices[i];
-                button.GetComponentInChildren<Text>().text = $"{choice.icon}\n{choice.koreanName}\n<size=18>{new string('★', choice.difficulty)}{new string('☆', 5 - choice.difficulty)}\n{choice.description}</size>";
+                button.GetComponentInChildren<TMP_Text>().text = $"{choice.icon}\n{choice.koreanName}\n<size=18>{new string('★', choice.difficulty)}{new string('☆', 5 - choice.difficulty)}\n{choice.description}</size>";
                 button.onClick.AddListener(() => selected(choice));
             }
         }
@@ -530,7 +537,7 @@ namespace NeonArcana
                 var choice = choices[i];
                 button.gameObject.SetActive(true);
                 button.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(choice.rarity), 0.35f);
-                button.GetComponentInChildren<Text>().text = $"{choice.icon} {choice.name}\n<size=21>{ContentDatabase.RarityName(choice.rarity)} · {choice.description}</size>";
+                button.GetComponentInChildren<TMP_Text>().text = $"{choice.icon} {choice.name}\n<size=21>{ContentDatabase.RarityName(choice.rarity)} · {choice.description}</size>";
                 button.onClick.AddListener(() => selected(choice));
             }
         }
@@ -548,7 +555,7 @@ namespace NeonArcana
 
         private IEnumerator RunRelicRoulette(RelicContent result, Action award)
         {
-            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<Text>();
+            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<TMP_Text>();
             if (title != null) title.text = "보스 유물 슬롯";
             for (var i = 0; i < relicButtons.Count; i++)
             {
@@ -561,7 +568,7 @@ namespace NeonArcana
             {
                 var preview = tick == 18 ? result : catalog[UnityEngine.Random.Range(0, catalog.Count)];
                 card.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(preview.rarity), 0.35f);
-                card.GetComponentInChildren<Text>().text = tick == 18
+                card.GetComponentInChildren<TMP_Text>().text = tick == 18
                     ? $"{preview.icon}\n{preview.name}\n<size=21>{ContentDatabase.RarityName(preview.rarity)} RELIC\n{preview.description}\nNEW / LEVEL UP</size>"
                     : $"{preview.icon}\nSEARCHING RELIC\n<size=21>공명 주파수 탐색 중…\n◈ ◇ ◈</size>";
                 yield return new WaitForSecondsRealtime(0.045f + tick * 0.005f);
@@ -575,7 +582,7 @@ namespace NeonArcana
         public void ShowRelicResult(RelicInstance relic, string message, Action dismiss)
         {
             relicPanel.SetActive(true);
-            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<Text>();
+            var title = relicPanel.transform.Find("Card/Title")?.GetComponent<TMP_Text>();
             if (title != null) title.text = message;
             for (var i = 0; i < relicButtons.Count; i++)
             {
@@ -584,7 +591,7 @@ namespace NeonArcana
             }
             var card = relicButtons[1];
             card.GetComponent<Image>().color = Color.Lerp(new Color(0.04f, 0.1f, 0.2f), ContentDatabase.RarityColor(relic.Definition.rarity), 0.42f);
-            card.GetComponentInChildren<Text>().text =
+            card.GetComponentInChildren<TMP_Text>().text =
                 $"{relic.Definition.icon}\n{relic.Definition.name} · LV.{relic.Level}\n<size=21>{ContentDatabase.RarityName(relic.Definition.rarity)} RELIC\n{relic.Definition.description}\nTAP / PRESS KEY</size>";
             relicResultDismiss = () =>
             {
@@ -606,9 +613,9 @@ namespace NeonArcana
                 relicButtons[i].onClick.RemoveAllListeners();
                 relicButtons[i].gameObject.SetActive(i < 2);
             }
-            relicButtons[0].GetComponentInChildren<Text>().text = $"교체\n<size=21>{weakest.Definition.name} → {candidate.name}</size>";
+            relicButtons[0].GetComponentInChildren<TMP_Text>().text = $"교체\n<size=21>{weakest.Definition.name} → {candidate.name}</size>";
             relicButtons[0].onClick.AddListener(() => replace());
-            relicButtons[1].GetComponentInChildren<Text>().text = $"분해\n<size=21>XP {ContentDatabase.RelicSalvageRatio(candidate.rarity) * 100f:0}% + 체력 회복</size>";
+            relicButtons[1].GetComponentInChildren<TMP_Text>().text = $"분해\n<size=21>XP {ContentDatabase.RelicSalvageRatio(candidate.rarity) * 100f:0}% + 체력 회복</size>";
             relicButtons[1].onClick.AddListener(() => salvage());
         }
 
@@ -787,7 +794,7 @@ namespace NeonArcana
 
         private static void SetButtonLabel(Button button, string label)
         {
-            if (button != null) button.GetComponentInChildren<Text>().text = label;
+            if (button != null) button.GetComponentInChildren<TMP_Text>().text = label;
         }
 
         public void ShowCodexForCapture()
@@ -819,15 +826,20 @@ namespace NeonArcana
             overlay.GetComponent<Image>().color = new Color(0.005f, 0.008f, 0.035f, 0.9f);
 
             var card = CreateImage(overlay.transform, "Card", Color.white, new Vector2(0.07f, 0.15f), new Vector2(0.93f, 0.84f));
-            card.sprite = NeonAssets.VerticalGradientSprite(
+            card.gameObject.AddComponent<NeonGradientImage>().Configure(
                 new Color(0.075f, 0.055f, 0.176f, 0.86f),
                 new Color(0.012f, 0.02f, 0.063f, 0.9f));
             var outline = card.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.25f, 0.65f, 1f, 0.32f);
             outline.effectDistance = new Vector2(1.5f, -1.5f);
-            // 웹 원본 제목은 자간이 넓게 벌어져 있다. 레거시 Text에는 자간 옵션이 없어
-            // 글자 사이에 얇은 공백을 넣어 같은 인상을 만든다.
-            CreateText(card.transform, "Title", 42, TextAnchor.MiddleCenter, new Vector2(0.05f, 0.78f), new Vector2(0.95f, 0.91f), new Color(0.92f, 0.96f, 1f)).text = LetterSpaced(title);
+            // 웹 원본 제목은 자간이 넓게 벌어져 있다. TMP는 characterSpacing으로 그대로 낼 수 있어
+            // 예전의 얇은 공백 삽입 꼼수(LetterSpaced)를 쓰지 않는다.
+            var titleText = CreateText(card.transform, "Title", 60, TextAnchor.MiddleCenter, new Vector2(0.05f, 0.76f), new Vector2(0.95f, 0.93f), new Color(0.95f, 0.98f, 1f));
+            titleText.fontStyle = FontStyles.Bold;
+            titleText.enableAutoSizing = false;
+            titleText.characterSpacing = 8f;
+            titleText.text = title;
+            titleText.gameObject.AddComponent<NeonTextGlow>().Configure(new Color(0.35f, 0.7f, 1f), 0.4f, 0.6f);
             body = card.transform;
             return overlay;
         }
@@ -843,15 +855,18 @@ namespace NeonArcana
             rect.anchorMax = new Vector2(center + width * 0.5f, 0.68f);
             rect.offsetMin = new Vector2(8f, 8f);
             rect.offsetMax = new Vector2(-8f, -8f);
-            var image = buttonObject.GetComponent<Image>();
-            image.color = new Color(0.075f, 0.08f, 0.25f, 0.96f);
+            // 웹 원본의 술식 카드도 위가 밝은 보라, 아래가 남색인 그라디언트다.
+            buttonObject.AddComponent<NeonGradientImage>().Configure(
+                new Color(0.169f, 0.129f, 0.353f, 0.96f),
+                new Color(0.043f, 0.047f, 0.145f, 0.96f));
             var outline = buttonObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0.2f, 0.68f, 1f, 0.52f);
-            outline.effectDistance = new Vector2(1.5f, -1.5f);
+            outline.effectColor = new Color(0.35f, 0.72f, 1f, 0.58f);
+            outline.effectDistance = new Vector2(1.6f, -1.6f);
             var button = buttonObject.GetComponent<Button>();
             var colors = button.colors;
-            colors.highlightedColor = new Color(0.2f, 0.35f, 0.68f);
-            colors.pressedColor = new Color(0.48f, 0.15f, 0.62f);
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.14f, 1.14f, 1.28f);
+            colors.pressedColor = new Color(0.82f, 0.75f, 1f);
             button.colors = colors;
 
             CreateText(buttonObject.transform, "Icon", 36, TextAnchor.MiddleLeft, new Vector2(0.08f, 0.67f), new Vector2(0.92f, 0.88f), new Color(0.35f, 0.95f, 1f));
@@ -900,12 +915,9 @@ namespace NeonArcana
             rect.offsetMax = new Vector2(-5f, -5f);
             // 웹 원본의 선택 카드는 위에서 아래로 어두워지는 보라-남색 그라디언트에
             // 옅게 빛나는 테두리를 두른 형태다. 단색 사각형으로는 그 질감이 나오지 않는다.
-            var image = buttonObject.GetComponent<Image>();
-            image.sprite = NeonAssets.VerticalGradientSprite(
+            buttonObject.AddComponent<NeonGradientImage>().Configure(
                 new Color(0.239f, 0.176f, 0.451f, 0.96f),
                 new Color(0.055f, 0.055f, 0.157f, 0.96f));
-            image.type = Image.Type.Simple;
-            image.color = Color.white;
 
             var outline = buttonObject.AddComponent<Outline>();
             outline.effectColor = new Color(0.45f, 0.55f, 1f, 0.5f);
@@ -983,30 +995,27 @@ namespace NeonArcana
             return image;
         }
 
-        /// <summary>글자 사이에 헤어스페이스를 넣어 웹 원본의 넓은 자간을 흉내낸다.</summary>
-        private static string LetterSpaced(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return value;
-            return string.Join(" ", value.ToCharArray());
-        }
 
-        private static Text CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
+        private static TextMeshProUGUI CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
         {
-            var gameObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var gameObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             gameObject.transform.SetParent(parent, false);
             var rect = gameObject.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.offsetMin = rect.offsetMax = Vector2.zero;
-            var text = gameObject.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var text = gameObject.GetComponent<TextMeshProUGUI>();
+            text.font = NeonFonts.Primary();
             text.fontSize = fontSize;
-            text.alignment = alignment;
+            text.alignment = NeonUiText.MapAlignment(alignment);
             text.color = color;
-            text.supportRichText = true;
-            text.resizeTextForBestFit = true;
-            text.resizeTextMinSize = 16;
+            text.richText = true;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 16f;
+            text.fontSizeMax = fontSize;
             return text;
         }
+
+
     }
 }

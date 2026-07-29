@@ -26,7 +26,7 @@ namespace NeonArcana
             gameObject.name = "XP Shard";
             var gem = gameObject.GetComponent<ExperienceGem>();
             gem.ResolveVisuals();
-            gameObject.transform.localScale = new Vector3(0.16f, 0.24f, 1f);
+            gameObject.transform.localScale = new Vector3(0.34f, 0.5f, 1f);
             gameObject.SetActive(false);
             return gem;
         }
@@ -39,7 +39,7 @@ namespace NeonArcana
             gem.spriteRenderer.sprite = NeonAssets.DiamondSprite();
             gem.spriteRenderer.color = new Color(0.15f, 1f, 0.95f);
             gem.spriteRenderer.sortingOrder = 5;
-            gameObject.transform.localScale = new Vector3(0.16f, 0.24f, 1f);
+            gameObject.transform.localScale = new Vector3(0.34f, 0.5f, 1f);
             return gameObject;
         }
 

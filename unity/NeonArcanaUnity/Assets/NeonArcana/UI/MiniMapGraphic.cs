@@ -74,6 +74,24 @@ namespace NeonArcana
                     ringColor);
             }
 
+            // 웹 원본 레이더는 바깥 원 안쪽에 옅은 동심원이 하나 더 있다.
+            var innerRadius = radius * 0.68f;
+            var innerColor = new Color(ringColor.r, ringColor.g, ringColor.b, ringColor.a * 0.28f);
+            for (var i = 0; i < segments; i++)
+            {
+                var angleA = i * Mathf.PI * 2f / segments;
+                var angleB = (i + 1) * Mathf.PI * 2f / segments;
+                var directionA = new Vector2(Mathf.Cos(angleA), Mathf.Sin(angleA));
+                var directionB = new Vector2(Mathf.Cos(angleB), Mathf.Sin(angleB));
+                AddQuad(
+                    vertexHelper,
+                    center + directionA * (innerRadius - 1.4f),
+                    center + directionA * innerRadius,
+                    center + directionB * innerRadius,
+                    center + directionB * (innerRadius - 1.4f),
+                    innerColor);
+            }
+
             AddTriangle(
                 vertexHelper,
                 center + new Vector2(0f, 7f),

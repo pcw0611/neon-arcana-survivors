@@ -17,7 +17,8 @@ namespace NeonArcana
 
         [Header("World grid")]
         [SerializeField] private float gridSpacing = 0.72f;
-        [SerializeField] private Color gridColor = new(0.3f, 0.81f, 1f, 0.08f);
+        // 블룸이 들어오면서 격자가 배경보다 앞으로 튀어나와, 웹처럼 거의 안 보이는 수준으로 낮춘다.
+        [SerializeField] private Color gridColor = new(0.3f, 0.81f, 1f, 0.035f);
         [SerializeField] private float gridHalfWidth = 24f;
         [SerializeField] private float gridHalfHeight = 14f;
         [SerializeField] private int gridSortingOrder = -98;

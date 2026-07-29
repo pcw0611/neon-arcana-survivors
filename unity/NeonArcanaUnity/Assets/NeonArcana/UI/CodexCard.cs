@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,10 +7,10 @@ namespace NeonArcana
     public sealed class CodexCard : MonoBehaviour
     {
         [SerializeField] private Image background;
-        [SerializeField] private Text iconText;
-        [SerializeField] private Text nameText;
-        [SerializeField] private Text statusText;
-        [SerializeField] private Text descriptionText;
+        [SerializeField] private TMP_Text iconText;
+        [SerializeField] private TMP_Text nameText;
+        [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text descriptionText;
         [SerializeField] private Outline outline;
 
         public static GameObject CreateTemplate()
@@ -48,24 +49,27 @@ namespace NeonArcana
             descriptionText.color = locked ? new Color(0.46f, 0.51f, 0.61f) : new Color(0.74f, 0.8f, 0.92f);
         }
 
-        private static Text CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
+        private static TextMeshProUGUI CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
         {
-            var child = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var child = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             child.transform.SetParent(parent, false);
             var rect = child.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.offsetMin = rect.offsetMax = Vector2.zero;
-            var text = child.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var text = child.GetComponent<TextMeshProUGUI>();
+            text.font = NeonFonts.Primary();
             text.fontSize = fontSize;
-            text.alignment = alignment;
+            text.alignment = NeonUiText.MapAlignment(alignment);
             text.color = color;
-            text.supportRichText = true;
-            text.resizeTextForBestFit = true;
-            text.resizeTextMinSize = 12;
+            text.richText = true;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 12f;
+            text.fontSizeMax = fontSize;
             text.raycastTarget = false;
             return text;
         }
+
+
     }
 }

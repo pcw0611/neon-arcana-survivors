@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,7 +15,7 @@ namespace NeonArcana
             Classes
         }
 
-        [SerializeField] private Text summaryText;
+        [SerializeField] private TMP_Text summaryText;
         [SerializeField] private RectTransform contentRoot;
         [SerializeField] private ScrollRect scrollRect;
         [SerializeField] private Button buildsTab;
@@ -253,7 +254,7 @@ namespace NeonArcana
         private static void SetTab(Button button, bool active)
         {
             button.GetComponent<Image>().color = active ? new Color(0.08f, 0.35f, 0.52f, 0.98f) : new Color(0.035f, 0.09f, 0.18f, 0.96f);
-            button.GetComponentInChildren<Text>().color = active ? Color.white : new Color(0.65f, 0.72f, 0.84f);
+            button.GetComponentInChildren<TMP_Text>().color = active ? Color.white : new Color(0.65f, 0.72f, 0.84f);
         }
 
         private static string UpgradeName(string id)
@@ -276,21 +277,22 @@ namespace NeonArcana
             return image;
         }
 
-        private static Text CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
+        private static TextMeshProUGUI CreateText(Transform parent, string name, int fontSize, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Color color)
         {
-            var child = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var child = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             child.transform.SetParent(parent, false);
             var rect = child.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.offsetMin = rect.offsetMax = Vector2.zero;
-            var text = child.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var text = child.GetComponent<TextMeshProUGUI>();
+            text.font = NeonFonts.Primary();
             text.fontSize = fontSize;
-            text.alignment = alignment;
+            text.alignment = NeonUiText.MapAlignment(alignment);
             text.color = color;
-            text.resizeTextForBestFit = true;
-            text.resizeTextMinSize = 12;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 12f;
+            text.fontSizeMax = fontSize;
             text.raycastTarget = false;
             return text;
         }
@@ -309,5 +311,7 @@ namespace NeonArcana
             CreateText(image.transform, "Label", 23, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Color.white).text = label;
             return button;
         }
+
+
     }
 }

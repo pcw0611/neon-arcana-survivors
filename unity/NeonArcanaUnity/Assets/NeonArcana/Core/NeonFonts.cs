@@ -20,6 +20,11 @@ namespace NeonArcana
             if (resolved) return cached;
             resolved = true;
 
+            // 에디터에서 미리 구워둔 폰트 에셋을 우선 쓴다.
+            // 런타임 생성 폰트는 디스크에 없어 프리팹 직렬화에서 사라지므로, 이 경로가 정상 경로다.
+            cached = Resources.Load<TMP_FontAsset>("Fonts/NeonArcanaKoreanSDF");
+            if (cached != null) return cached;
+
             var source = Resources.Load<Font>("Fonts/NeonArcanaKorean");
             if (source == null)
             {

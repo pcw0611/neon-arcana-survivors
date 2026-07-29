@@ -19,3 +19,13 @@
 *.mdb
 *.opendb
 *.VC.db
+
+# 시스템 폰트 원본(맑은 고딕 / Segoe UI Symbol)은 Windows 라이선스 폰트라 저장소에 담지 않는다.
+# .meta는 커밋해 GUID를 고정하고, 실제 .ttf는 아래 배치로 로컬 Windows에서 복사해 굽는다.
+#   Unity.exe -batchmode -quit -nographics -projectPath . \
+#     -executeMethod NeonArcana.Editor.NeonFontAssetBuilder.BuildBatch
+# (에디터에서는 메뉴 Neon Arcana > Fonts > Rebuild TMP Font Assets)
+/Assets/Resources/Fonts/*.ttf
+
+# 배치 실행 로그
+/*.log
